@@ -1,0 +1,116 @@
+# 运维堡垒机系统配置文件
+app:
+  name: "bastion"
+  version: "1.0.0"
+  mode: "debug"  # debug, release, test
+  port: 8080
+  host: "0.0.0.0"
+
+# 数据库配置
+database:
+  type: "mysql"
+  host: "10.0.0.7"
+  port: 3306
+  username: "root"
+  password: "password123"
+  dbname: "bastion"
+  charset: "utf8mb4"
+  parseTime: true
+  loc: "Local"
+  maxIdleConns: 10
+  maxOpenConns: 100
+  connMaxLifetime: 3600 # 秒
+
+# Redis配置
+redis:
+  host: "10.0.0.7"
+  port: 6379
+  password: ""
+  db: 0
+  poolSize: 100
+  minIdleConns: 10
+
+# JWT配置
+jwt:
+  secret: "bastion-jwt-secret-key-2024"
+  expire: 86400 # 24小时，单位秒
+  issuer: "bastion"
+
+# 日志配置
+log:
+  level: "debug"  # debug, info, warn, error
+  format: "json"  # json, text
+  output: "stdout" # stdout, file
+  file:
+    path: "./logs/app.log"
+    maxSize: 100    # MB
+    maxBackups: 10
+    maxAge: 30      # 天
+    compress: true
+
+# SSH配置
+ssh:
+  timeout: 30     # 连接超时时间，秒
+  keepalive: 60   # 心跳间隔，秒
+  maxSessions: 100 # 最大并发会话数
+
+# 会话配置
+session:
+  timeout: 3600   # 会话超时时间，秒
+  recordPath: "./recordings" # 会话录制文件路径
+  enableRecord: true # 是否启用会话录制
+
+# 安全配置
+security:
+  enableRateLimit: true
+  rateLimit:
+    requests: 100   # 每分钟请求数限制
+    burst: 10       # 突发请求数
+  cors:
+    allowOrigins: ["http://localhost:3000", "http://127.0.0.1:3000"]
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowHeaders: ["Content-Type", "Authorization"]
+    exposeHeaders: ["Content-Length"]
+    allowCredentials: true
+    maxAge: 3600
+
+# 文件上传配置
+upload:
+  maxSize: 10     # MB
+  allowTypes: [".jpg", ".png", ".gif", ".pdf", ".txt"]
+  savePath: "./uploads"
+
+# 监控配置
+monitoring:
+  enableMetrics: true
+  metricsPath: "/metrics"
+  enableHealth: true
+  healthPath: "/health"
+
+# 通知配置
+notification:
+  email:
+    smtp:
+      host: "smtp.example.com"
+      port: 587
+      username: "noreply@example.com"
+      password: "password"
+    from: "noreply@example.com"
+  webhook:
+    url: "https://hooks.slack.com/services/xxx"
+    timeout: 10
+
+# 审计配置
+audit:
+  enableOperationLog: true
+  enableSessionRecord: true
+  retentionDays: 90   # 日志保留天数
+  dangerousCommands:  # 危险命令列表
+    - "rm -rf"
+    - "mkfs"
+    - "dd if="
+    - "iptables -F"
+    - "shutdown"
+    - "reboot"
+    - "passwd"
+    - "userdel" 

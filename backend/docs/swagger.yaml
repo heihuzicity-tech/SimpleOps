@@ -1,0 +1,145 @@
+basePath: /api/v1
+definitions:
+  models.UserLoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: 企业级运维堡垒机系统，提供SSH代理、用户管理、权限控制、审计日志等功能
+  license:
+    name: MIT
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: 运维堡垒机系统API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 用户使用用户名和密码登录系统
+      parameters:
+      - description: 登录请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UserLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 登录成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 请求格式错误
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 用户名或密码错误
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 用户登录
+      tags:
+      - 认证
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: 用户登出系统，将token加入黑名单
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 登出成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 请求格式错误
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 服务器错误
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 用户登出
+      tags:
+      - 认证
+  /auth/profile:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前登录用户的详细资料
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 服务器错误
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取用户资料
+      tags:
+      - 认证
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: 使用现有的访问令牌获取新的访问令牌
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 刷新成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 请求格式错误
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 令牌无效
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 刷新访问令牌
+      tags:
+      - 认证
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

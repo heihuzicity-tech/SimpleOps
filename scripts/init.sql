@@ -17,9 +17,11 @@ CREATE TABLE IF NOT EXISTS `users` (
   `status` tinyint DEFAULT 1 COMMENT '状态: 1-启用, 0-禁用',
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_username` (`username`),
-  KEY `idx_status` (`status`)
+  KEY `idx_status` (`status`),
+  KEY `idx_deleted_at` (`deleted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
 -- 角色表
@@ -30,8 +32,10 @@ CREATE TABLE IF NOT EXISTS `roles` (
   `permissions` json DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `idx_role_name` (`name`)
+  UNIQUE KEY `idx_role_name` (`name`),
+  KEY `idx_deleted_at` (`deleted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色表';
 
 -- 用户角色关联表
@@ -137,8 +141,9 @@ ON DUPLICATE KEY UPDATE
 `permissions` = VALUES(`permissions`);
 
 -- 默认管理员用户 (密码: admin123)
+-- 新的密码哈希
 INSERT INTO `users` (`username`, `password`, `email`, `status`) VALUES 
-('admin', '$2a$10$8X8Z8Z8Z8Z8Z8Z8Z8Z8Z8u...', 'admin@bastion.local', 1)
+('admin', '$2a$10$x/i8F9qXh.tmIbwkLROCyeQleavmD4t0qR2BBQJ2cs57DvwaLbTs.', 'admin@bastion.local', 1)
 ON DUPLICATE KEY UPDATE 
 `email` = VALUES(`email`),
 `status` = VALUES(`status`);
