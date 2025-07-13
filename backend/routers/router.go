@@ -30,12 +30,14 @@ func SetupRouter() *gin.Engine {
 	userService := services.NewUserService(utils.GetDB())
 	roleService := services.NewRoleService(utils.GetDB())
 	assetService := services.NewAssetService(utils.GetDB())
+	sshService := services.NewSSHService(utils.GetDB())
 
 	// 创建控制器实例
 	authController := controllers.NewAuthController(authService)
 	userController := controllers.NewUserController(userService)
 	roleController := controllers.NewRoleController(roleService)
 	assetController := controllers.NewAssetController(assetService)
+	sshController := controllers.NewSSHController(sshService)
 
 	// API路由组
 	api := router.Group("/api/v1")
@@ -114,6 +116,19 @@ func SetupRouter() *gin.Engine {
 				credentials.GET("/:id", assetController.GetCredential)
 				credentials.PUT("/:id", middleware.RequirePermission("asset:update"), assetController.UpdateCredential)
 				credentials.DELETE("/:id", middleware.RequirePermission("asset:delete"), assetController.DeleteCredential)
+			}
+
+			// SSH会话管理路由（需要连接权限）
+			ssh := authenticated.Group("/ssh")
+			ssh.Use(middleware.RequirePermission("asset:connect"))
+			{
+				ssh.POST("/sessions", sshController.CreateSession)
+				ssh.GET("/sessions", sshController.GetSessions)
+				ssh.GET("/sessions/:id", sshController.GetSessionInfo)
+				ssh.DELETE("/sessions/:id", sshController.CloseSession)
+				ssh.POST("/sessions/:id/resize", sshController.ResizeSession)
+				ssh.GET("/sessions/:id/ws", sshController.HandleWebSocket)
+				ssh.POST("/keypair", sshController.GenerateKeyPair)
 			}
 		}
 	}

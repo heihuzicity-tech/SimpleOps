@@ -4,7 +4,9 @@ import (
 	"bastion/config"
 	_ "bastion/docs" // 导入swagger文档
 	"bastion/routers"
+	"bastion/services"
 	"bastion/utils"
+	"context"
 	"log"
 	"os"
 	"os/signal"
@@ -79,6 +81,15 @@ func main() {
 	// 设置信号处理
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// 启动SSH服务的会话清理任务
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// 从路由器中获取SSH服务（需要修改路由器以暴露服务）
+	// 这里暂时创建一个临时的SSH服务实例用于清理任务
+	sshService := services.NewSSHService(utils.GetDB())
+	go sshService.StartSessionCleanup(ctx)
 
 	// 启动服务器
 	go func() {
