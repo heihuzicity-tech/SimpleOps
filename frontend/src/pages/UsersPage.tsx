@@ -1,0 +1,331 @@
+import React, { useEffect, useState } from 'react';
+import {
+  Table,
+  Button,
+  Space,
+  Card,
+  Input,
+  Modal,
+  Form,
+  Select,
+  Tag,
+  message,
+  Popconfirm,
+  Badge,
+} from 'antd';
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '../store';
+import { fetchUsers, createUser, updateUser, deleteUser } from '../store/userSlice';
+import { getRoles } from '../services/userAPI';
+
+const { Search } = Input;
+const { Option } = Select;
+
+const UsersPage: React.FC = () => {
+  const dispatch = useDispatch<AppDispatch>();
+  const { users, total, loading } = useSelector((state: RootState) => state.user);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [form] = Form.useForm();
+  const [roles, setRoles] = useState<any[]>([]);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
+
+  useEffect(() => {
+    loadUsers();
+    loadRoles();
+  }, []);
+
+  const loadUsers = () => {
+    dispatch(fetchUsers({
+      page: pagination.current,
+      limit: pagination.pageSize,
+      keyword: searchKeyword,
+    }));
+  };
+
+  const loadRoles = async () => {
+    try {
+      const response = await getRoles();
+      // 后端返回的数据格式是 {data: {pagination: {...}, roles: [...]}}
+      setRoles(response.data.data.roles || []);
+    } catch (error) {
+      console.error('加载角色失败:', error);
+      setRoles([]); // 确保即使出错也设置为空数组
+    }
+  };
+
+  const handleAdd = () => {
+    setEditingUser(null);
+    setIsModalVisible(true);
+    form.resetFields();
+  };
+
+  const handleEdit = (user: any) => {
+    setEditingUser(user);
+    setIsModalVisible(true);
+    form.setFieldsValue({
+      ...user,
+      role_ids: (user.roles || []).map((role: any) => role.id),
+    });
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await dispatch(deleteUser(id)).unwrap();
+      loadUsers();
+    } catch (error) {
+      console.error('删除用户失败:', error);
+    }
+  };
+
+  const handleSubmit = async (values: any) => {
+    try {
+      if (editingUser) {
+        await dispatch(updateUser({ id: editingUser.id, userData: values })).unwrap();
+      } else {
+        await dispatch(createUser(values)).unwrap();
+      }
+      setIsModalVisible(false);
+      loadUsers();
+    } catch (error) {
+      console.error('保存用户失败:', error);
+    }
+  };
+
+  const handleSearch = (value: string) => {
+    setSearchKeyword(value);
+    setPagination({ ...pagination, current: 1 });
+    dispatch(fetchUsers({
+      page: 1,
+      limit: pagination.pageSize,
+      keyword: value,
+    }));
+  };
+
+  const columns = [
+    {
+      title: 'ID',
+      dataIndex: 'id',
+      key: 'id',
+      width: 80,
+    },
+    {
+      title: '用户名',
+      dataIndex: 'username',
+      key: 'username',
+    },
+    {
+      title: '邮箱',
+      dataIndex: 'email',
+      key: 'email',
+    },
+    {
+      title: '角色',
+      dataIndex: 'roles',
+      key: 'roles',
+      render: (roles: any[]) => (
+        <Space wrap>
+          {(roles || []).map((role) => (
+            <Tag key={role.id} color="blue">
+              {role.name}
+            </Tag>
+          ))}
+        </Space>
+      ),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) => (
+        <Badge
+          status={status === 'active' ? 'success' : 'error'}
+          text={status === 'active' ? '活跃' : '禁用'}
+        />
+      ),
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (text: string) => new Date(text).toLocaleString(),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: (text: any, record: any) => (
+        <Space size="middle">
+          <Button
+            type="text"
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+          >
+            编辑
+          </Button>
+          <Popconfirm
+            title="确定要删除这个用户吗？"
+            onConfirm={() => handleDelete(record.id)}
+          >
+            <Button type="text" danger icon={<DeleteOutlined />}>
+              删除
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <Card>
+        <div style={{ marginBottom: 16 }}>
+          <Space>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleAdd}
+            >
+              新增用户
+            </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={loadUsers}
+            >
+              刷新
+            </Button>
+          </Space>
+          <div style={{ float: 'right' }}>
+            <Search
+              placeholder="搜索用户名或邮箱"
+              allowClear
+              onSearch={handleSearch}
+              style={{ width: 300 }}
+            />
+          </div>
+        </div>
+
+        <Table
+          columns={columns}
+          dataSource={users}
+          loading={loading}
+          rowKey="id"
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: total,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条 / 共 ${total} 条`,
+            onChange: (page, pageSize) => {
+              setPagination({ current: page, pageSize: pageSize || 10 });
+              dispatch(fetchUsers({
+                page,
+                limit: pageSize || 10,
+                keyword: searchKeyword,
+              }));
+            },
+          }}
+        />
+      </Card>
+
+      <Modal
+        title={editingUser ? '编辑用户' : '新增用户'}
+        open={isModalVisible}
+        onCancel={() => setIsModalVisible(false)}
+        footer={null}
+        width={600}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSubmit}
+        >
+          <Form.Item
+            label="用户名"
+            name="username"
+            rules={[
+              { required: true, message: '请输入用户名' },
+              { min: 3, max: 50, message: '用户名长度为3-50个字符' },
+            ]}
+          >
+            <Input placeholder="请输入用户名" />
+          </Form.Item>
+
+          <Form.Item
+            label="邮箱"
+            name="email"
+            rules={[
+              { required: true, message: '请输入邮箱' },
+              { type: 'email', message: '请输入有效的邮箱地址' },
+            ]}
+          >
+            <Input placeholder="请输入邮箱" />
+          </Form.Item>
+
+          {!editingUser && (
+            <Form.Item
+              label="密码"
+              name="password"
+              rules={[
+                { required: true, message: '请输入密码' },
+                { min: 6, message: '密码至少6个字符' },
+              ]}
+            >
+              <Input.Password placeholder="请输入密码" />
+            </Form.Item>
+          )}
+
+          <Form.Item
+            label="角色"
+            name="role_ids"
+            rules={[{ required: true, message: '请选择角色' }]}
+          >
+            <Select
+              mode="multiple"
+              placeholder="请选择角色"
+              style={{ width: '100%' }}
+            >
+              {roles.map((role) => (
+                <Option key={role.id} value={role.id}>
+                  {role.name} - {role.description}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            label="状态"
+            name="status"
+            initialValue="active"
+          >
+            <Select>
+              <Option value="active">活跃</Option>
+              <Option value="inactive">禁用</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item>
+            <Space>
+              <Button type="primary" htmlType="submit">
+                {editingUser ? '更新' : '创建'}
+              </Button>
+              <Button onClick={() => setIsModalVisible(false)}>
+                取消
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  );
+};
+
+export default UsersPage; 
