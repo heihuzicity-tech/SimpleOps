@@ -16,7 +16,7 @@ export interface User {
 
 export interface GetUsersParams {
   page?: number;
-  limit?: number;
+  page_size?: number;
   keyword?: string;
 }
 

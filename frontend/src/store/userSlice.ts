@@ -33,7 +33,7 @@ const initialState: UserState = {
 // 异步actions
 export const fetchUsers = createAsyncThunk(
   'user/fetchUsers',
-  async (params: { page?: number; limit?: number; keyword?: string }) => {
+  async (params: { page?: number; page_size?: number; keyword?: string }) => {
     const response = await userAPI.getUsers(params);
     // 后端返回的数据格式是 {data: {page: ..., users: [...], total: ...}}
     return response.data.data;

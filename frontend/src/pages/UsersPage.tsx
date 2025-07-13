@@ -46,7 +46,7 @@ const UsersPage: React.FC = () => {
   const loadUsers = () => {
     dispatch(fetchUsers({
       page: pagination.current,
-      limit: pagination.pageSize,
+      page_size: pagination.pageSize,
       keyword: searchKeyword,
     }));
   };
@@ -115,7 +115,7 @@ const UsersPage: React.FC = () => {
     setPagination({ ...pagination, current: 1 });
     dispatch(fetchUsers({
       page: 1,
-      limit: pagination.pageSize,
+      page_size: pagination.pageSize,
       keyword: value,
     }));
   };
@@ -174,6 +174,7 @@ const UsersPage: React.FC = () => {
       render: (text: any, record: any) => (
         <Space size="middle">
           <Button
+            key="edit"
             type="text"
             icon={<EditOutlined />}
             onClick={() => handleEdit(record)}
@@ -181,6 +182,7 @@ const UsersPage: React.FC = () => {
             编辑
           </Button>
           <Popconfirm
+            key="delete"
             title="确定要删除这个用户吗？"
             onConfirm={() => handleDelete(record.id)}
           >
@@ -199,6 +201,7 @@ const UsersPage: React.FC = () => {
         <div style={{ marginBottom: 16 }}>
           <Space>
             <Button
+              key="add"
               type="primary"
               icon={<PlusOutlined />}
               onClick={handleAdd}
@@ -206,6 +209,7 @@ const UsersPage: React.FC = () => {
               新增用户
             </Button>
             <Button
+              key="refresh"
               icon={<ReloadOutlined />}
               onClick={loadUsers}
             >
@@ -238,7 +242,7 @@ const UsersPage: React.FC = () => {
               setPagination({ current: page, pageSize: pageSize || 10 });
               dispatch(fetchUsers({
                 page,
-                limit: pageSize || 10,
+                page_size: pageSize || 10,
                 keyword: searchKeyword,
               }));
             },
@@ -324,10 +328,10 @@ const UsersPage: React.FC = () => {
 
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit">
+              <Button key="submit" type="primary" htmlType="submit">
                 {editingUser ? '更新' : '创建'}
               </Button>
-              <Button onClick={() => setIsModalVisible(false)}>
+              <Button key="cancel" onClick={() => setIsModalVisible(false)}>
                 取消
               </Button>
             </Space>

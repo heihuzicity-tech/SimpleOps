@@ -253,8 +253,8 @@ type Asset struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 
-	// 关联关系
-	Credentials []Credential `json:"credentials" gorm:"foreignKey:AssetID"`
+	// 关联关系 - 多对多
+	Credentials []Credential `json:"credentials" gorm:"many2many:asset_credentials"`
 }
 
 // Credential 凭证模型
@@ -265,13 +265,23 @@ type Credential struct {
 	Username   string         `json:"username" gorm:"size:100"`
 	Password   string         `json:"password" gorm:"size:255"`
 	PrivateKey string         `json:"private_key" gorm:"type:text"`
-	AssetID    uint           `json:"asset_id" gorm:"not null"`
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
 	DeletedAt  gorm.DeletedAt `json:"-" gorm:"index"`
 
+	// 关联关系 - 多对多
+	Assets []Asset `json:"assets" gorm:"many2many:asset_credentials"`
+}
+
+// AssetCredential 资产凭证关联表
+type AssetCredential struct {
+	AssetID      uint      `json:"asset_id" gorm:"primaryKey"`
+	CredentialID uint      `json:"credential_id" gorm:"primaryKey"`
+	CreatedAt    time.Time `json:"created_at"`
+
 	// 关联关系
-	Asset Asset `json:"asset" gorm:"foreignKey:AssetID"`
+	Asset      Asset      `json:"asset" gorm:"foreignKey:AssetID"`
+	Credential Credential `json:"credential" gorm:"foreignKey:CredentialID"`
 }
 
 // AssetGroup 资产分组模型
@@ -289,23 +299,25 @@ type AssetGroup struct {
 
 // AssetCreateRequest 资产创建请求
 type AssetCreateRequest struct {
-	Name     string `json:"name" binding:"required,min=1,max=100"`
-	Type     string `json:"type" binding:"required,oneof=server database"`
-	Address  string `json:"address" binding:"required,min=1,max=255"`
-	Port     int    `json:"port" binding:"required,min=1,max=65535"`
-	Protocol string `json:"protocol" binding:"required,oneof=ssh rdp vnc mysql postgresql"`
-	Tags     string `json:"tags"`
+	Name          string `json:"name" binding:"required,min=1,max=100"`
+	Type          string `json:"type" binding:"required,oneof=server database"`
+	Address       string `json:"address" binding:"required,min=1,max=255"`
+	Port          int    `json:"port" binding:"required,min=1,max=65535"`
+	Protocol      string `json:"protocol" binding:"required,oneof=ssh rdp vnc mysql postgresql"`
+	Tags          string `json:"tags"`
+	CredentialIDs []uint `json:"credential_ids" binding:"omitempty"` // 可选的凭证ID列表
 }
 
 // AssetUpdateRequest 资产更新请求
 type AssetUpdateRequest struct {
-	Name     string `json:"name" binding:"omitempty,min=1,max=100"`
-	Type     string `json:"type" binding:"omitempty,oneof=server database"`
-	Address  string `json:"address" binding:"omitempty,min=1,max=255"`
-	Port     int    `json:"port" binding:"omitempty,min=1,max=65535"`
-	Protocol string `json:"protocol" binding:"omitempty,oneof=ssh rdp vnc mysql postgresql"`
-	Tags     string `json:"tags"`
-	Status   *int   `json:"status" binding:"omitempty,oneof=0 1"`
+	Name          string `json:"name" binding:"omitempty,min=1,max=100"`
+	Type          string `json:"type" binding:"omitempty,oneof=server database"`
+	Address       string `json:"address" binding:"omitempty,min=1,max=255"`
+	Port          int    `json:"port" binding:"omitempty,min=1,max=65535"`
+	Protocol      string `json:"protocol" binding:"omitempty,oneof=ssh rdp vnc mysql postgresql"`
+	Tags          string `json:"tags"`
+	Status        *int   `json:"status" binding:"omitempty,oneof=0 1"`
+	CredentialIDs []uint `json:"credential_ids" binding:"omitempty"` // 可选的凭证ID列表
 }
 
 // AssetResponse 资产响应
@@ -340,7 +352,7 @@ type CredentialCreateRequest struct {
 	Username   string `json:"username" binding:"required,min=1,max=100"`
 	Password   string `json:"password"`
 	PrivateKey string `json:"private_key"`
-	AssetID    uint   `json:"asset_id" binding:"required"`
+	AssetIDs   []uint `json:"asset_ids" binding:"required,min=1"`
 }
 
 // CredentialUpdateRequest 凭证更新请求
@@ -354,14 +366,13 @@ type CredentialUpdateRequest struct {
 
 // CredentialResponse 凭证响应
 type CredentialResponse struct {
-	ID        uint      `json:"id"`
-	Name      string    `json:"name"`
-	Type      string    `json:"type"`
-	Username  string    `json:"username"`
-	AssetID   uint      `json:"asset_id"`
-	AssetName string    `json:"asset_name,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        uint            `json:"id"`
+	Name      string          `json:"name"`
+	Type      string          `json:"type"`
+	Username  string          `json:"username"`
+	Assets    []AssetResponse `json:"assets,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 // CredentialListRequest 凭证列表请求
@@ -370,7 +381,7 @@ type CredentialListRequest struct {
 	PageSize int    `form:"page_size" binding:"omitempty,min=1,max=100"`
 	Keyword  string `form:"keyword" binding:"omitempty,max=50"`
 	Type     string `form:"type" binding:"omitempty,oneof=password key"`
-	AssetID  uint   `form:"asset_id" binding:"omitempty"`
+	AssetID  uint   `form:"asset_id" binding:"omitempty"` // 保留用于过滤
 }
 
 // ConnectionTestRequest 连接测试请求
@@ -396,6 +407,10 @@ func (Asset) TableName() string {
 
 func (Credential) TableName() string {
 	return "credentials"
+}
+
+func (AssetCredential) TableName() string {
+	return "asset_credentials"
 }
 
 func (AssetGroup) TableName() string {
@@ -425,13 +440,16 @@ func (c *Credential) ToResponse() *CredentialResponse {
 		Name:      c.Name,
 		Type:      c.Type,
 		Username:  c.Username,
-		AssetID:   c.AssetID,
 		CreatedAt: c.CreatedAt,
 		UpdatedAt: c.UpdatedAt,
 	}
 
-	if c.Asset.ID > 0 {
-		resp.AssetName = c.Asset.Name
+	// 转换关联的资产
+	if len(c.Assets) > 0 {
+		resp.Assets = make([]AssetResponse, len(c.Assets))
+		for i, asset := range c.Assets {
+			resp.Assets[i] = *asset.ToResponse()
+		}
 	}
 
 	return resp

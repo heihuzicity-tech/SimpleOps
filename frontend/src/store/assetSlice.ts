@@ -40,7 +40,7 @@ interface NormalizedAssetsResponse {
 // 异步actions
 export const fetchAssets = createAsyncThunk(
   'asset/fetchAssets',
-  async (params: { page?: number; limit?: number; keyword?: string; type?: string }): Promise<NormalizedAssetsResponse> => {
+  async (params: { page?: number; page_size?: number; keyword?: string; type?: string }): Promise<NormalizedAssetsResponse> => {
     const response = await assetAPI.getAssets(params);
     // 适配后端返回的数据结构
     if (response.data && response.data.data) {

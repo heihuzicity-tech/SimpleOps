@@ -31,6 +31,17 @@ func (s *AssetService) CreateAsset(request *models.AssetCreateRequest) (*models.
 		return nil, fmt.Errorf("failed to check asset name: %w", err)
 	}
 
+	// 如果指定了凭证ID，检查凭证是否存在
+	var credentials []models.Credential
+	if len(request.CredentialIDs) > 0 {
+		if err := s.db.Where("id IN ?", request.CredentialIDs).Find(&credentials).Error; err != nil {
+			return nil, fmt.Errorf("failed to check credentials: %w", err)
+		}
+		if len(credentials) != len(request.CredentialIDs) {
+			return nil, errors.New("some credentials not found")
+		}
+	}
+
 	// 创建资产
 	asset := models.Asset{
 		Name:     request.Name,
@@ -42,8 +53,26 @@ func (s *AssetService) CreateAsset(request *models.AssetCreateRequest) (*models.
 		Status:   1, // 默认启用
 	}
 
-	if err := s.db.Create(&asset).Error; err != nil {
+	// 使用事务创建资产及其关联
+	tx := s.db.Begin()
+	if err := tx.Create(&asset).Error; err != nil {
+		tx.Rollback()
 		return nil, fmt.Errorf("failed to create asset: %w", err)
+	}
+
+	// 关联凭证
+	if len(credentials) > 0 {
+		if err := tx.Model(&asset).Association("Credentials").Append(credentials); err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("failed to associate credentials: %w", err)
+		}
+	}
+
+	tx.Commit()
+
+	// 重新查询包含关联数据的资产
+	if err := s.db.Preload("Credentials").Where("id = ?", asset.ID).First(&asset).Error; err != nil {
+		return nil, fmt.Errorf("failed to query created asset: %w", err)
 	}
 
 	return asset.ToResponse(), nil
@@ -188,10 +217,10 @@ func (s *AssetService) DeleteAsset(id uint) error {
 		}
 	}()
 
-	// 删除关联的凭证
-	if err := tx.Where("asset_id = ?", id).Delete(&models.Credential{}).Error; err != nil {
+	// 删除资产与凭证的关联关系（中间表记录）
+	if err := tx.Where("asset_id = ?", id).Delete(&models.AssetCredential{}).Error; err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to delete credentials: %w", err)
+		return fmt.Errorf("failed to delete asset-credential associations: %w", err)
 	}
 
 	// 软删除资产
@@ -219,12 +248,12 @@ func (s *AssetService) CreateCredential(request *models.CredentialCreateRequest)
 	}
 
 	// 检查资产是否存在
-	var asset models.Asset
-	if err := s.db.Where("id = ?", request.AssetID).First(&asset).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("asset not found")
-		}
-		return nil, fmt.Errorf("failed to check asset: %w", err)
+	var assets []models.Asset
+	if err := s.db.Where("id IN ?", request.AssetIDs).Find(&assets).Error; err != nil {
+		return nil, fmt.Errorf("failed to check assets: %w", err)
+	}
+	if len(assets) != len(request.AssetIDs) {
+		return nil, errors.New("some assets not found")
 	}
 
 	// 加密密码
@@ -244,15 +273,25 @@ func (s *AssetService) CreateCredential(request *models.CredentialCreateRequest)
 		Username:   request.Username,
 		Password:   encryptedPassword,
 		PrivateKey: request.PrivateKey,
-		AssetID:    request.AssetID,
 	}
 
-	if err := s.db.Create(&credential).Error; err != nil {
+	// 使用事务创建凭证及其关联
+	tx := s.db.Begin()
+	if err := tx.Create(&credential).Error; err != nil {
+		tx.Rollback()
 		return nil, fmt.Errorf("failed to create credential: %w", err)
 	}
 
+	// 关联资产
+	if err := tx.Model(&credential).Association("Assets").Append(assets); err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("failed to associate assets: %w", err)
+	}
+
+	tx.Commit()
+
 	// 预加载资产信息
-	if err := s.db.Preload("Asset").Where("id = ?", credential.ID).First(&credential).Error; err != nil {
+	if err := s.db.Preload("Assets").Where("id = ?", credential.ID).First(&credential).Error; err != nil {
 		return nil, fmt.Errorf("failed to query created credential: %w", err)
 	}
 
@@ -277,9 +316,10 @@ func (s *AssetService) GetCredentials(request *models.CredentialListRequest) ([]
 		query = query.Where("type = ?", request.Type)
 	}
 
-	// 资产过滤
+	// 资产过滤 - 通过连接表查询
 	if request.AssetID > 0 {
-		query = query.Where("asset_id = ?", request.AssetID)
+		query = query.Joins("JOIN asset_credentials ON credentials.id = asset_credentials.credential_id").
+			Where("asset_credentials.asset_id = ?", request.AssetID)
 	}
 
 	// 计算总数
@@ -294,7 +334,7 @@ func (s *AssetService) GetCredentials(request *models.CredentialListRequest) ([]
 	}
 
 	// 查询凭证，预加载资产
-	if err := query.Preload("Asset").Find(&credentials).Error; err != nil {
+	if err := query.Preload("Assets").Find(&credentials).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to query credentials: %w", err)
 	}
 
@@ -310,7 +350,7 @@ func (s *AssetService) GetCredentials(request *models.CredentialListRequest) ([]
 // GetCredential 获取单个凭证
 func (s *AssetService) GetCredential(id uint) (*models.CredentialResponse, error) {
 	var credential models.Credential
-	if err := s.db.Preload("Asset").Where("id = ?", id).First(&credential).Error; err != nil {
+	if err := s.db.Preload("Assets").Where("id = ?", id).First(&credential).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("credential not found")
 		}
@@ -360,7 +400,7 @@ func (s *AssetService) UpdateCredential(id uint, request *models.CredentialUpdat
 	}
 
 	// 重新查询凭证，包含资产信息
-	if err := s.db.Preload("Asset").Where("id = ?", id).First(&credential).Error; err != nil {
+	if err := s.db.Preload("Assets").Where("id = ?", id).First(&credential).Error; err != nil {
 		return nil, fmt.Errorf("failed to query updated credential: %w", err)
 	}
 
@@ -397,18 +437,25 @@ func (s *AssetService) TestConnection(request *models.ConnectionTestRequest) (*m
 		return nil, fmt.Errorf("failed to query asset: %w", err)
 	}
 
-	// 获取凭证信息
+	// 获取凭证信息并检查是否与资产关联
 	var credential models.Credential
-	if err := s.db.Where("id = ?", request.CredentialID).First(&credential).Error; err != nil {
+	if err := s.db.Preload("Assets").Where("id = ?", request.CredentialID).First(&credential).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("credential not found")
 		}
 		return nil, fmt.Errorf("failed to query credential: %w", err)
 	}
 
-	// 检查凭证是否属于该资产
-	if credential.AssetID != asset.ID {
-		return nil, errors.New("credential does not belong to the asset")
+	// 检查凭证是否与该资产关联
+	var hasAssociation bool
+	for _, assocAsset := range credential.Assets {
+		if assocAsset.ID == asset.ID {
+			hasAssociation = true
+			break
+		}
+	}
+	if !hasAssociation {
+		return nil, errors.New("credential is not associated with the asset")
 	}
 
 	// 执行连接测试
@@ -569,7 +616,10 @@ func (s *AssetService) GetAssetByName(name string) (*models.Asset, error) {
 // GetCredentialsByAssetID 根据资产ID获取凭证列表
 func (s *AssetService) GetCredentialsByAssetID(assetID uint) ([]*models.CredentialResponse, error) {
 	var credentials []models.Credential
-	if err := s.db.Preload("Asset").Where("asset_id = ?", assetID).Find(&credentials).Error; err != nil {
+	if err := s.db.Preload("Assets").
+		Joins("JOIN asset_credentials ON credentials.id = asset_credentials.credential_id").
+		Where("asset_credentials.asset_id = ?", assetID).
+		Find(&credentials).Error; err != nil {
 		return nil, fmt.Errorf("failed to query credentials: %w", err)
 	}
 

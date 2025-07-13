@@ -87,7 +87,8 @@ func (ac *AssetController) GetAssets(c *gin.Context) {
 	var request models.AssetListRequest
 	if err := c.ShouldBindQuery(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request parameters",
+			"error":   "Invalid request parameters",
+			"details": err.Error(),
 		})
 		return
 	}
@@ -104,7 +105,8 @@ func (ac *AssetController) GetAssets(c *gin.Context) {
 	assets, total, err := ac.assetService.GetAssets(&request)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get assets",
+			"error":   "Failed to get assets",
+			"details": err.Error(),
 		})
 		return
 	}
@@ -268,7 +270,8 @@ func (ac *AssetController) DeleteAsset(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to delete asset",
+			"error":   "Failed to delete asset",
+			"details": err.Error(),
 		})
 		return
 	}

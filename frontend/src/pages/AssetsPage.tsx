@@ -25,6 +25,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../store';
 import { fetchAssets, createAsset, updateAsset, deleteAsset, testConnection } from '../store/assetSlice';
+import { fetchCredentials } from '../store/credentialSlice';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -32,6 +33,7 @@ const { Option } = Select;
 const AssetsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { assets, total, loading } = useSelector((state: RootState) => state.asset);
+  const { credentials } = useSelector((state: RootState) => state.credential);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingAsset, setEditingAsset] = useState<any>(null);
   const [form] = Form.useForm();
@@ -42,12 +44,17 @@ const AssetsPage: React.FC = () => {
 
   useEffect(() => {
     loadAssets();
+    loadCredentials();
   }, []);
+
+  const loadCredentials = () => {
+    dispatch(fetchCredentials({ page: 1, page_size: 100 }));
+  };
 
   const loadAssets = () => {
     dispatch(fetchAssets({
       page: pagination.current,
-      limit: pagination.pageSize,
+      page_size: pagination.pageSize,
       keyword: searchKeyword,
       type: typeFilter,
     }));
@@ -93,6 +100,7 @@ const AssetsPage: React.FC = () => {
         ...values,
         port: parseInt(values.port),
         tags: values.tags ? JSON.stringify({ tags: values.tags }) : '{}',
+        credential_ids: values.credential_ids || [],
       };
       
       if (editingAsset) {
@@ -141,7 +149,7 @@ const AssetsPage: React.FC = () => {
     setPagination({ ...pagination, current: 1 });
     dispatch(fetchAssets({
       page: 1,
-      limit: pagination.pageSize,
+      page_size: pagination.pageSize,
       keyword: value,
       type: typeFilter,
     }));
@@ -152,7 +160,7 @@ const AssetsPage: React.FC = () => {
     setPagination({ ...pagination, current: 1 });
     dispatch(fetchAssets({
       page: 1,
-      limit: pagination.pageSize,
+      page_size: pagination.pageSize,
       keyword: searchKeyword,
       type: value,
     }));
@@ -257,7 +265,7 @@ const AssetsPage: React.FC = () => {
       key: 'action',
       render: (text: any, record: any) => (
         <Space size="middle">
-          <Tooltip title="测试连接">
+          <Tooltip key="test" title="测试连接">
             <Button
               type="text"
               icon={<LinkOutlined />}
@@ -266,6 +274,7 @@ const AssetsPage: React.FC = () => {
             />
           </Tooltip>
           <Button
+            key="edit"
             type="text"
             icon={<EditOutlined />}
             onClick={() => handleEdit(record)}
@@ -273,6 +282,7 @@ const AssetsPage: React.FC = () => {
             编辑
           </Button>
           <Popconfirm
+            key="delete"
             title="确定要删除这个资产吗？"
             onConfirm={() => handleDelete(record.id)}
           >
@@ -291,6 +301,7 @@ const AssetsPage: React.FC = () => {
         <div style={{ marginBottom: 16 }}>
           <Space>
             <Button
+              key="add"
               type="primary"
               icon={<PlusOutlined />}
               onClick={handleAdd}
@@ -298,12 +309,14 @@ const AssetsPage: React.FC = () => {
               新增资产
             </Button>
             <Button
+              key="refresh"
               icon={<ReloadOutlined />}
               onClick={loadAssets}
             >
               刷新
             </Button>
             <Select
+              key="filter"
               placeholder="筛选类型"
               allowClear
               style={{ width: 120 }}
@@ -340,7 +353,7 @@ const AssetsPage: React.FC = () => {
               setPagination({ current: page, pageSize: pageSize || 10 });
               dispatch(fetchAssets({
                 page,
-                limit: pageSize || 10,
+                page_size: pageSize || 10,
                 keyword: searchKeyword,
                 type: typeFilter,
               }));
@@ -434,12 +447,31 @@ const AssetsPage: React.FC = () => {
             <Input placeholder="请输入标签" />
           </Form.Item>
 
+          <Form.Item
+            label="关联凭证"
+            name="credential_ids"
+            tooltip="可选：选择与此资产关联的凭证"
+          >
+            <Select 
+              mode="multiple" 
+              placeholder="选择已有凭证（可选）"
+              allowClear
+              showSearch
+            >
+              {credentials.map(credential => (
+                <Option key={credential.id} value={credential.id}>
+                  {credential.name} ({credential.username})
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit">
+              <Button key="submit" type="primary" htmlType="submit">
                 {editingAsset ? '更新' : '创建'}
               </Button>
-              <Button onClick={() => setIsModalVisible(false)}>
+              <Button key="cancel" onClick={() => setIsModalVisible(false)}>
                 取消
               </Button>
             </Space>

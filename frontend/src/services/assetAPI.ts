@@ -15,7 +15,7 @@ export interface Asset {
 
 export interface GetAssetsParams {
   page?: number;
-  limit?: number;
+  page_size?: number;
   keyword?: string;
   type?: string;
 }
@@ -40,6 +40,7 @@ export interface CreateAssetRequest {
   port: number;
   protocol: string;
   tags: string;
+  credential_ids?: number[];
 }
 
 export interface TestConnectionResponse {
