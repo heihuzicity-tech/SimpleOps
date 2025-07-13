@@ -22,9 +22,10 @@ import (
 
 // SSHService SSH服务
 type SSHService struct {
-	db         *gorm.DB
-	sessions   map[string]*SSHSession
-	sessionsMu sync.RWMutex
+	db           *gorm.DB
+	auditService *AuditService
+	sessions     map[string]*SSHSession
+	sessionsMu   sync.RWMutex
 }
 
 // SSHSession SSH会话
@@ -78,8 +79,9 @@ type SSHSessionResponse struct {
 // NewSSHService 创建SSH服务实例
 func NewSSHService(db *gorm.DB) *SSHService {
 	return &SSHService{
-		db:       db,
-		sessions: make(map[string]*SSHSession),
+		db:           db,
+		auditService: NewAuditService(db),
+		sessions:     make(map[string]*SSHSession),
 	}
 }
 
@@ -95,6 +97,12 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 	var credential models.Credential
 	if err := s.db.Where("id = ? AND asset_id = ?", request.CredentialID, request.AssetID).First(&credential).Error; err != nil {
 		return nil, fmt.Errorf("credential not found: %w", err)
+	}
+
+	// 获取用户信息
+	var user models.User
+	if err := s.db.Where("id = ?", userID).First(&user).Error; err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
 	}
 
 	// 创建SSH客户端配置
@@ -158,10 +166,36 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 	s.sessions[sessionID] = session
 	s.sessionsMu.Unlock()
 
-	// 记录会话到数据库
-	if err := s.recordSessionToDB(session, asset, credential); err != nil {
-		log.Printf("Failed to record session to database: %v", err)
-	}
+	// 记录会话开始到审计日志
+	clientIP := "127.0.0.1" // 这里需要从上下文中获取真实IP
+	go s.auditService.RecordSessionStart(
+		sessionID,
+		userID,
+		user.Username,
+		asset.ID,
+		asset.Name,
+		fmt.Sprintf("%s:%d", asset.Address, asset.Port),
+		credential.ID,
+		request.Protocol,
+		clientIP,
+	)
+
+	// 记录操作日志
+	go s.auditService.RecordOperationLog(
+		userID,
+		user.Username,
+		clientIP,
+		"POST",
+		"/api/v1/ssh/sessions",
+		"create",
+		"session",
+		0,
+		201,
+		"SSH session created successfully",
+		request,
+		nil,
+		0,
+	)
 
 	return &SSHSessionResponse{
 		ID:         sessionID,
@@ -230,6 +264,30 @@ func (s *SSHService) CloseSession(sessionID string) error {
 	session, exists := s.sessions[sessionID]
 	if !exists {
 		return fmt.Errorf("session not found")
+	}
+
+	// 获取用户信息
+	var user models.User
+	if err := s.db.Where("id = ?", session.UserID).First(&user).Error; err == nil {
+		// 记录会话结束到审计日志
+		go s.auditService.RecordSessionEnd(sessionID, "closed")
+
+		// 记录操作日志
+		go s.auditService.RecordOperationLog(
+			session.UserID,
+			user.Username,
+			"127.0.0.1",
+			"DELETE",
+			fmt.Sprintf("/api/v1/ssh/sessions/%s", sessionID),
+			"delete",
+			"session",
+			0,
+			200,
+			"SSH session closed successfully",
+			nil,
+			nil,
+			0,
+		)
 	}
 
 	session.Close()
@@ -309,6 +367,29 @@ func (s *SSHService) ResizeSession(sessionID string, width, height int) error {
 	if err != nil {
 		return fmt.Errorf("failed to resize session: %w", err)
 	}
+
+	return nil
+}
+
+// RecordCommand 记录命令执行
+func (s *SSHService) RecordCommand(sessionID, command, output string, exitCode int, startTime time.Time, endTime *time.Time) error {
+	session, err := s.GetSession(sessionID)
+	if err != nil {
+		return err
+	}
+
+	// 记录命令到审计日志
+	go s.auditService.RecordCommandLog(
+		sessionID,
+		session.UserID,
+		"", // 需要从数据库获取用户名
+		session.AssetID,
+		command,
+		output,
+		exitCode,
+		startTime,
+		endTime,
+	)
 
 	return nil
 }
@@ -427,6 +508,10 @@ func (s *SSHService) CleanupInactiveSessions() {
 	for id, session := range s.sessions {
 		if session.LastActive.Before(cutoff) {
 			log.Printf("Cleaning up inactive session: %s", id)
+
+			// 记录会话超时到审计日志
+			go s.auditService.RecordSessionEnd(id, "timeout")
+
 			session.Close()
 			delete(s.sessions, id)
 		}

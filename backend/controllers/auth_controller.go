@@ -3,6 +3,7 @@ package controllers
 import (
 	"bastion/models"
 	"bastion/services"
+	"bastion/utils"
 	"net/http"
 	"strings"
 
@@ -11,12 +12,16 @@ import (
 
 // AuthController 认证控制器
 type AuthController struct {
-	authService *services.AuthService
+	authService  *services.AuthService
+	auditService *services.AuditService
 }
 
 // NewAuthController 创建认证控制器实例
 func NewAuthController(authService *services.AuthService) *AuthController {
-	return &AuthController{authService: authService}
+	return &AuthController{
+		authService:  authService,
+		auditService: services.NewAuditService(utils.GetDB()),
+	}
 }
 
 // Login 用户登录
@@ -39,13 +44,43 @@ func (ac *AuthController) Login(c *gin.Context) {
 		return
 	}
 
+	// 获取客户端信息
+	clientIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+
 	// 调用认证服务
 	token, err := ac.authService.Login(&request)
 	if err != nil {
+		// 记录登录失败日志
+		go ac.auditService.RecordLoginLog(
+			0, // 登录失败时没有用户ID
+			request.Username,
+			clientIP,
+			userAgent,
+			"web",
+			"failed",
+			err.Error(),
+		)
+
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": err.Error(),
 		})
 		return
+	}
+
+	// 获取用户信息
+	var user models.User
+	if err := utils.GetDB().Where("username = ?", request.Username).First(&user).Error; err == nil {
+		// 记录登录成功日志
+		go ac.auditService.RecordLoginLog(
+			user.ID,
+			user.Username,
+			clientIP,
+			userAgent,
+			"web",
+			"success",
+			"Login successful",
+		)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -85,12 +120,35 @@ func (ac *AuthController) Logout(c *gin.Context) {
 
 	tokenString := bearerToken[1]
 
+	// 获取当前用户信息
+	var userID uint
+	var username string
+	if userInterface, exists := c.Get("user"); exists {
+		if u, ok := userInterface.(*models.User); ok {
+			userID = u.ID
+			username = u.Username
+		}
+	}
+
 	// 调用认证服务
 	if err := ac.authService.Logout(tokenString); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to logout",
 		})
 		return
+	}
+
+	// 记录登出日志
+	if userID > 0 {
+		go ac.auditService.RecordLoginLog(
+			userID,
+			username,
+			c.ClientIP(),
+			c.GetHeader("User-Agent"),
+			"web",
+			"logout",
+			"User logged out successfully",
+		)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

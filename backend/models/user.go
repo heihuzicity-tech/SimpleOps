@@ -451,3 +451,337 @@ func (c *Credential) IsPasswordType() bool {
 func (c *Credential) IsKeyType() bool {
 	return c.Type == "key"
 }
+
+// ======================== 审计相关模型 ========================
+
+// LoginLog 登录日志模型
+type LoginLog struct {
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	UserID    uint           `json:"user_id" gorm:"not null;index"`
+	Username  string         `json:"username" gorm:"not null;size:50"`
+	IP        string         `json:"ip" gorm:"not null;size:45"`
+	UserAgent string         `json:"user_agent" gorm:"type:text"`
+	Method    string         `json:"method" gorm:"size:10;default:web"`
+	Status    string         `json:"status" gorm:"size:20;not null"` // success, failed, logout
+	Message   string         `json:"message" gorm:"type:text"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// 关联关系
+	User User `json:"user" gorm:"foreignKey:UserID"`
+}
+
+// OperationLog 操作日志模型
+type OperationLog struct {
+	ID           uint           `json:"id" gorm:"primaryKey"`
+	UserID       uint           `json:"user_id" gorm:"not null;index"`
+	Username     string         `json:"username" gorm:"not null;size:50"`
+	IP           string         `json:"ip" gorm:"not null;size:45"`
+	Method       string         `json:"method" gorm:"size:10;not null"`
+	URL          string         `json:"url" gorm:"size:255;not null"`
+	Action       string         `json:"action" gorm:"size:50;not null"`
+	Resource     string         `json:"resource" gorm:"size:50"`
+	ResourceID   uint           `json:"resource_id" gorm:"index"`
+	Status       int            `json:"status" gorm:"not null"`
+	Message      string         `json:"message" gorm:"type:text"`
+	RequestData  string         `json:"request_data" gorm:"type:text"`
+	ResponseData string         `json:"response_data" gorm:"type:text"`
+	Duration     int64          `json:"duration"` // 请求耗时，毫秒
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// 关联关系
+	User User `json:"user" gorm:"foreignKey:UserID"`
+}
+
+// SessionRecord 会话记录模型
+type SessionRecord struct {
+	ID           uint           `json:"id" gorm:"primaryKey"`
+	SessionID    string         `json:"session_id" gorm:"uniqueIndex;not null;size:100"`
+	UserID       uint           `json:"user_id" gorm:"not null;index"`
+	Username     string         `json:"username" gorm:"not null;size:50"`
+	AssetID      uint           `json:"asset_id" gorm:"not null;index"`
+	AssetName    string         `json:"asset_name" gorm:"not null;size:100"`
+	AssetAddress string         `json:"asset_address" gorm:"not null;size:255"`
+	CredentialID uint           `json:"credential_id" gorm:"not null;index"`
+	Protocol     string         `json:"protocol" gorm:"size:10;not null"`
+	IP           string         `json:"ip" gorm:"not null;size:45"`
+	Status       string         `json:"status" gorm:"size:20;not null"` // active, closed, timeout
+	StartTime    time.Time      `json:"start_time"`
+	EndTime      *time.Time     `json:"end_time"`
+	Duration     int64          `json:"duration"`                    // 会话持续时间，秒
+	RecordPath   string         `json:"record_path" gorm:"size:255"` // 录制文件路径
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// 关联关系
+	User       User       `json:"user" gorm:"foreignKey:UserID"`
+	Asset      Asset      `json:"asset" gorm:"foreignKey:AssetID"`
+	Credential Credential `json:"credential" gorm:"foreignKey:CredentialID"`
+}
+
+// CommandLog 命令日志模型
+type CommandLog struct {
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	SessionID string         `json:"session_id" gorm:"not null;index;size:100"`
+	UserID    uint           `json:"user_id" gorm:"not null;index"`
+	Username  string         `json:"username" gorm:"not null;size:50"`
+	AssetID   uint           `json:"asset_id" gorm:"not null;index"`
+	Command   string         `json:"command" gorm:"type:text;not null"`
+	Output    string         `json:"output" gorm:"type:text"`
+	ExitCode  int            `json:"exit_code"`
+	Risk      string         `json:"risk" gorm:"size:20;default:low"` // low, medium, high
+	StartTime time.Time      `json:"start_time"`
+	EndTime   *time.Time     `json:"end_time"`
+	Duration  int64          `json:"duration"` // 命令执行时间，毫秒
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// 关联关系
+	User    User          `json:"user" gorm:"foreignKey:UserID"`
+	Asset   Asset         `json:"asset" gorm:"foreignKey:AssetID"`
+	Session SessionRecord `json:"session" gorm:"foreignKey:SessionID;references:SessionID"`
+}
+
+// ======================== 审计请求响应结构 ========================
+
+// LoginLogListRequest 登录日志列表请求
+type LoginLogListRequest struct {
+	Page      int    `form:"page" binding:"omitempty,min=1"`
+	PageSize  int    `form:"page_size" binding:"omitempty,min=1,max=100"`
+	Username  string `form:"username" binding:"omitempty,max=50"`
+	Status    string `form:"status" binding:"omitempty,oneof=success failed logout"`
+	IP        string `form:"ip" binding:"omitempty,max=45"`
+	StartTime string `form:"start_time" binding:"omitempty"`
+	EndTime   string `form:"end_time" binding:"omitempty"`
+}
+
+// OperationLogListRequest 操作日志列表请求
+type OperationLogListRequest struct {
+	Page      int    `form:"page" binding:"omitempty,min=1"`
+	PageSize  int    `form:"page_size" binding:"omitempty,min=1,max=100"`
+	Username  string `form:"username" binding:"omitempty,max=50"`
+	Action    string `form:"action" binding:"omitempty,max=50"`
+	Resource  string `form:"resource" binding:"omitempty,max=50"`
+	Status    *int   `form:"status" binding:"omitempty,min=100,max=599"`
+	IP        string `form:"ip" binding:"omitempty,max=45"`
+	StartTime string `form:"start_time" binding:"omitempty"`
+	EndTime   string `form:"end_time" binding:"omitempty"`
+}
+
+// SessionRecordListRequest 会话记录列表请求
+type SessionRecordListRequest struct {
+	Page      int    `form:"page" binding:"omitempty,min=1"`
+	PageSize  int    `form:"page_size" binding:"omitempty,min=1,max=100"`
+	Username  string `form:"username" binding:"omitempty,max=50"`
+	AssetName string `form:"asset_name" binding:"omitempty,max=100"`
+	Protocol  string `form:"protocol" binding:"omitempty,oneof=ssh rdp vnc"`
+	Status    string `form:"status" binding:"omitempty,oneof=active closed timeout"`
+	IP        string `form:"ip" binding:"omitempty,max=45"`
+	StartTime string `form:"start_time" binding:"omitempty"`
+	EndTime   string `form:"end_time" binding:"omitempty"`
+}
+
+// CommandLogListRequest 命令日志列表请求
+type CommandLogListRequest struct {
+	Page      int    `form:"page" binding:"omitempty,min=1"`
+	PageSize  int    `form:"page_size" binding:"omitempty,min=1,max=100"`
+	SessionID string `form:"session_id" binding:"omitempty,max=100"`
+	Username  string `form:"username" binding:"omitempty,max=50"`
+	AssetID   uint   `form:"asset_id" binding:"omitempty"`
+	Command   string `form:"command" binding:"omitempty,max=255"`
+	Risk      string `form:"risk" binding:"omitempty,oneof=low medium high"`
+	StartTime string `form:"start_time" binding:"omitempty"`
+	EndTime   string `form:"end_time" binding:"omitempty"`
+}
+
+// LoginLogResponse 登录日志响应
+type LoginLogResponse struct {
+	ID        uint      `json:"id"`
+	UserID    uint      `json:"user_id"`
+	Username  string    `json:"username"`
+	IP        string    `json:"ip"`
+	UserAgent string    `json:"user_agent"`
+	Method    string    `json:"method"`
+	Status    string    `json:"status"`
+	Message   string    `json:"message"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// OperationLogResponse 操作日志响应
+type OperationLogResponse struct {
+	ID         uint      `json:"id"`
+	UserID     uint      `json:"user_id"`
+	Username   string    `json:"username"`
+	IP         string    `json:"ip"`
+	Method     string    `json:"method"`
+	URL        string    `json:"url"`
+	Action     string    `json:"action"`
+	Resource   string    `json:"resource"`
+	ResourceID uint      `json:"resource_id"`
+	Status     int       `json:"status"`
+	Message    string    `json:"message"`
+	Duration   int64     `json:"duration"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// SessionRecordResponse 会话记录响应
+type SessionRecordResponse struct {
+	ID           uint       `json:"id"`
+	SessionID    string     `json:"session_id"`
+	UserID       uint       `json:"user_id"`
+	Username     string     `json:"username"`
+	AssetID      uint       `json:"asset_id"`
+	AssetName    string     `json:"asset_name"`
+	AssetAddress string     `json:"asset_address"`
+	CredentialID uint       `json:"credential_id"`
+	Protocol     string     `json:"protocol"`
+	IP           string     `json:"ip"`
+	Status       string     `json:"status"`
+	StartTime    time.Time  `json:"start_time"`
+	EndTime      *time.Time `json:"end_time"`
+	Duration     int64      `json:"duration"`
+	RecordPath   string     `json:"record_path"`
+	CreatedAt    time.Time  `json:"created_at"`
+}
+
+// CommandLogResponse 命令日志响应
+type CommandLogResponse struct {
+	ID        uint       `json:"id"`
+	SessionID string     `json:"session_id"`
+	UserID    uint       `json:"user_id"`
+	Username  string     `json:"username"`
+	AssetID   uint       `json:"asset_id"`
+	Command   string     `json:"command"`
+	Output    string     `json:"output"`
+	ExitCode  int        `json:"exit_code"`
+	Risk      string     `json:"risk"`
+	StartTime time.Time  `json:"start_time"`
+	EndTime   *time.Time `json:"end_time"`
+	Duration  int64      `json:"duration"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// AuditStatistics 审计统计响应
+type AuditStatistics struct {
+	TotalLoginLogs      int64 `json:"total_login_logs"`
+	TotalOperationLogs  int64 `json:"total_operation_logs"`
+	TotalSessionRecords int64 `json:"total_session_records"`
+	TotalCommandLogs    int64 `json:"total_command_logs"`
+	FailedLogins        int64 `json:"failed_logins"`
+	ActiveSessions      int64 `json:"active_sessions"`
+	DangerousCommands   int64 `json:"dangerous_commands"`
+	TodayLogins         int64 `json:"today_logins"`
+	TodayOperations     int64 `json:"today_operations"`
+	TodaySessions       int64 `json:"today_sessions"`
+}
+
+// ======================== 表名映射 ========================
+
+func (LoginLog) TableName() string {
+	return "login_logs"
+}
+
+func (OperationLog) TableName() string {
+	return "operation_logs"
+}
+
+func (SessionRecord) TableName() string {
+	return "session_records"
+}
+
+func (CommandLog) TableName() string {
+	return "command_logs"
+}
+
+// ======================== 模型方法 ========================
+
+func (l *LoginLog) ToResponse() *LoginLogResponse {
+	return &LoginLogResponse{
+		ID:        l.ID,
+		UserID:    l.UserID,
+		Username:  l.Username,
+		IP:        l.IP,
+		UserAgent: l.UserAgent,
+		Method:    l.Method,
+		Status:    l.Status,
+		Message:   l.Message,
+		CreatedAt: l.CreatedAt,
+	}
+}
+
+func (o *OperationLog) ToResponse() *OperationLogResponse {
+	return &OperationLogResponse{
+		ID:         o.ID,
+		UserID:     o.UserID,
+		Username:   o.Username,
+		IP:         o.IP,
+		Method:     o.Method,
+		URL:        o.URL,
+		Action:     o.Action,
+		Resource:   o.Resource,
+		ResourceID: o.ResourceID,
+		Status:     o.Status,
+		Message:    o.Message,
+		Duration:   o.Duration,
+		CreatedAt:  o.CreatedAt,
+	}
+}
+
+func (s *SessionRecord) ToResponse() *SessionRecordResponse {
+	return &SessionRecordResponse{
+		ID:           s.ID,
+		SessionID:    s.SessionID,
+		UserID:       s.UserID,
+		Username:     s.Username,
+		AssetID:      s.AssetID,
+		AssetName:    s.AssetName,
+		AssetAddress: s.AssetAddress,
+		CredentialID: s.CredentialID,
+		Protocol:     s.Protocol,
+		IP:           s.IP,
+		Status:       s.Status,
+		StartTime:    s.StartTime,
+		EndTime:      s.EndTime,
+		Duration:     s.Duration,
+		RecordPath:   s.RecordPath,
+		CreatedAt:    s.CreatedAt,
+	}
+}
+
+func (c *CommandLog) ToResponse() *CommandLogResponse {
+	return &CommandLogResponse{
+		ID:        c.ID,
+		SessionID: c.SessionID,
+		UserID:    c.UserID,
+		Username:  c.Username,
+		AssetID:   c.AssetID,
+		Command:   c.Command,
+		Output:    c.Output,
+		ExitCode:  c.ExitCode,
+		Risk:      c.Risk,
+		StartTime: c.StartTime,
+		EndTime:   c.EndTime,
+		Duration:  c.Duration,
+		CreatedAt: c.CreatedAt,
+	}
+}
+
+func (s *SessionRecord) IsActive() bool {
+	return s.Status == "active"
+}
+
+func (s *SessionRecord) IsClosed() bool {
+	return s.Status == "closed" || s.Status == "timeout"
+}
+
+func (s *SessionRecord) CalculateDuration() int64 {
+	if s.EndTime != nil {
+		return int64(s.EndTime.Sub(s.StartTime).Seconds())
+	}
+	return int64(time.Since(s.StartTime).Seconds())
+}

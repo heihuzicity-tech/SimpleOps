@@ -31,6 +31,7 @@ func SetupRouter() *gin.Engine {
 	roleService := services.NewRoleService(utils.GetDB())
 	assetService := services.NewAssetService(utils.GetDB())
 	sshService := services.NewSSHService(utils.GetDB())
+	auditService := services.NewAuditService(utils.GetDB())
 
 	// 创建控制器实例
 	authController := controllers.NewAuthController(authService)
@@ -38,6 +39,7 @@ func SetupRouter() *gin.Engine {
 	roleController := controllers.NewRoleController(roleService)
 	assetController := controllers.NewAssetController(assetService)
 	sshController := controllers.NewSSHController(sshService)
+	auditController := controllers.NewAuditController(auditService)
 
 	// API路由组
 	api := router.Group("/api/v1")
@@ -129,6 +131,32 @@ func SetupRouter() *gin.Engine {
 				ssh.POST("/sessions/:id/resize", sshController.ResizeSession)
 				ssh.GET("/sessions/:id/ws", sshController.HandleWebSocket)
 				ssh.POST("/keypair", sshController.GenerateKeyPair)
+			}
+
+			// 审计管理路由（需要审计权限）
+			audit := authenticated.Group("/audit")
+			audit.Use(middleware.RequirePermission("audit:read"))
+			{
+				// 登录日志
+				audit.GET("/login-logs", auditController.GetLoginLogs)
+
+				// 操作日志
+				audit.GET("/operation-logs", auditController.GetOperationLogs)
+				audit.GET("/operation-logs/:id", auditController.GetOperationLog)
+
+				// 会话记录
+				audit.GET("/session-records", auditController.GetSessionRecords)
+				audit.GET("/session-records/:id", auditController.GetSessionRecord)
+
+				// 命令日志
+				audit.GET("/command-logs", auditController.GetCommandLogs)
+				audit.GET("/command-logs/:id", auditController.GetCommandLog)
+
+				// 统计数据
+				audit.GET("/statistics", auditController.GetAuditStatistics)
+
+				// 日志清理（需要管理员权限）
+				audit.POST("/cleanup", middleware.RequireAdmin(), auditController.CleanupAuditLogs)
 			}
 		}
 	}
