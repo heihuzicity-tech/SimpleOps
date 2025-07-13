@@ -28,10 +28,12 @@ func SetupRouter() *gin.Engine {
 	// 创建服务实例
 	authService := services.NewAuthService(utils.GetDB())
 	userService := services.NewUserService(utils.GetDB())
+	roleService := services.NewRoleService(utils.GetDB())
 
 	// 创建控制器实例
 	authController := controllers.NewAuthController(authService)
 	userController := controllers.NewUserController(userService)
+	roleController := controllers.NewRoleController(roleService)
 
 	// API路由组
 	api := router.Group("/api/v1")
@@ -62,6 +64,9 @@ func SetupRouter() *gin.Engine {
 			authenticated.POST("/logout", authController.Logout)
 			authenticated.GET("/me", authController.GetCurrentUser)
 
+			// 权限管理路由（所有认证用户可查看权限列表）
+			authenticated.GET("/permissions", roleController.GetPermissions)
+
 			// 用户管理路由（需要管理员权限）
 			users := authenticated.Group("/users")
 			users.Use(middleware.RequireAdmin())
@@ -73,6 +78,17 @@ func SetupRouter() *gin.Engine {
 				users.DELETE("/:id", userController.DeleteUser)
 				users.POST("/:id/reset-password", userController.ResetPassword)
 				users.POST("/:id/toggle-status", userController.ToggleUserStatus)
+			}
+
+			// 角色管理路由（需要管理员权限）
+			roles := authenticated.Group("/roles")
+			roles.Use(middleware.RequireAdmin())
+			{
+				roles.POST("/", roleController.CreateRole)
+				roles.GET("/", roleController.GetRoles)
+				roles.GET("/:id", roleController.GetRole)
+				roles.PUT("/:id", roleController.UpdateRole)
+				roles.DELETE("/:id", roleController.DeleteRole)
 			}
 		}
 	}

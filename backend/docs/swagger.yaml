@@ -1,5 +1,30 @@
 basePath: /api/v1
 definitions:
+  models.RoleCreateRequest:
+    properties:
+      description:
+        type: string
+      name:
+        maxLength: 50
+        minLength: 2
+        type: string
+      permissions:
+        items:
+          type: string
+        type: array
+    required:
+    - name
+    - permissions
+    type: object
+  models.RoleUpdateRequest:
+    properties:
+      description:
+        type: string
+      permissions:
+        items:
+          type: string
+        type: array
+    type: object
   models.UserLoginRequest:
     properties:
       password:
@@ -136,6 +161,258 @@ paths:
       summary: 刷新访问令牌
       tags:
       - 认证
+  /permissions:
+    get:
+      consumes:
+      - application/json
+      description: 获取系统中所有可用的权限列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取权限列表
+      tags:
+      - 角色管理
+  /roles:
+    get:
+      consumes:
+      - application/json
+      description: 获取角色列表，支持分页和搜索
+      parameters:
+      - description: 页码
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - description: 每页大小
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: 权限不足
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取角色列表
+      tags:
+      - 角色管理
+    post:
+      consumes:
+      - application/json
+      description: 创建新的角色并分配权限
+      parameters:
+      - description: 角色创建请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.RoleCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: 权限不足
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: 角色名已存在
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 创建角色
+      tags:
+      - 角色管理
+  /roles/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的角色（软删除）
+      parameters:
+      - description: 角色ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: 权限不足
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: 角色不存在
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: 角色正在使用中
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除角色
+      tags:
+      - 角色管理
+    get:
+      consumes:
+      - application/json
+      description: 根据角色ID获取角色详细信息
+      parameters:
+      - description: 角色ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: 权限不足
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: 角色不存在
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取角色详情
+      tags:
+      - 角色管理
+    put:
+      consumes:
+      - application/json
+      description: 更新角色信息和权限
+      parameters:
+      - description: 角色ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 角色更新请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.RoleUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: 权限不足
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: 角色不存在
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 更新角色
+      tags:
+      - 角色管理
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/json"
 	"time"
 
 	"gorm.io/gorm"
@@ -29,14 +28,41 @@ type Role struct {
 	ID          uint           `json:"id" gorm:"primaryKey"`
 	Name        string         `json:"name" gorm:"uniqueIndex;not null;size:50"`
 	Description string         `json:"description" gorm:"type:text"`
-	Permissions JSON           `json:"permissions" gorm:"type:json"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// 关联关系
-	UserRoles []UserRole `json:"user_roles" gorm:"foreignKey:RoleID"`
-	Users     []User     `json:"users" gorm:"many2many:user_roles"`
+	UserRoles       []UserRole       `json:"user_roles" gorm:"foreignKey:RoleID"`
+	Users           []User           `json:"users" gorm:"many2many:user_roles"`
+	RolePermissions []RolePermission `json:"role_permissions" gorm:"foreignKey:RoleID"`
+	Permissions     []Permission     `json:"permissions" gorm:"many2many:role_permissions"`
+}
+
+// Permission 权限模型
+type Permission struct {
+	ID          uint           `json:"id" gorm:"primaryKey"`
+	Name        string         `json:"name" gorm:"uniqueIndex;not null;size:100"`
+	Description string         `json:"description" gorm:"type:text"`
+	Category    string         `json:"category" gorm:"size:50"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// 关联关系
+	RolePermissions []RolePermission `json:"role_permissions" gorm:"foreignKey:PermissionID"`
+	Roles           []Role           `json:"roles" gorm:"many2many:role_permissions"`
+}
+
+// RolePermission 角色权限关联模型
+type RolePermission struct {
+	RoleID       uint      `json:"role_id" gorm:"primaryKey"`
+	PermissionID uint      `json:"permission_id" gorm:"primaryKey"`
+	CreatedAt    time.Time `json:"created_at"`
+
+	// 关联关系
+	Role       Role       `json:"role" gorm:"foreignKey:RoleID"`
+	Permission Permission `json:"permission" gorm:"foreignKey:PermissionID"`
 }
 
 // UserRole 用户角色关联模型
@@ -48,34 +74,6 @@ type UserRole struct {
 	// 关联关系
 	User User `json:"user" gorm:"foreignKey:UserID"`
 	Role Role `json:"role" gorm:"foreignKey:RoleID"`
-}
-
-// JSON 自定义JSON类型
-type JSON []string
-
-// Scan 实现Scanner接口
-func (j *JSON) Scan(value interface{}) error {
-	if value == nil {
-		*j = nil
-		return nil
-	}
-
-	switch v := value.(type) {
-	case []byte:
-		return json.Unmarshal(v, j)
-	case string:
-		return json.Unmarshal([]byte(v), j)
-	default:
-		return nil
-	}
-}
-
-// Value 实现Valuer接口
-func (j JSON) Value() (interface{}, error) {
-	if len(j) == 0 {
-		return nil, nil
-	}
-	return json.Marshal(j)
 }
 
 // UserCreateRequest 用户创建请求
@@ -132,6 +130,24 @@ type RoleUpdateRequest struct {
 	Permissions []string `json:"permissions"`
 }
 
+// RoleResponse 角色响应
+type RoleResponse struct {
+	ID          uint      `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Permissions []string  `json:"permissions"`
+	UserCount   int       `json:"user_count"` // 拥有此角色的用户数量
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// RoleListRequest 角色列表请求
+type RoleListRequest struct {
+	Page     int    `form:"page" binding:"omitempty,min=1"`
+	PageSize int    `form:"page_size" binding:"omitempty,min=1,max=100"`
+	Keyword  string `form:"keyword" binding:"omitempty,max=50"`
+}
+
 // TableName 指定表名
 func (User) TableName() string {
 	return "users"
@@ -143,6 +159,14 @@ func (Role) TableName() string {
 
 func (UserRole) TableName() string {
 	return "user_roles"
+}
+
+func (Permission) TableName() string {
+	return "permissions"
+}
+
+func (RolePermission) TableName() string {
+	return "role_permissions"
 }
 
 // ToResponse 转换为响应格式
@@ -159,12 +183,40 @@ func (u *User) ToResponse() *UserResponse {
 	}
 }
 
+// ToResponse 角色转换为响应格式
+func (r *Role) ToResponse() *RoleResponse {
+	permissions := make([]string, len(r.Permissions))
+	for i, perm := range r.Permissions {
+		permissions[i] = perm.Name
+	}
+
+	return &RoleResponse{
+		ID:          r.ID,
+		Name:        r.Name,
+		Description: r.Description,
+		Permissions: permissions,
+		UserCount:   len(r.Users), // 这里需要在查询时预加载Users
+		CreatedAt:   r.CreatedAt,
+		UpdatedAt:   r.UpdatedAt,
+	}
+}
+
+// HasPermission 检查角色是否拥有指定权限
+func (r *Role) HasPermission(permission string) bool {
+	for _, perm := range r.Permissions {
+		if perm.Name == "all" || perm.Name == permission {
+			return true
+		}
+	}
+	return false
+}
+
 // HasPermission 检查用户是否拥有指定权限
 func (u *User) HasPermission(permission string) bool {
 	for _, role := range u.Roles {
 		// 检查是否有全部权限
 		for _, perm := range role.Permissions {
-			if perm == "all" || perm == permission {
+			if perm.Name == "all" || perm.Name == permission {
 				return true
 			}
 		}
