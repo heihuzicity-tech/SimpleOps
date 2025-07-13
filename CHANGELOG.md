@@ -7,8 +7,38 @@
 
 ## [未发布]
 
+### 新增
+- 🎨 **前端基础界面** - React + Ant Design管理界面
+  - 登录页面和用户认证流程
+  - 用户管理界面（列表、创建、编辑、删除）
+  - 资产管理界面（列表、创建、编辑、删除）
+  - 响应式布局和导航系统
+- 📖 **前端开发指南** - 详细的前端开发文档
+  - 技术栈和项目结构说明
+  - 数据流架构和状态管理
+  - 常见问题解决方案
+  - 开发指南和部署说明
+
+### 修复
+- 🔧 **React Router升级** - 修复React Router v6废弃警告
+  - 添加v7_relativeSplatPath和v7_startTransition future flags
+- 🔧 **前后端数据格式适配** - 修复数据结构不一致问题
+  - 统一API响应格式处理
+  - 用户状态数字与字符串转换
+- 🔧 **图标导入修复** - 修复不存在的Ant Design图标导入
+  - 将TerminalOutlined替换为ConsoleSqlOutlined
+- 🔧 **API端点路径修正** - 确保前后端API路径一致
+  - 登出API：/logout（非/auth/logout）
+  - 用户资料API：/profile（非/auth/profile）
+  - 修改密码API：/change-password（非/auth/change-password）
+
+### 文档更新
+- 📖 **README.md** - 更新项目状态和前端开发进展
+- 📖 **项目进度总结** - 添加前端开发系统章节
+- 📖 **API使用指南** - 确认API端点路径正确性
+
 ### 计划中
-- 🎨 前端界面开发 - React + Ant Design
+- 🎨 **SSH终端界面** - WebSSH终端和会话管理界面
 - 🔧 集成测试 - 完整功能测试和性能测试
 - 📖 文档完善 - 部署文档和使用手册
 

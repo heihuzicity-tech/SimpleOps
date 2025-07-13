@@ -47,6 +47,8 @@
 ### 开发中功能 🚧
 
 - **🚧 前端界面** - React + Ant Design管理界面
+  - **✅ 基础界面** - 登录页面、用户管理、资产管理页面已完成
+  - **🚧 SSH终端** - WebSSH终端界面、会话管理界面开发中
 - **🚧 集成测试** - 完整功能测试和性能测试
 - **🚧 部署文档** - 完善的部署和使用文档
 
@@ -112,9 +114,11 @@ bastion/
 
 ### 认证相关
 - `POST /api/v1/auth/login` - 用户登录
-- `POST /api/v1/auth/logout` - 用户登出
+- `POST /api/v1/logout` - 用户登出
 - `POST /api/v1/auth/refresh` - 刷新Token
-- `GET /api/v1/auth/profile` - 获取用户资料
+- `GET /api/v1/profile` - 获取用户资料
+- `PUT /api/v1/profile` - 更新用户资料
+- `POST /api/v1/change-password` - 修改密码
 
 ### 用户管理
 - `GET /api/v1/users` - 获取用户列表
