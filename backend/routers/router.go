@@ -29,11 +29,13 @@ func SetupRouter() *gin.Engine {
 	authService := services.NewAuthService(utils.GetDB())
 	userService := services.NewUserService(utils.GetDB())
 	roleService := services.NewRoleService(utils.GetDB())
+	assetService := services.NewAssetService(utils.GetDB())
 
 	// 创建控制器实例
 	authController := controllers.NewAuthController(authService)
 	userController := controllers.NewUserController(userService)
 	roleController := controllers.NewRoleController(roleService)
+	assetController := controllers.NewAssetController(assetService)
 
 	// API路由组
 	api := router.Group("/api/v1")
@@ -89,6 +91,29 @@ func SetupRouter() *gin.Engine {
 				roles.GET("/:id", roleController.GetRole)
 				roles.PUT("/:id", roleController.UpdateRole)
 				roles.DELETE("/:id", roleController.DeleteRole)
+			}
+
+			// 资产管理路由（需要asset权限）
+			assets := authenticated.Group("/assets")
+			assets.Use(middleware.RequirePermission("asset:read"))
+			{
+				assets.POST("/", middleware.RequirePermission("asset:create"), assetController.CreateAsset)
+				assets.GET("/", assetController.GetAssets)
+				assets.GET("/:id", assetController.GetAsset)
+				assets.PUT("/:id", middleware.RequirePermission("asset:update"), assetController.UpdateAsset)
+				assets.DELETE("/:id", middleware.RequirePermission("asset:delete"), assetController.DeleteAsset)
+				assets.POST("/test-connection", middleware.RequirePermission("asset:connect"), assetController.TestConnection)
+			}
+
+			// 凭证管理路由（需要asset权限）
+			credentials := authenticated.Group("/credentials")
+			credentials.Use(middleware.RequirePermission("asset:read"))
+			{
+				credentials.POST("/", middleware.RequirePermission("asset:create"), assetController.CreateCredential)
+				credentials.GET("/", assetController.GetCredentials)
+				credentials.GET("/:id", assetController.GetCredential)
+				credentials.PUT("/:id", middleware.RequirePermission("asset:update"), assetController.UpdateCredential)
+				credentials.DELETE("/:id", middleware.RequirePermission("asset:delete"), assetController.DeleteCredential)
 			}
 		}
 	}

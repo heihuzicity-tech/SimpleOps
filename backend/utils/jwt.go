@@ -128,7 +128,7 @@ func GetUserFromToken(tokenString string) (*models.User, error) {
 	}
 
 	var user models.User
-	if err := GetDB().Preload("Roles").Where("id = ?", claims.UserID).First(&user).Error; err != nil {
+	if err := GetDB().Preload("Roles.Permissions").Where("id = ?", claims.UserID).First(&user).Error; err != nil {
 		return nil, errors.New("user not found")
 	}
 
