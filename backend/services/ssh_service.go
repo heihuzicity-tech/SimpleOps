@@ -36,6 +36,8 @@ type SSHSession struct {
 	CredentialID uint         `json:"credential_id"`
 	ClientConn   *ssh.Client  `json:"-"`
 	SessionConn  *ssh.Session `json:"-"`
+	StdoutPipe   io.Reader    `json:"-"`
+	StdinPipe    io.WriteCloser `json:"-"`
 	Status       string       `json:"status"`
 	CreatedAt    time.Time    `json:"created_at"`
 	UpdatedAt    time.Time    `json:"updated_at"`
@@ -93,10 +95,19 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		return nil, fmt.Errorf("asset not found: %w", err)
 	}
 
-	// 获取凭证信息
+	// 获取凭证信息并验证与资产的关联关系
 	var credential models.Credential
-	if err := s.db.Where("id = ? AND asset_id = ?", request.CredentialID, request.AssetID).First(&credential).Error; err != nil {
+	if err := s.db.Where("id = ?", request.CredentialID).First(&credential).Error; err != nil {
 		return nil, fmt.Errorf("credential not found: %w", err)
+	}
+
+	// 验证凭证与资产的关联关系
+	var count int64
+	if err := s.db.Table("asset_credentials").Where("asset_id = ? AND credential_id = ?", request.AssetID, request.CredentialID).Count(&count).Error; err != nil {
+		return nil, fmt.Errorf("failed to verify asset-credential relationship: %w", err)
+	}
+	if count == 0 {
+		return nil, fmt.Errorf("credential is not associated with the asset")
 	}
 
 	// 获取用户信息
@@ -125,6 +136,21 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		return nil, fmt.Errorf("failed to create SSH session: %w", err)
 	}
 
+	// 获取stdout和stdin管道
+	stdout, err := sessionConn.StdoutPipe()
+	if err != nil {
+		sessionConn.Close()
+		clientConn.Close()
+		return nil, fmt.Errorf("failed to get stdout pipe: %w", err)
+	}
+
+	stdin, err := sessionConn.StdinPipe()
+	if err != nil {
+		sessionConn.Close()
+		clientConn.Close()
+		return nil, fmt.Errorf("failed to get stdin pipe: %w", err)
+	}
+
 	// 生成会话ID
 	sessionID := s.generateSessionID()
 
@@ -136,6 +162,8 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		CredentialID: request.CredentialID,
 		ClientConn:   clientConn,
 		SessionConn:  sessionConn,
+		StdoutPipe:   stdout,
+		StdinPipe:    stdin,
 		Status:       "active",
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -310,12 +338,11 @@ func (s *SSHService) WriteToSession(sessionID string, data []byte) error {
 		return fmt.Errorf("session connection is closed")
 	}
 
-	stdin, err := session.SessionConn.StdinPipe()
-	if err != nil {
-		return fmt.Errorf("failed to get stdin pipe: %w", err)
+	if session.StdinPipe == nil {
+		return fmt.Errorf("stdin pipe is not available")
 	}
 
-	_, err = stdin.Write(data)
+	_, err = session.StdinPipe.Write(data)
 	if err != nil {
 		return fmt.Errorf("failed to write to session: %w", err)
 	}
@@ -341,12 +368,11 @@ func (s *SSHService) ReadFromSession(sessionID string) (io.Reader, error) {
 		return nil, fmt.Errorf("session connection is closed")
 	}
 
-	stdout, err := session.SessionConn.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get stdout pipe: %w", err)
+	if session.StdoutPipe == nil {
+		return nil, fmt.Errorf("stdout pipe is not available")
 	}
 
-	return stdout, nil
+	return session.StdoutPipe, nil
 }
 
 // ResizeSession 调整会话窗口大小

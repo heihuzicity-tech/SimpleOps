@@ -194,3 +194,68 @@ func OptionalAuth() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// WebSocketAuthMiddleware WebSocket认证中间件（支持URL参数传递token）
+func WebSocketAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var tokenString string
+
+		// 优先从Authorization header获取token
+		authHeader := c.GetHeader("Authorization")
+		if authHeader != "" {
+			bearerToken := strings.Split(authHeader, " ")
+			if len(bearerToken) == 2 && bearerToken[0] == "Bearer" {
+				tokenString = bearerToken[1]
+			}
+		}
+
+		// 如果header中没有token，从URL参数获取
+		if tokenString == "" {
+			tokenString = c.Query("token")
+		}
+
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Token is required",
+			})
+			c.Abort()
+			return
+		}
+
+		// 检查token是否在黑名单中
+		if utils.IsTokenBlacklisted(tokenString) {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Token is blacklisted",
+			})
+			c.Abort()
+			return
+		}
+
+		// 验证token
+		claims, err := utils.ValidateToken(tokenString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token: " + err.Error(),
+			})
+			c.Abort()
+			return
+		}
+
+		// 获取用户信息
+		user, err := utils.GetUserFromToken(tokenString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "User not found: " + err.Error(),
+			})
+			c.Abort()
+			return
+		}
+
+		// 将用户信息存储到上下文中
+		c.Set("user", user)
+		c.Set("user_id", claims.UserID)
+		c.Set("username", claims.Username)
+
+		c.Next()
+	}
+}

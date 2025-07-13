@@ -268,7 +268,7 @@ const CredentialsPage: React.FC = () => {
       key: 'action',
       render: (text: any, record: any) => (
         <Space size="middle">
-          <Tooltip key="test" title="测试连接">
+          <Tooltip title="测试连接">
             <Button
               type="text"
               icon={<LinkOutlined />}
@@ -277,7 +277,6 @@ const CredentialsPage: React.FC = () => {
             />
           </Tooltip>
           <Button
-            key="edit"
             type="text"
             icon={<EditOutlined />}
             onClick={() => handleEdit(record)}
@@ -285,7 +284,6 @@ const CredentialsPage: React.FC = () => {
             编辑
           </Button>
           <Popconfirm
-            key="delete"
             title="确定要删除这个凭证吗？"
             onConfirm={() => handleDelete(record.id)}
           >

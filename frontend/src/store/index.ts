@@ -3,6 +3,7 @@ import authReducer from './authSlice';
 import userReducer from './userSlice';
 import assetReducer from './assetSlice';
 import credentialReducer from './credentialSlice';
+import sshSessionReducer from './sshSessionSlice';
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
     user: userReducer,
     asset: assetReducer,
     credential: credentialReducer,
+    sshSession: sshSessionReducer,
   },
 });
 

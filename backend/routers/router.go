@@ -129,7 +129,6 @@ func SetupRouter() *gin.Engine {
 				ssh.GET("/sessions/:id", sshController.GetSessionInfo)
 				ssh.DELETE("/sessions/:id", sshController.CloseSession)
 				ssh.POST("/sessions/:id/resize", sshController.ResizeSession)
-				ssh.GET("/sessions/:id/ws", sshController.HandleWebSocket)
 				ssh.POST("/keypair", sshController.GenerateKeyPair)
 			}
 
@@ -158,6 +157,14 @@ func SetupRouter() *gin.Engine {
 				// 日志清理（需要管理员权限）
 				audit.POST("/cleanup", middleware.RequireAdmin(), auditController.CleanupAuditLogs)
 			}
+		}
+
+		// WebSocket路由（使用特殊的WebSocket认证中间件）
+		wsAuth := api.Group("/ws/ssh/sessions")
+		wsAuth.Use(middleware.WebSocketAuthMiddleware())
+		wsAuth.Use(middleware.RequirePermission("asset:connect"))
+		{
+			wsAuth.GET("/:id/ws", sshController.HandleWebSocket)
 		}
 	}
 
