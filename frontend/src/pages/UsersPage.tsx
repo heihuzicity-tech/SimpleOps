@@ -74,6 +74,7 @@ const UsersPage: React.FC = () => {
     form.setFieldsValue({
       ...user,
       role_ids: (user.roles || []).map((role: any) => role.id),
+      status: user.status === 1 ? 'active' : 'inactive', // 转换状态：1 -> active, 0 -> inactive
     });
   };
 
@@ -88,10 +89,16 @@ const UsersPage: React.FC = () => {
 
   const handleSubmit = async (values: any) => {
     try {
+      // 转换状态字段：active -> 1, inactive -> 0
+      const processedValues = {
+        ...values,
+        status: values.status === 'active' ? 1 : 0
+      };
+      
       if (editingUser) {
-        await dispatch(updateUser({ id: editingUser.id, userData: values })).unwrap();
+        await dispatch(updateUser({ id: editingUser.id, userData: processedValues })).unwrap();
       } else {
-        await dispatch(createUser(values)).unwrap();
+        await dispatch(createUser(processedValues)).unwrap();
       }
       setIsModalVisible(false);
       loadUsers();
@@ -145,10 +152,10 @@ const UsersPage: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => (
+      render: (status: number) => (
         <Badge
-          status={status === 'active' ? 'success' : 'error'}
-          text={status === 'active' ? '活跃' : '禁用'}
+          status={status === 1 ? 'success' : 'error'}
+          text={status === 1 ? '活跃' : '禁用'}
         />
       ),
     },
