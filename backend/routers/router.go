@@ -41,7 +41,7 @@ func SetupRouter() *gin.Engine {
 	sshController := controllers.NewSSHController(sshService)
 	auditController := controllers.NewAuditController(auditService)
 
-	// API路由组
+	// API 路由组
 	api := router.Group("/api/v1")
 	{
 		// 健康检查
