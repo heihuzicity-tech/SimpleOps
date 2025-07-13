@@ -14,6 +14,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../store';
 import { logout, getCurrentUser } from '../store/authSlice';
+import { hasAdminPermission, hasOperatorPermission } from '../utils/permissions';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -44,38 +45,55 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     }
   };
 
-  const menuItems = [
-    {
-      key: '/dashboard',
-      icon: <DashboardOutlined />,
-      label: '仪表板',
-    },
-    {
-      key: '/users',
-      icon: <UserOutlined />,
-      label: '用户管理',
-    },
-    {
-      key: '/assets',
-      icon: <DesktopOutlined />,
-      label: '资产管理',
-    },
-    {
-      key: '/credentials',
-      icon: <KeyOutlined />,
-      label: '凭证管理',
-    },
-    {
-      key: '/ssh-sessions',
-      icon: <ConsoleSqlOutlined />,
-      label: 'SSH会话',
-    },
-    {
+  // 基于角色的菜单项
+  const getMenuItems = () => {
+    const items = [
+      {
+        key: '/dashboard',
+        icon: <DashboardOutlined />,
+        label: '仪表板',
+      },
+    ];
+
+    // 管理员功能
+    if (hasAdminPermission(user)) {
+      items.push({
+        key: '/users',
+        icon: <UserOutlined />,
+        label: '用户管理',
+      });
+    }
+
+    // 运维人员和管理员功能
+    if (hasOperatorPermission(user)) {
+      items.push(
+        {
+          key: '/assets',
+          icon: <DesktopOutlined />,
+          label: '资产管理',
+        },
+        {
+          key: '/credentials',
+          icon: <KeyOutlined />,
+          label: '凭证管理',
+        },
+        {
+          key: '/ssh-sessions',
+          icon: <ConsoleSqlOutlined />,
+          label: 'SSH会话',
+        }
+      );
+    }
+
+    // 审计功能 - 所有用户都可以查看
+    items.push({
       key: '/audit-logs',
       icon: <AuditOutlined />,
       label: '审计日志',
-    },
-  ];
+    });
+
+    return items;
+  };
 
   const userMenuItems = [
     {
@@ -132,7 +150,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           theme="light"
           mode="inline"
           selectedKeys={[location.pathname]}
-          items={menuItems}
+          items={getMenuItems()}
           onClick={onMenuClick}
           style={{ border: 'none' }}
         />

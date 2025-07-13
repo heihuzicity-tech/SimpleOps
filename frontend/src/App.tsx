@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from './store';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './components/DashboardLayout';
+import PermissionGuard from './components/PermissionGuard';
 import UsersPage from './pages/UsersPage';
 import AssetsPage from './pages/AssetsPage';
 import CredentialsPage from './pages/CredentialsPage';
@@ -35,10 +36,38 @@ const App: React.FC = () => {
                 <Routes>
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/users" element={<UsersPage />} />
-                  <Route path="/assets" element={<AssetsPage />} />
-                  <Route path="/credentials" element={<CredentialsPage />} />
-                  <Route path="/ssh-sessions" element={<SSHSessionsPage />} />
+                  <Route 
+                    path="/users" 
+                    element={
+                      <PermissionGuard requiredRole="admin">
+                        <UsersPage />
+                      </PermissionGuard>
+                    } 
+                  />
+                  <Route 
+                    path="/assets" 
+                    element={
+                      <PermissionGuard requiredRole={['admin', 'operator']}>
+                        <AssetsPage />
+                      </PermissionGuard>
+                    } 
+                  />
+                  <Route 
+                    path="/credentials" 
+                    element={
+                      <PermissionGuard requiredRole={['admin', 'operator']}>
+                        <CredentialsPage />
+                      </PermissionGuard>
+                    } 
+                  />
+                  <Route 
+                    path="/ssh-sessions" 
+                    element={
+                      <PermissionGuard requiredRole={['admin', 'operator']}>
+                        <SSHSessionsPage />
+                      </PermissionGuard>
+                    } 
+                  />
                   <Route path="/audit-logs" element={<AuditLogsPage />} />
                 </Routes>
               </DashboardLayout>

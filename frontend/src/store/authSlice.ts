@@ -6,7 +6,11 @@ interface User {
   id: number;
   username: string;
   email: string;
-  roles: string[];
+  roles: Array<{
+    id: number;
+    name: string;
+    description: string;
+  }>;
   permissions: string[];
 }
 
@@ -46,7 +50,8 @@ export const logout = createAsyncThunk('auth/logout', async () => {
 
 export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async () => {
   const response = await authAPI.getCurrentUser();
-  return response.data;
+  // 处理后端返回的嵌套数据结构 {success: true, data: {...}}
+  return response.data.data || response.data;
 });
 
 const authSlice = createSlice({

@@ -56,8 +56,11 @@ const UsersPage: React.FC = () => {
       const response = await getRoles();
       // 后端返回的数据格式是 {data: {pagination: {...}, roles: [...]}}
       setRoles(response.data.data.roles || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('加载角色失败:', error);
+      if (error.response?.status === 403) {
+        message.error('您没有权限访问角色信息');
+      }
       setRoles([]); // 确保即使出错也设置为空数组
     }
   };
