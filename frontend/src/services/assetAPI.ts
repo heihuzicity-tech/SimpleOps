@@ -3,12 +3,12 @@ import { apiClient } from './apiClient';
 export interface Asset {
   id: number;
   name: string;
-  type: 'server' | 'database' | 'network';
-  host: string;
+  type: 'server' | 'database';
+  address: string;
   port: number;
-  description: string;
-  status: 'active' | 'inactive';
-  group: string;
+  protocol: string;
+  tags: string;
+  status: number;
   created_at: string;
   updated_at: string;
 }
@@ -21,19 +21,25 @@ export interface GetAssetsParams {
 }
 
 export interface GetAssetsResponse {
-  assets: Asset[];
-  total: number;
-  page: number;
-  limit: number;
+  data: {
+    assets: Asset[];
+    pagination: {
+      page: number;
+      page_size: number;
+      total: number;
+      total_page: number;
+    };
+  };
+  success: boolean;
 }
 
 export interface CreateAssetRequest {
   name: string;
   type: string;
-  host: string;
+  address: string;
   port: number;
-  description: string;
-  group: string;
+  protocol: string;
+  tags: string;
 }
 
 export interface TestConnectionResponse {

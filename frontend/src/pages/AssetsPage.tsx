@@ -62,7 +62,19 @@ const AssetsPage: React.FC = () => {
   const handleEdit = (asset: any) => {
     setEditingAsset(asset);
     setIsModalVisible(true);
-    form.setFieldsValue(asset);
+    // 解析标签JSON格式用于表单显示
+    const formData = { ...asset };
+    if (asset.tags && asset.tags !== '{}') {
+      try {
+        const parsedTags = JSON.parse(asset.tags);
+        formData.tags = parsedTags.tags || '';
+      } catch {
+        formData.tags = asset.tags;
+      }
+    } else {
+      formData.tags = '';
+    }
+    form.setFieldsValue(formData);
   };
 
   const handleDelete = async (id: number) => {
@@ -76,15 +88,40 @@ const AssetsPage: React.FC = () => {
 
   const handleSubmit = async (values: any) => {
     try {
+      // 确保端口号是数字类型，并将标签转换为JSON格式
+      const submitData = {
+        ...values,
+        port: parseInt(values.port),
+        tags: values.tags ? JSON.stringify({ tags: values.tags }) : '{}',
+      };
+      
       if (editingAsset) {
-        await dispatch(updateAsset({ id: editingAsset.id, assetData: values })).unwrap();
+        await dispatch(updateAsset({ id: editingAsset.id, assetData: submitData })).unwrap();
       } else {
-        await dispatch(createAsset(values)).unwrap();
+        await dispatch(createAsset(submitData)).unwrap();
       }
       setIsModalVisible(false);
       loadAssets();
-    } catch (error) {
+    } catch (error: any) {
       console.error('保存资产失败:', error);
+      
+      // 根据错误类型显示不同的提示
+      let errorMessage = '保存资产失败，请检查输入信息';
+      
+      // 检查是否是409冲突错误（资产名称已存在）
+      if (error?.response?.status === 409 || error?.status === 409 || error?.code === 409) {
+        errorMessage = '资产名称已存在，请使用其他名称';
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message && error.message.includes('409')) {
+        errorMessage = '资产名称已存在，请使用其他名称';
+      } else if (error?.message) {
+        errorMessage = `保存失败: ${error.message}`;
+      }
+      
+      message.error(errorMessage);
     }
   };
 
@@ -127,8 +164,6 @@ const AssetsPage: React.FC = () => {
         return 'blue';
       case 'database':
         return 'green';
-      case 'network':
-        return 'orange';
       default:
         return 'default';
     }
@@ -140,8 +175,6 @@ const AssetsPage: React.FC = () => {
         return '服务器';
       case 'database':
         return '数据库';
-      case 'network':
-        return '网络设备';
       default:
         return type;
     }
@@ -169,8 +202,8 @@ const AssetsPage: React.FC = () => {
     },
     {
       title: '主机',
-      dataIndex: 'host',
-      key: 'host',
+      dataIndex: 'address',
+      key: 'address',
     },
     {
       title: '端口',
@@ -178,19 +211,38 @@ const AssetsPage: React.FC = () => {
       key: 'port',
     },
     {
-      title: '分组',
-      dataIndex: 'group',
-      key: 'group',
-      render: (group: string) => group ? <Tag>{group}</Tag> : '-',
+      title: '协议',
+      dataIndex: 'protocol',
+      key: 'protocol',
+      render: (protocol: string) => protocol?.toUpperCase() || '-',
+    },
+    {
+      title: '标签',
+      dataIndex: 'tags',
+      key: 'tags',
+      render: (tags: string) => {
+        if (!tags || tags === '{}') return '-';
+        try {
+          const parsedTags = JSON.parse(tags);
+          if (parsedTags.tags) {
+            return <Tag>{parsedTags.tags}</Tag>;
+          }
+          // 如果是其他格式的JSON，显示第一个键值对
+          const firstKey = Object.keys(parsedTags)[0];
+          return firstKey ? <Tag>{parsedTags[firstKey]}</Tag> : '-';
+        } catch {
+          return <Tag>{tags}</Tag>;
+        }
+      },
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => (
+      render: (status: number) => (
         <Badge
-          status={status === 'active' ? 'success' : 'error'}
-          text={status === 'active' ? '活跃' : '禁用'}
+          status={status === 1 ? 'success' : 'error'}
+          text={status === 1 ? '活跃' : '禁用'}
         />
       ),
     },
@@ -260,7 +312,6 @@ const AssetsPage: React.FC = () => {
               <Option value="">全部</Option>
               <Option value="server">服务器</Option>
               <Option value="database">数据库</Option>
-              <Option value="network">网络设备</Option>
             </Select>
           </Space>
           <div style={{ float: 'right' }}>
@@ -329,13 +380,12 @@ const AssetsPage: React.FC = () => {
             <Select placeholder="请选择资产类型">
               <Option value="server">服务器</Option>
               <Option value="database">数据库</Option>
-              <Option value="network">网络设备</Option>
             </Select>
           </Form.Item>
 
           <Form.Item
             label="主机地址"
-            name="host"
+            name="address"
             rules={[
               { required: true, message: '请输入主机地址' },
               { pattern: /^(\d{1,3}\.){3}\d{1,3}$|^[a-zA-Z0-9.-]+$/, message: '请输入有效的IP地址或域名' },
@@ -349,35 +399,39 @@ const AssetsPage: React.FC = () => {
             name="port"
             rules={[
               { required: true, message: '请输入端口号' },
-              { type: 'number', min: 1, max: 65535, message: '端口号范围为1-65535' },
+              { 
+                validator: (_, value) => {
+                  const port = parseInt(value);
+                  if (isNaN(port) || port < 1 || port > 65535) {
+                    return Promise.reject(new Error('端口号范围为1-65535'));
+                  }
+                  return Promise.resolve();
+                }
+              },
             ]}
           >
             <Input type="number" placeholder="请输入端口号" />
           </Form.Item>
 
           <Form.Item
-            label="分组"
-            name="group"
+            label="协议"
+            name="protocol"
+            rules={[{ required: true, message: '请选择协议' }]}
           >
-            <Input placeholder="请输入分组名称" />
-          </Form.Item>
-
-          <Form.Item
-            label="描述"
-            name="description"
-          >
-            <Input.TextArea rows={3} placeholder="请输入描述信息" />
-          </Form.Item>
-
-          <Form.Item
-            label="状态"
-            name="status"
-            initialValue="active"
-          >
-            <Select>
-              <Option value="active">活跃</Option>
-              <Option value="inactive">禁用</Option>
+            <Select placeholder="请选择协议">
+              <Option value="ssh">SSH</Option>
+              <Option value="rdp">RDP</Option>
+              <Option value="vnc">VNC</Option>
+              <Option value="mysql">MySQL</Option>
+              <Option value="postgresql">PostgreSQL</Option>
             </Select>
+          </Form.Item>
+
+          <Form.Item
+            label="标签"
+            name="tags"
+          >
+            <Input placeholder="请输入标签" />
           </Form.Item>
 
           <Form.Item>

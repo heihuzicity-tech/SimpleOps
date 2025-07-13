@@ -53,7 +53,8 @@ func (ac *AssetController) CreateAsset(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to create asset",
+			"error":   "Failed to create asset",
+			"details": err.Error(),
 		})
 		return
 	}

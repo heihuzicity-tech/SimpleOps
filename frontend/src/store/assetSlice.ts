@@ -5,12 +5,12 @@ import * as assetAPI from '../services/assetAPI';
 interface Asset {
   id: number;
   name: string;
-  type: 'server' | 'database' | 'network';
-  host: string;
+  type: 'server' | 'database';
+  address: string;
   port: number;
-  description: string;
-  status: 'active' | 'inactive';
-  group: string;
+  protocol: string;
+  tags: string;
+  status: number;
   created_at: string;
   updated_at: string;
 }
@@ -29,12 +29,35 @@ const initialState: AssetState = {
   error: null,
 };
 
+// 内部使用的资产列表响应格式
+interface NormalizedAssetsResponse {
+  assets: Asset[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 // 异步actions
 export const fetchAssets = createAsyncThunk(
   'asset/fetchAssets',
-  async (params: { page?: number; limit?: number; keyword?: string; type?: string }) => {
+  async (params: { page?: number; limit?: number; keyword?: string; type?: string }): Promise<NormalizedAssetsResponse> => {
     const response = await assetAPI.getAssets(params);
-    return response.data;
+    // 适配后端返回的数据结构
+    if (response.data && response.data.data) {
+      return {
+        assets: response.data.data.assets || [],
+        total: response.data.data.pagination?.total || 0,
+        page: response.data.data.pagination?.page || 1,
+        limit: response.data.data.pagination?.page_size || 10,
+      };
+    }
+    // 如果是其他格式，返回默认值
+    return {
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    };
   }
 );
 
@@ -43,10 +66,10 @@ export const createAsset = createAsyncThunk(
   async (assetData: {
     name: string;
     type: string;
-    host: string;
+    address: string;
     port: number;
-    description: string;
-    group: string;
+    protocol: string;
+    tags: string;
   }) => {
     const response = await assetAPI.createAsset(assetData);
     return response.data;
@@ -94,8 +117,8 @@ const assetSlice = createSlice({
       })
       .addCase(fetchAssets.fulfilled, (state, action) => {
         state.loading = false;
-        state.assets = action.payload.assets;
-        state.total = action.payload.total;
+        state.assets = action.payload.assets || [];
+        state.total = action.payload.total || 0;
       })
       .addCase(fetchAssets.rejected, (state, action) => {
         state.loading = false;
@@ -107,6 +130,9 @@ const assetSlice = createSlice({
       })
       .addCase(createAsset.fulfilled, (state, action) => {
         state.loading = false;
+        if (!state.assets) {
+          state.assets = [];
+        }
         state.assets.push(action.payload);
         message.success('资产创建成功');
       })
@@ -117,6 +143,10 @@ const assetSlice = createSlice({
       })
       // 更新资产
       .addCase(updateAsset.fulfilled, (state, action) => {
+        if (!state.assets) {
+          state.assets = [];
+          return;
+        }
         const index = state.assets.findIndex(asset => asset.id === action.payload.id);
         if (index !== -1) {
           state.assets[index] = action.payload;
@@ -129,6 +159,10 @@ const assetSlice = createSlice({
       })
       // 删除资产
       .addCase(deleteAsset.fulfilled, (state, action) => {
+        if (!state.assets) {
+          state.assets = [];
+          return;
+        }
         state.assets = state.assets.filter(asset => asset.id !== action.payload);
         message.success('资产删除成功');
       })
