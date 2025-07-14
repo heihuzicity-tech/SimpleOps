@@ -80,9 +80,21 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           label: '凭证管理',
         },
         {
-          key: '/ssh-sessions',
+          key: '/sessions',
           icon: <ConsoleSqlOutlined />,
-          label: 'SSH会话',
+          label: '会话管理',
+          children: [
+            {
+              key: '/sessions/hosts',
+              icon: <DesktopOutlined />,
+              label: '主机资源',
+            },
+            {
+              key: '/sessions/databases',
+              icon: <ConsoleSqlOutlined />,
+              label: '数据库',
+            },
+          ],
         }
       );
     }
@@ -155,6 +167,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     if (currentPath.startsWith('/audit/')) {
       openKeys = ['/audit'];
     }
+    
+    // 如果是会话管理子页面，需要展开会话管理菜单
+    if (currentPath.startsWith('/sessions/')) {
+      openKeys = ['/sessions'];
+    }
 
     return { selectedKeys, openKeys };
   };
@@ -167,7 +184,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
-        width={250}
+        width={200}
         theme="light"
         style={{
           boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
@@ -175,14 +192,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       >
         <div
           style={{
-            height: 64,
+            height: 48,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             borderBottom: '1px solid #f0f0f0',
           }}
         >
-          <Text strong style={{ fontSize: collapsed ? 14 : 16 }}>
+          <Text strong style={{ fontSize: collapsed ? 12 : 14 }}>
             {collapsed ? '堡垒机' : '运维堡垒机系统'}
           </Text>
         </div>
@@ -206,19 +223,21 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             justifyContent: 'space-between',
             alignItems: 'center',
             borderBottom: '1px solid #f0f0f0',
+            height: '48px',
+            lineHeight: '48px',
           }}
         >
           <div />
-          <Space>
-            <Text type="secondary">欢迎，</Text>
+          <Space size="small">
+            <Text type="secondary" style={{ fontSize: '14px' }}>欢迎，</Text>
             <Dropdown
               menu={{ items: userMenuItems }}
               trigger={['click']}
               placement="bottomRight"
             >
-              <Space style={{ cursor: 'pointer' }}>
-                <Avatar icon={<UserOutlined />} />
-                <Text strong>{user?.username || 'User'}</Text>
+              <Space size="small" style={{ cursor: 'pointer' }}>
+                <Avatar size="small" icon={<UserOutlined />} />
+                <Text strong style={{ fontSize: '14px' }}>{user?.username || 'User'}</Text>
               </Space>
             </Dropdown>
           </Space>
@@ -228,7 +247,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           className="ant-pro-basicLayout-content"
           style={{ 
             margin: '0', 
-            padding: '1rem',
+            padding: '16px',
             overflow: 'initial',
             minHeight: 280
           }}

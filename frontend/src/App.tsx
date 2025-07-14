@@ -11,6 +11,8 @@ import AssetsPage from './pages/AssetsPage';
 import CredentialsPage from './pages/CredentialsPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 import SSHSessionsPage from './pages/SSHSessionsPage';
+import HostSessionsPage from './pages/sessions/HostSessionsPage';
+import DatabaseSessionsPage from './pages/sessions/DatabaseSessionsPage';
 import OnlineSessionsPage from './pages/audit/OnlineSessionsPage';
 import SessionAuditPage from './pages/audit/SessionAuditPage';
 import CommandAuditPage from './pages/audit/CommandAuditPage';
@@ -62,6 +64,26 @@ const App: React.FC = () => {
                     element={
                       <PermissionGuard requiredRole={['admin', 'operator']}>
                         <CredentialsPage />
+                      </PermissionGuard>
+                    } 
+                  />
+                  <Route 
+                    path="/sessions" 
+                    element={<Navigate to="/sessions/hosts" replace />} 
+                  />
+                  <Route 
+                    path="/sessions/hosts" 
+                    element={
+                      <PermissionGuard requiredRole={['admin', 'operator']}>
+                        <HostSessionsPage />
+                      </PermissionGuard>
+                    } 
+                  />
+                  <Route 
+                    path="/sessions/databases" 
+                    element={
+                      <PermissionGuard requiredRole={['admin', 'operator']}>
+                        <DatabaseSessionsPage />
                       </PermissionGuard>
                     } 
                   />
