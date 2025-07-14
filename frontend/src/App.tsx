@@ -53,6 +53,18 @@ const App: React.FC = () => {
                   />
                   <Route 
                     path="/assets" 
+                    element={<Navigate to="/assets/hosts" replace />} 
+                  />
+                  <Route 
+                    path="/assets/hosts" 
+                    element={
+                      <PermissionGuard requiredRole={['admin', 'operator']}>
+                        <AssetsPage />
+                      </PermissionGuard>
+                    } 
+                  />
+                  <Route 
+                    path="/assets/databases" 
                     element={
                       <PermissionGuard requiredRole={['admin', 'operator']}>
                         <AssetsPage />

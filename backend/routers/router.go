@@ -111,6 +111,17 @@ func SetupRouter() *gin.Engine {
 				assets.POST("/test-connection", middleware.RequirePermission("asset:connect"), assetController.TestConnection)
 			}
 
+			// 资产分组管理路由（需要asset权限）
+			assetGroups := authenticated.Group("/asset-groups")
+			assetGroups.Use(middleware.RequirePermission("asset:read"))
+			{
+				assetGroups.POST("/", middleware.RequirePermission("asset:create"), assetController.CreateAssetGroup)
+				assetGroups.GET("/", assetController.GetAssetGroups)
+				assetGroups.GET("/:id", assetController.GetAssetGroup)
+				assetGroups.PUT("/:id", middleware.RequirePermission("asset:update"), assetController.UpdateAssetGroup)
+				assetGroups.DELETE("/:id", middleware.RequirePermission("asset:delete"), assetController.DeleteAssetGroup)
+			}
+
 			// 凭证管理路由（需要asset权限）
 			credentials := authenticated.Group("/credentials")
 			credentials.Use(middleware.RequirePermission("asset:read"))

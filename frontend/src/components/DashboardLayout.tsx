@@ -11,6 +11,7 @@ import {
   SettingOutlined,
   EyeOutlined,
   CodeOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -73,6 +74,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           key: '/assets',
           icon: <DesktopOutlined />,
           label: '资产管理',
+          children: [
+            {
+              key: '/assets/hosts',
+              icon: <DesktopOutlined />,
+              label: '主机资源',
+            },
+            {
+              key: '/assets/databases',
+              icon: <ConsoleSqlOutlined />,
+              label: '数据库',
+            },
+          ],
         },
         {
           key: '/credentials',
@@ -171,6 +184,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     // 如果是会话管理子页面，需要展开会话管理菜单
     if (currentPath.startsWith('/sessions/')) {
       openKeys = ['/sessions'];
+    }
+    
+    // 如果是资产管理子页面，需要展开资产管理菜单
+    if (currentPath.startsWith('/assets/')) {
+      openKeys = ['/assets'];
     }
 
     return { selectedKeys, openKeys };

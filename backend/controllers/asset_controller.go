@@ -584,3 +584,177 @@ func (ac *AssetController) TestConnection(c *gin.Context) {
 		"data":    result,
 	})
 }
+
+// ======================== 资产分组管理 ========================
+
+// CreateAssetGroup 创建资产分组
+func (ac *AssetController) CreateAssetGroup(c *gin.Context) {
+	var request models.AssetGroupCreateRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	group, err := ac.assetService.CreateAssetGroup(&request)
+	if err != nil {
+		if err.Error() == "asset group name already exists" {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "资产分组名称已存在",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "创建资产分组失败",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"data":    group,
+	})
+}
+
+// GetAssetGroups 获取资产分组列表
+func (ac *AssetController) GetAssetGroups(c *gin.Context) {
+	var request models.AssetGroupListRequest
+	if err := c.ShouldBindQuery(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// 设置默认分页参数
+	if request.Page == 0 {
+		request.Page = 1
+	}
+	if request.PageSize == 0 {
+		request.PageSize = 10
+	}
+
+	groups, total, err := ac.assetService.GetAssetGroups(&request)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "获取资产分组列表失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    groups,
+		"total":   total,
+	})
+}
+
+// GetAssetGroup 获取单个资产分组
+func (ac *AssetController) GetAssetGroup(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid group ID",
+		})
+		return
+	}
+
+	group, err := ac.assetService.GetAssetGroup(uint(id))
+	if err != nil {
+		if err.Error() == "asset group not found" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "资产分组不存在",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "获取资产分组失败",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    group,
+	})
+}
+
+// UpdateAssetGroup 更新资产分组
+func (ac *AssetController) UpdateAssetGroup(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid group ID",
+		})
+		return
+	}
+
+	var request models.AssetGroupUpdateRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	group, err := ac.assetService.UpdateAssetGroup(uint(id), &request)
+	if err != nil {
+		if err.Error() == "asset group not found" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "资产分组不存在",
+			})
+		} else if err.Error() == "asset group name already exists" {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "资产分组名称已存在",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "更新资产分组失败",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    group,
+	})
+}
+
+// DeleteAssetGroup 删除资产分组
+func (ac *AssetController) DeleteAssetGroup(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid group ID",
+		})
+		return
+	}
+
+	err = ac.assetService.DeleteAssetGroup(uint(id))
+	if err != nil {
+		if err.Error() == "asset group not found" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "资产分组不存在",
+			})
+		} else if err.Error() == "cannot delete asset group with associated assets" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "无法删除有关联资产的分组",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "删除资产分组失败",
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "资产分组删除成功",
+	})
+}

@@ -13,6 +13,8 @@ import {
   Popconfirm,
   Tooltip,
   message,
+  Row,
+  Col,
 } from 'antd';
 import {
   PlusOutlined,
@@ -21,17 +23,24 @@ import {
   ReloadOutlined,
   CheckCircleOutlined,
   LinkOutlined,
+  DesktopOutlined,
+  EyeOutlined,
+  ConsoleSqlOutlined,
 } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
+import { useLocation } from 'react-router-dom';
 import { AppDispatch, RootState } from '../store';
 import { fetchAssets, createAsset, updateAsset, deleteAsset, testConnection } from '../store/assetSlice';
 import { fetchCredentials } from '../store/credentialSlice';
+import { getAssetGroups, createAssetGroup, deleteAssetGroup, AssetGroup } from '../services/assetAPI';
+import ResourceTree from '../components/sessions/ResourceTree';
 
 const { Search } = Input;
 const { Option } = Select;
 
 const AssetsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const location = useLocation();
   const { assets, total, loading } = useSelector((state: RootState) => state.asset);
   const { credentials } = useSelector((state: RootState) => state.credential);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -41,22 +50,55 @@ const AssetsPage: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   const [testingConnection, setTestingConnection] = useState<number | null>(null);
+  const [assetGroups, setAssetGroups] = useState<AssetGroup[]>([]);
+  const [isGroupModalVisible, setIsGroupModalVisible] = useState(false);
+  const [groupForm] = Form.useForm();
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  // 根据路径确定当前资产类型
+  const getCurrentAssetType = () => {
+    if (location.pathname.includes('/assets/hosts')) return 'server';
+    if (location.pathname.includes('/assets/databases')) return 'database';
+    return 'server'; // 默认
+  };
+
+  const getCurrentPageTitle = () => {
+    if (location.pathname.includes('/assets/hosts')) return '主机资源';
+    if (location.pathname.includes('/assets/databases')) return '数据库';
+    return '主机资源'; // 默认
+  };
+
+  const getCurrentResourceType = (): 'host' | 'database' => {
+    if (location.pathname.includes('/assets/databases')) return 'database';
+    return 'host'; // 默认
+  };
 
   useEffect(() => {
     loadAssets();
     loadCredentials();
+    loadAssetGroups();
   }, []);
 
   const loadCredentials = () => {
     dispatch(fetchCredentials({ page: 1, page_size: 100 }));
   };
 
+  const loadAssetGroups = async () => {
+    try {
+      const response = await getAssetGroups({ page: 1, page_size: 100 });
+      setAssetGroups(response.data.data || []);
+    } catch (error) {
+      console.error('加载资产分组失败:', error);
+    }
+  };
+
   const loadAssets = () => {
+    const currentType = getCurrentAssetType();
     dispatch(fetchAssets({
       page: pagination.current,
       page_size: pagination.pageSize,
       keyword: searchKeyword,
-      type: typeFilter,
+      type: currentType,
     }));
   };
 
@@ -80,6 +122,10 @@ const AssetsPage: React.FC = () => {
       }
     } else {
       formData.tags = '';
+    }
+    // 设置分组字段
+    if (asset.groups && asset.groups.length > 0) {
+      formData.group_ids = asset.groups.map((group: AssetGroup) => group.id);
     }
     form.setFieldsValue(formData);
   };
@@ -147,11 +193,12 @@ const AssetsPage: React.FC = () => {
   const handleSearch = (value: string) => {
     setSearchKeyword(value);
     setPagination({ ...pagination, current: 1 });
+    const currentType = getCurrentAssetType();
     dispatch(fetchAssets({
       page: 1,
       page_size: pagination.pageSize,
       keyword: value,
-      type: typeFilter,
+      type: currentType,
     }));
   };
 
@@ -164,6 +211,34 @@ const AssetsPage: React.FC = () => {
       keyword: searchKeyword,
       type: value,
     }));
+  };
+
+  const handleCreateGroup = async (values: any) => {
+    try {
+      await createAssetGroup(values);
+      message.success('分组创建成功');
+      setIsGroupModalVisible(false);
+      groupForm.resetFields();
+      loadAssetGroups();
+    } catch (error) {
+      message.error('分组创建失败');
+    }
+  };
+
+  const handleDeleteGroup = async (groupId: number) => {
+    try {
+      await deleteAssetGroup(groupId);
+      message.success('分组删除成功');
+      loadAssetGroups();
+    } catch (error) {
+      message.error('分组删除失败');
+    }
+  };
+
+  const handleTreeSelect = (selectedKeys: React.Key[]) => {
+    if (selectedKeys.length > 0) {
+      setSelectedCategory(selectedKeys[0] as string);
+    }
   };
 
   const getTypeColor = (type: string) => {
@@ -190,39 +265,24 @@ const AssetsPage: React.FC = () => {
 
   const columns = [
     {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 80,
-    },
-    {
-      title: '名称',
+      title: '主机名称',
       dataIndex: 'name',
       key: 'name',
     },
     {
-      title: '类型',
-      dataIndex: 'type',
-      key: 'type',
-      render: (type: string) => (
-        <Tag color={getTypeColor(type)}>{getTypeText(type)}</Tag>
-      ),
-    },
-    {
-      title: '主机',
+      title: '主机地址',
       dataIndex: 'address',
       key: 'address',
     },
     {
-      title: '端口',
-      dataIndex: 'port',
-      key: 'port',
-    },
-    {
-      title: '协议',
-      dataIndex: 'protocol',
-      key: 'protocol',
-      render: (protocol: string) => protocol?.toUpperCase() || '-',
+      title: '系统类型',
+      dataIndex: 'os_type',
+      key: 'os_type',
+      render: (osType: string) => {
+        const displayType = osType === 'linux' ? 'Linux' : osType === 'windows' ? 'Windows' : 'Unknown';
+        const color = osType === 'linux' ? 'blue' : osType === 'windows' ? 'green' : 'default';
+        return <Tag color={color}>{displayType}</Tag>;
+      },
     },
     {
       title: '标签',
@@ -244,17 +304,6 @@ const AssetsPage: React.FC = () => {
       },
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: number) => (
-        <Badge
-          status={status === 1 ? 'success' : 'error'}
-          text={status === 1 ? '活跃' : '禁用'}
-        />
-      ),
-    },
-    {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
@@ -263,104 +312,122 @@ const AssetsPage: React.FC = () => {
     {
       title: '操作',
       key: 'action',
+      width: 150,
       render: (text: any, record: any) => (
-        <Space size="middle">
-          <Tooltip key="test" title="测试连接">
-            <Button
-              type="text"
-              icon={<LinkOutlined />}
+        <Space size="small">
+          <Tooltip title="查看详情">
+            <Button 
+              size="small"
+              icon={<EyeOutlined />}
               loading={testingConnection === record.id}
               onClick={() => handleTestConnection(record.id)}
             />
           </Tooltip>
-          <Button
-            key="edit"
-            type="text"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
-          <Popconfirm
-            key="delete"
-            title="确定要删除这个资产吗？"
-            onConfirm={() => handleDelete(record.id)}
-          >
-            <Button type="text" danger icon={<DeleteOutlined />}>
-              删除
-            </Button>
-          </Popconfirm>
+          <Tooltip title="编辑">
+            <Button 
+              size="small" 
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+            />
+          </Tooltip>
+          <Tooltip title="删除">
+            <Popconfirm
+              title="确定要删除这个资产吗？"
+              onConfirm={() => handleDelete(record.id)}
+            >
+              <Button 
+                size="small" 
+                danger
+                icon={<DeleteOutlined />}
+              />
+            </Popconfirm>
+          </Tooltip>
         </Space>
       ),
     },
   ];
 
-  return (
-    <div>
-      <Card>
-        <div style={{ marginBottom: 16 }}>
-          <Space>
-            <Button
-              key="add"
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleAdd}
-            >
-              新增资产
-            </Button>
-            <Button
-              key="refresh"
-              icon={<ReloadOutlined />}
-              onClick={loadAssets}
-            >
-              刷新
-            </Button>
-            <Select
-              key="filter"
-              placeholder="筛选类型"
-              allowClear
-              style={{ width: 120 }}
-              onChange={handleTypeFilter}
-            >
-              <Option value="">全部</Option>
-              <Option value="server">服务器</Option>
-              <Option value="database">数据库</Option>
-            </Select>
-          </Space>
-          <div style={{ float: 'right' }}>
-            <Search
-              placeholder="搜索名称或主机"
-              allowClear
-              onSearch={handleSearch}
-              style={{ width: 300 }}
-            />
-          </div>
-        </div>
+  // 根据选中的分类和路径过滤资产
+  const filteredAssets = assets.filter(asset => {
+    const currentType = getCurrentAssetType();
+    // 只显示当前类型的资产
+    if (asset.type !== currentType) return false;
+    
+    if (selectedCategory === 'all') return true;
+    // 这里可以根据实际的分类逻辑过滤
+    return true;
+  });
 
-        <Table
-          columns={columns}
-          dataSource={assets}
-          loading={loading}
-          rowKey="id"
-          pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: total,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条 / 共 ${total} 条`,
-            onChange: (page, pageSize) => {
-              setPagination({ current: page, pageSize: pageSize || 10 });
-              dispatch(fetchAssets({
-                page,
-                page_size: pageSize || 10,
-                keyword: searchKeyword,
-                type: typeFilter,
-              }));
-            },
-          }}
-        />
-      </Card>
+  return (
+    <div style={{ height: 'calc(100vh - 100px)' }}>
+      <Row gutter={12} style={{ height: '100%' }}>
+        <Col span={4} style={{ height: '100%' }}>
+          <ResourceTree 
+            resourceType={getCurrentResourceType()}
+            onSelect={handleTreeSelect}
+          />
+        </Col>
+        <Col span={20} style={{ height: '100%' }}>
+          <Card 
+            title={
+              <Space>
+                {getCurrentPageTitle() === '主机资源' ? <DesktopOutlined /> : <ConsoleSqlOutlined />}
+                <span>{getCurrentPageTitle()}</span>
+                <Badge count={filteredAssets.length} showZero />
+              </Space>
+            }
+            extra={
+              <Space>
+                <Search
+                  placeholder="请输入主机名称、主机地址搜索"
+                  allowClear
+                  onSearch={handleSearch}
+                  style={{ width: 250 }}
+                  size="small"
+                />
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={loadAssets}
+                  loading={loading}
+                  size="small"
+                >
+                  刷新
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={handleAdd}
+                  size="small"
+                >
+                  新增资产
+                </Button>
+                <Button
+                  onClick={() => setIsGroupModalVisible(true)}
+                  size="small"
+                >
+                  分组管理
+                </Button>
+              </Space>
+            }
+            style={{ height: '100%' }}
+            styles={{ body: { height: 'calc(100% - 56px)', overflow: 'auto' } }}
+          >
+            <Table
+              columns={columns}
+              dataSource={filteredAssets}
+              loading={loading}
+              rowKey="id"
+              pagination={{
+                showSizeChanger: true,
+                showQuickJumper: true,
+                showTotal: (total) => `共 ${total} 条记录`,
+              }}
+              size="small"
+              scroll={{ x: 900 }}
+            />
+          </Card>
+        </Col>
+      </Row>
 
       <Modal
         title={editingAsset ? '编辑资产' : '新增资产'}
@@ -393,6 +460,17 @@ const AssetsPage: React.FC = () => {
             <Select placeholder="请选择资产类型">
               <Option value="server">服务器</Option>
               <Option value="database">数据库</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            label="操作系统"
+            name="os_type"
+            rules={[{ required: true, message: '请选择操作系统类型' }]}
+          >
+            <Select placeholder="请选择操作系统">
+              <Option value="linux">Linux</Option>
+              <Option value="windows">Windows</Option>
             </Select>
           </Form.Item>
 
@@ -466,6 +544,25 @@ const AssetsPage: React.FC = () => {
             </Select>
           </Form.Item>
 
+          <Form.Item
+            label="资产分组"
+            name="group_ids"
+            tooltip="可选：选择资产所属的分组"
+          >
+            <Select 
+              mode="multiple" 
+              placeholder="选择资产分组（可选）"
+              allowClear
+              showSearch
+            >
+              {assetGroups.map(group => (
+                <Option key={group.id} value={group.id}>
+                  {group.name}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
           <Form.Item>
             <Space>
               <Button key="submit" type="primary" htmlType="submit">
@@ -477,6 +574,90 @@ const AssetsPage: React.FC = () => {
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* 分组管理弹窗 */}
+      <Modal
+        title="分组管理"
+        open={isGroupModalVisible}
+        onCancel={() => setIsGroupModalVisible(false)}
+        footer={null}
+        width={800}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Form
+            form={groupForm}
+            layout="inline"
+            onFinish={handleCreateGroup}
+          >
+            <Form.Item
+              name="name"
+              rules={[{ required: true, message: '请输入分组名称' }]}
+            >
+              <Input placeholder="分组名称" />
+            </Form.Item>
+            <Form.Item
+              name="description"
+            >
+              <Input placeholder="分组描述（可选）" />
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" htmlType="submit">
+                创建分组
+              </Button>
+            </Form.Item>
+          </Form>
+        </div>
+        
+        <Table
+          dataSource={assetGroups}
+          rowKey="id"
+          pagination={false}
+          columns={[
+            {
+              title: 'ID',
+              dataIndex: 'id',
+              key: 'id',
+              width: 80,
+            },
+            {
+              title: '分组名称',
+              dataIndex: 'name',
+              key: 'name',
+            },
+            {
+              title: '描述',
+              dataIndex: 'description',
+              key: 'description',
+              render: (text: string) => text || '-',
+            },
+            {
+              title: '资产数量',
+              dataIndex: 'asset_count',
+              key: 'asset_count',
+            },
+            {
+              title: '创建时间',
+              dataIndex: 'created_at',
+              key: 'created_at',
+              render: (text: string) => new Date(text).toLocaleString(),
+            },
+            {
+              title: '操作',
+              key: 'action',
+              render: (text: any, record: AssetGroup) => (
+                <Popconfirm
+                  title="确定要删除这个分组吗？"
+                  onConfirm={() => handleDeleteGroup(record.id)}
+                >
+                  <Button type="text" danger icon={<DeleteOutlined />}>
+                    删除
+                  </Button>
+                </Popconfirm>
+              ),
+            },
+          ]}
+        />
       </Modal>
     </div>
   );

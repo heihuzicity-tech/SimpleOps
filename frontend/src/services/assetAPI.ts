@@ -1,5 +1,14 @@
 import { apiClient } from './apiClient';
 
+export interface AssetGroup {
+  id: number;
+  name: string;
+  description: string;
+  asset_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Asset {
   id: number;
   name: string;
@@ -11,6 +20,7 @@ export interface Asset {
   status: number;
   created_at: string;
   updated_at: string;
+  groups?: AssetGroup[];
 }
 
 export interface GetAssetsParams {
@@ -79,7 +89,56 @@ export const testConnection = async (id: number) => {
   return response;
 };
 
-export const getAssetGroups = async () => {
-  const response = await apiClient.get('/assets/groups');
+// ======================== 资产分组管理 ========================
+
+export interface AssetGroupCreateRequest {
+  name: string;
+  description?: string;
+}
+
+export interface AssetGroupUpdateRequest {
+  name?: string;
+  description?: string;
+}
+
+export interface GetAssetGroupsParams {
+  page?: number;
+  page_size?: number;
+  keyword?: string;
+}
+
+export interface GetAssetGroupsResponse {
+  success: boolean;
+  data: AssetGroup[];
+  total: number;
+}
+
+// 获取资产分组列表
+export const getAssetGroups = async (params?: GetAssetGroupsParams) => {
+  const response = await apiClient.get<GetAssetGroupsResponse>('/asset-groups', { params });
+  return response;
+};
+
+// 创建资产分组
+export const createAssetGroup = async (data: AssetGroupCreateRequest) => {
+  const response = await apiClient.post('/asset-groups', data);
+  return response;
+};
+
+// 获取单个资产分组
+export const getAssetGroup = async (id: number) => {
+  const response = await apiClient.get(`/asset-groups/${id}`);
+  return response;
+};
+
+// 更新资产分组
+export const updateAssetGroup = async (id: number, data: AssetGroupUpdateRequest) => {
+  const response = await apiClient.put(`/asset-groups/${id}`, data);
+  return response;
+};
+
+// 删除资产分组
+export const deleteAssetGroup = async (id: number) => {
+  const response = await apiClient.delete(`/asset-groups/${id}`);
   return response;
 }; 

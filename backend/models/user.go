@@ -244,6 +244,7 @@ type Asset struct {
 	ID        uint           `json:"id" gorm:"primaryKey"`
 	Name      string         `json:"name" gorm:"not null;size:100"`
 	Type      string         `json:"type" gorm:"not null;size:20;default:server"`
+	OsType    string         `json:"os_type" gorm:"size:20;default:linux"`
 	Address   string         `json:"address" gorm:"not null;size:255"`
 	Port      int            `json:"port" gorm:"default:22"`
 	Protocol  string         `json:"protocol" gorm:"size:10;default:ssh"`
@@ -255,6 +256,7 @@ type Asset struct {
 
 	// 关联关系 - 多对多
 	Credentials []Credential `json:"credentials" gorm:"many2many:asset_credentials"`
+	Groups      []AssetGroup `json:"groups" gorm:"many2many:asset_group_assets"`
 }
 
 // Credential 凭证模型
@@ -294,30 +296,34 @@ type AssetGroup struct {
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// 关联关系
-	Assets []Asset `json:"assets" gorm:"many2many:asset_groups"`
+	Assets []Asset `json:"assets" gorm:"many2many:asset_group_assets"`
 }
 
 // AssetCreateRequest 资产创建请求
 type AssetCreateRequest struct {
 	Name          string `json:"name" binding:"required,min=1,max=100"`
 	Type          string `json:"type" binding:"required,oneof=server database"`
+	OsType        string `json:"os_type" binding:"omitempty,oneof=linux windows"`
 	Address       string `json:"address" binding:"required,min=1,max=255"`
 	Port          int    `json:"port" binding:"required,min=1,max=65535"`
 	Protocol      string `json:"protocol" binding:"required,oneof=ssh rdp vnc mysql postgresql"`
 	Tags          string `json:"tags"`
 	CredentialIDs []uint `json:"credential_ids" binding:"omitempty"` // 可选的凭证ID列表
+	GroupIDs      []uint `json:"group_ids" binding:"omitempty"`      // 可选的分组ID列表
 }
 
 // AssetUpdateRequest 资产更新请求
 type AssetUpdateRequest struct {
 	Name          string `json:"name" binding:"omitempty,min=1,max=100"`
 	Type          string `json:"type" binding:"omitempty,oneof=server database"`
+	OsType        string `json:"os_type" binding:"omitempty,oneof=linux windows"`
 	Address       string `json:"address" binding:"omitempty,min=1,max=255"`
 	Port          int    `json:"port" binding:"omitempty,min=1,max=65535"`
 	Protocol      string `json:"protocol" binding:"omitempty,oneof=ssh rdp vnc mysql postgresql"`
 	Tags          string `json:"tags"`
 	Status        *int   `json:"status" binding:"omitempty,oneof=0 1"`
 	CredentialIDs []uint `json:"credential_ids" binding:"omitempty"` // 可选的凭证ID列表
+	GroupIDs      []uint `json:"group_ids" binding:"omitempty"`      // 可选的分组ID列表
 }
 
 // AssetResponse 资产响应
@@ -325,6 +331,7 @@ type AssetResponse struct {
 	ID               uint         `json:"id"`
 	Name             string       `json:"name"`
 	Type             string       `json:"type"`
+	OsType           string       `json:"os_type"`
 	Address          string       `json:"address"`
 	Port             int          `json:"port"`
 	Protocol         string       `json:"protocol"`
@@ -333,6 +340,7 @@ type AssetResponse struct {
 	CreatedAt        time.Time    `json:"created_at"`
 	UpdatedAt        time.Time    `json:"updated_at"`
 	Credentials      []Credential `json:"credentials,omitempty"`
+	Groups           []AssetGroup `json:"groups,omitempty"`
 	ConnectionStatus string       `json:"connection_status,omitempty"`
 }
 
@@ -423,6 +431,7 @@ func (a *Asset) ToResponse() *AssetResponse {
 		ID:          a.ID,
 		Name:        a.Name,
 		Type:        a.Type,
+		OsType:      a.OsType,
 		Address:     a.Address,
 		Port:        a.Port,
 		Protocol:    a.Protocol,
@@ -431,6 +440,7 @@ func (a *Asset) ToResponse() *AssetResponse {
 		CreatedAt:   a.CreatedAt,
 		UpdatedAt:   a.UpdatedAt,
 		Credentials: a.Credentials,
+		Groups:      a.Groups,
 	}
 }
 
@@ -1001,4 +1011,47 @@ func (s *SessionWarning) MarkAsRead() {
 	now := time.Now()
 	s.IsRead = true
 	s.ReadAt = &now
+}
+
+// ======================== 资产分组相关请求响应结构 ========================
+
+// AssetGroupCreateRequest 资产分组创建请求
+type AssetGroupCreateRequest struct {
+	Name        string `json:"name" binding:"required,min=1,max=50"`
+	Description string `json:"description" binding:"omitempty,max=500"`
+}
+
+// AssetGroupUpdateRequest 资产分组更新请求
+type AssetGroupUpdateRequest struct {
+	Name        string `json:"name" binding:"omitempty,min=1,max=50"`
+	Description string `json:"description" binding:"omitempty,max=500"`
+}
+
+// AssetGroupResponse 资产分组响应
+type AssetGroupResponse struct {
+	ID          uint      `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	AssetCount  int       `json:"asset_count"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// AssetGroupListRequest 资产分组列表请求
+type AssetGroupListRequest struct {
+	Page     int    `form:"page" binding:"omitempty,min=1"`
+	PageSize int    `form:"page_size" binding:"omitempty,min=1,max=100"`
+	Keyword  string `form:"keyword" binding:"omitempty,max=50"`
+}
+
+// AssetGroupResponse 转换方法
+func (ag *AssetGroup) ToResponse() *AssetGroupResponse {
+	return &AssetGroupResponse{
+		ID:          ag.ID,
+		Name:        ag.Name,
+		Description: ag.Description,
+		AssetCount:  len(ag.Assets),
+		CreatedAt:   ag.CreatedAt,
+		UpdatedAt:   ag.UpdatedAt,
+	}
 }

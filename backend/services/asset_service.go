@@ -42,15 +42,36 @@ func (s *AssetService) CreateAsset(request *models.AssetCreateRequest) (*models.
 		}
 	}
 
+	// 如果指定了分组ID，检查分组是否存在
+	var groups []models.AssetGroup
+	if len(request.GroupIDs) > 0 {
+		if err := s.db.Where("id IN ?", request.GroupIDs).Find(&groups).Error; err != nil {
+			return nil, fmt.Errorf("failed to check groups: %w", err)
+		}
+		if len(groups) != len(request.GroupIDs) {
+			return nil, errors.New("some groups not found")
+		}
+	}
+
 	// 创建资产
 	asset := models.Asset{
 		Name:     request.Name,
 		Type:     request.Type,
+		OsType:   request.OsType,
 		Address:  request.Address,
 		Port:     request.Port,
 		Protocol: request.Protocol,
 		Tags:     request.Tags,
 		Status:   1, // 默认启用
+	}
+	
+	// 如果没有指定操作系统类型，根据资产类型设置默认值
+	if asset.OsType == "" {
+		if asset.Type == "server" {
+			asset.OsType = "linux"
+		} else {
+			asset.OsType = "linux" // 数据库默认也用linux
+		}
 	}
 
 	// 使用事务创建资产及其关联
@@ -68,10 +89,18 @@ func (s *AssetService) CreateAsset(request *models.AssetCreateRequest) (*models.
 		}
 	}
 
+	// 关联分组
+	if len(groups) > 0 {
+		if err := tx.Model(&asset).Association("Groups").Append(groups); err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("failed to associate groups: %w", err)
+		}
+	}
+
 	tx.Commit()
 
 	// 重新查询包含关联数据的资产
-	if err := s.db.Preload("Credentials").Where("id = ?", asset.ID).First(&asset).Error; err != nil {
+	if err := s.db.Preload("Credentials").Preload("Groups").Where("id = ?", asset.ID).First(&asset).Error; err != nil {
 		return nil, fmt.Errorf("failed to query created asset: %w", err)
 	}
 
@@ -112,8 +141,8 @@ func (s *AssetService) GetAssets(request *models.AssetListRequest) ([]*models.As
 		query = query.Offset(offset).Limit(request.PageSize)
 	}
 
-	// 查询资产，预加载凭证
-	if err := query.Preload("Credentials").Find(&assets).Error; err != nil {
+	// 查询资产，预加载凭证和分组
+	if err := query.Preload("Credentials").Preload("Groups").Find(&assets).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to query assets: %w", err)
 	}
 
@@ -129,7 +158,7 @@ func (s *AssetService) GetAssets(request *models.AssetListRequest) ([]*models.As
 // GetAsset 获取单个资产
 func (s *AssetService) GetAsset(id uint) (*models.AssetResponse, error) {
 	var asset models.Asset
-	if err := s.db.Preload("Credentials").Where("id = ?", id).First(&asset).Error; err != nil {
+	if err := s.db.Preload("Credentials").Preload("Groups").Where("id = ?", id).First(&asset).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("asset not found")
 		}
@@ -160,6 +189,25 @@ func (s *AssetService) UpdateAsset(id uint, request *models.AssetUpdateRequest) 
 		}
 	}
 
+	// 如果指定了分组ID，检查分组是否存在
+	var groups []models.AssetGroup
+	if len(request.GroupIDs) > 0 {
+		if err := s.db.Where("id IN ?", request.GroupIDs).Find(&groups).Error; err != nil {
+			return nil, fmt.Errorf("failed to check groups: %w", err)
+		}
+		if len(groups) != len(request.GroupIDs) {
+			return nil, errors.New("some groups not found")
+		}
+	}
+
+	// 使用事务更新资产信息和关联关系
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	// 更新资产信息
 	updates := make(map[string]interface{})
 	if request.Name != "" {
@@ -167,6 +215,9 @@ func (s *AssetService) UpdateAsset(id uint, request *models.AssetUpdateRequest) 
 	}
 	if request.Type != "" {
 		updates["type"] = request.Type
+	}
+	if request.OsType != "" {
+		updates["os_type"] = request.OsType
 	}
 	if request.Address != "" {
 		updates["address"] = request.Address
@@ -185,13 +236,30 @@ func (s *AssetService) UpdateAsset(id uint, request *models.AssetUpdateRequest) 
 	}
 
 	if len(updates) > 0 {
-		if err := s.db.Model(&asset).Updates(updates).Error; err != nil {
+		if err := tx.Model(&asset).Updates(updates).Error; err != nil {
+			tx.Rollback()
 			return nil, fmt.Errorf("failed to update asset: %w", err)
 		}
 	}
 
-	// 重新查询资产，包含凭证信息
-	if err := s.db.Preload("Credentials").Where("id = ?", id).First(&asset).Error; err != nil {
+	// 更新分组关联
+	if len(request.GroupIDs) > 0 {
+		// 先清除现有的分组关联
+		if err := tx.Model(&asset).Association("Groups").Clear(); err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("failed to clear asset groups: %w", err)
+		}
+		// 添加新的分组关联
+		if err := tx.Model(&asset).Association("Groups").Append(groups); err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("failed to associate groups: %w", err)
+		}
+	}
+
+	tx.Commit()
+
+	// 重新查询资产，包含凭证和分组信息
+	if err := s.db.Preload("Credentials").Preload("Groups").Where("id = ?", id).First(&asset).Error; err != nil {
 		return nil, fmt.Errorf("failed to query updated asset: %w", err)
 	}
 
@@ -629,4 +697,144 @@ func (s *AssetService) GetCredentialsByAssetID(assetID uint) ([]*models.Credenti
 	}
 
 	return responses, nil
+}
+
+// ======================== 资产分组管理 ========================
+
+// CreateAssetGroup 创建资产分组
+func (s *AssetService) CreateAssetGroup(request *models.AssetGroupCreateRequest) (*models.AssetGroupResponse, error) {
+	// 检查分组名称是否已存在
+	var existingGroup models.AssetGroup
+	if err := s.db.Where("name = ?", request.Name).First(&existingGroup).Error; err == nil {
+		return nil, errors.New("asset group name already exists")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to check group name: %w", err)
+	}
+
+	// 创建分组
+	group := models.AssetGroup{
+		Name:        request.Name,
+		Description: request.Description,
+	}
+
+	if err := s.db.Create(&group).Error; err != nil {
+		return nil, fmt.Errorf("failed to create asset group: %w", err)
+	}
+
+	return group.ToResponse(), nil
+}
+
+// GetAssetGroups 获取资产分组列表
+func (s *AssetService) GetAssetGroups(request *models.AssetGroupListRequest) ([]*models.AssetGroupResponse, int64, error) {
+	var groups []models.AssetGroup
+	var total int64
+
+	query := s.db.Model(&models.AssetGroup{})
+
+	// 搜索条件
+	if request.Keyword != "" {
+		query = query.Where("name LIKE ? OR description LIKE ?", "%"+request.Keyword+"%", "%"+request.Keyword+"%")
+	}
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count asset groups: %w", err)
+	}
+
+	// 分页
+	if request.Page > 0 && request.PageSize > 0 {
+		offset := (request.Page - 1) * request.PageSize
+		query = query.Offset(offset).Limit(request.PageSize)
+	}
+
+	// 查询数据，预加载资产数据以统计数量
+	if err := query.Preload("Assets").Find(&groups).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to query asset groups: %w", err)
+	}
+
+	responses := make([]*models.AssetGroupResponse, len(groups))
+	for i, group := range groups {
+		responses[i] = group.ToResponse()
+	}
+
+	return responses, total, nil
+}
+
+// GetAssetGroup 获取单个资产分组
+func (s *AssetService) GetAssetGroup(id uint) (*models.AssetGroupResponse, error) {
+	var group models.AssetGroup
+	if err := s.db.Preload("Assets").Where("id = ?", id).First(&group).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("asset group not found")
+		}
+		return nil, fmt.Errorf("failed to query asset group: %w", err)
+	}
+
+	return group.ToResponse(), nil
+}
+
+// UpdateAssetGroup 更新资产分组
+func (s *AssetService) UpdateAssetGroup(id uint, request *models.AssetGroupUpdateRequest) (*models.AssetGroupResponse, error) {
+	var group models.AssetGroup
+	if err := s.db.Where("id = ?", id).First(&group).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("asset group not found")
+		}
+		return nil, fmt.Errorf("failed to query asset group: %w", err)
+	}
+
+	// 检查分组名称是否已存在（排除当前分组）
+	if request.Name != "" && request.Name != group.Name {
+		var existingGroup models.AssetGroup
+		if err := s.db.Where("name = ? AND id != ?", request.Name, id).First(&existingGroup).Error; err == nil {
+			return nil, errors.New("asset group name already exists")
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("failed to check group name: %w", err)
+		}
+	}
+
+	// 更新字段
+	updates := make(map[string]interface{})
+	if request.Name != "" {
+		updates["name"] = request.Name
+	}
+	if request.Description != "" {
+		updates["description"] = request.Description
+	}
+
+	if len(updates) > 0 {
+		if err := s.db.Model(&group).Updates(updates).Error; err != nil {
+			return nil, fmt.Errorf("failed to update asset group: %w", err)
+		}
+	}
+
+	// 重新查询更新后的分组
+	if err := s.db.Preload("Assets").Where("id = ?", id).First(&group).Error; err != nil {
+		return nil, fmt.Errorf("failed to query updated asset group: %w", err)
+	}
+
+	return group.ToResponse(), nil
+}
+
+// DeleteAssetGroup 删除资产分组
+func (s *AssetService) DeleteAssetGroup(id uint) error {
+	var group models.AssetGroup
+	if err := s.db.Preload("Assets").Where("id = ?", id).First(&group).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("asset group not found")
+		}
+		return fmt.Errorf("failed to query asset group: %w", err)
+	}
+
+	// 检查是否有资产关联到此分组
+	if len(group.Assets) > 0 {
+		return errors.New("cannot delete asset group with associated assets")
+	}
+
+	// 删除分组
+	if err := s.db.Delete(&group).Error; err != nil {
+		return fmt.Errorf("failed to delete asset group: %w", err)
+	}
+
+	return nil
 }
