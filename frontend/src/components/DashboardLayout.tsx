@@ -9,6 +9,8 @@ import {
   LogoutOutlined,
   ConsoleSqlOutlined,
   SettingOutlined,
+  EyeOutlined,
+  CodeOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -47,7 +49,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
   // 基于角色的菜单项
   const getMenuItems = () => {
-    const items = [
+    const items: any[] = [
       {
         key: '/dashboard',
         icon: <DashboardOutlined />,
@@ -87,9 +89,31 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
     // 审计功能 - 所有用户都可以查看
     items.push({
-      key: '/audit-logs',
+      key: '/audit',
       icon: <AuditOutlined />,
       label: '审计日志',
+      children: [
+        {
+          key: '/audit/online-sessions',
+          icon: <EyeOutlined />,
+          label: '在线会话',
+        },
+        {
+          key: '/audit/session-audit',
+          icon: <DesktopOutlined />,
+          label: '会话审计',
+        },
+        {
+          key: '/audit/command-audit',
+          icon: <CodeOutlined />,
+          label: '命令审计',
+        },
+        {
+          key: '/audit/operation-audit',
+          icon: <SettingOutlined />,
+          label: '操作审计',
+        },
+      ],
     });
 
     return items;
@@ -121,6 +145,22 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     navigate(key);
   };
 
+  // 计算当前选中的菜单项和展开的子菜单
+  const getCurrentMenuState = () => {
+    const currentPath = location.pathname;
+    let selectedKeys = [currentPath];
+    let openKeys: string[] = [];
+
+    // 如果是审计子页面，需要展开审计菜单
+    if (currentPath.startsWith('/audit/')) {
+      openKeys = ['/audit'];
+    }
+
+    return { selectedKeys, openKeys };
+  };
+
+  const { selectedKeys, openKeys } = getCurrentMenuState();
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
@@ -149,7 +189,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         <Menu
           theme="light"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={selectedKeys}
+          defaultOpenKeys={openKeys}
           items={getMenuItems()}
           onClick={onMenuClick}
           style={{ border: 'none' }}
@@ -183,7 +224,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </Space>
         </Header>
         
-        <Content style={{ margin: '24px 16px 0', overflow: 'initial' }}>
+        <Content 
+          className="ant-pro-basicLayout-content"
+          style={{ 
+            margin: '0', 
+            padding: '1rem',
+            overflow: 'initial',
+            minHeight: 280
+          }}
+        >
           {children}
         </Content>
       </Layout>

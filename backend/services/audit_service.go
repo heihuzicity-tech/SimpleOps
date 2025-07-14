@@ -229,6 +229,13 @@ func (a *AuditService) RecordSessionStart(sessionID string, userID uint, usernam
 		return nil
 	}
 
+	// 检查会话是否已存在，避免重复记录
+	var existingRecord models.SessionRecord
+	if err := a.db.Where("session_id = ?", sessionID).First(&existingRecord).Error; err == nil {
+		logrus.WithField("session_id", sessionID).Warn("Session record already exists, skipping duplicate creation")
+		return nil
+	}
+
 	sessionRecord := &models.SessionRecord{
 		SessionID:    sessionID,
 		UserID:       userID,

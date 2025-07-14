@@ -11,6 +11,11 @@ import AssetsPage from './pages/AssetsPage';
 import CredentialsPage from './pages/CredentialsPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 import SSHSessionsPage from './pages/SSHSessionsPage';
+import OnlineSessionsPage from './pages/audit/OnlineSessionsPage';
+import SessionAuditPage from './pages/audit/SessionAuditPage';
+import CommandAuditPage from './pages/audit/CommandAuditPage';
+import OperationAuditPage from './pages/audit/OperationAuditPage';
+import AuditOverviewPage from './pages/audit/AuditOverviewPage';
 
 const { Content } = Layout;
 
@@ -69,6 +74,11 @@ const App: React.FC = () => {
                     } 
                   />
                   <Route path="/audit-logs" element={<AuditLogsPage />} />
+                  <Route path="/audit" element={<AuditOverviewPage />} />
+                  <Route path="/audit/online-sessions" element={<OnlineSessionsPage />} />
+                  <Route path="/audit/session-audit" element={<SessionAuditPage />} />
+                  <Route path="/audit/command-audit" element={<CommandAuditPage />} />
+                  <Route path="/audit/operation-audit" element={<OperationAuditPage />} />
                 </Routes>
               </DashboardLayout>
             ) : (

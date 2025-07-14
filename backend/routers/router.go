@@ -32,6 +32,7 @@ func SetupRouter() *gin.Engine {
 	assetService := services.NewAssetService(utils.GetDB())
 	sshService := services.NewSSHService(utils.GetDB())
 	auditService := services.NewAuditService(utils.GetDB())
+	monitorService := services.NewMonitorService(utils.GetDB())
 
 	// 创建控制器实例
 	authController := controllers.NewAuthController(authService)
@@ -40,6 +41,7 @@ func SetupRouter() *gin.Engine {
 	assetController := controllers.NewAssetController(assetService)
 	sshController := controllers.NewSSHController(sshService)
 	auditController := controllers.NewAuditController(auditService)
+	monitorController := controllers.NewMonitorController(monitorService)
 
 	// API 路由组
 	api := router.Group("/api/v1")
@@ -129,6 +131,8 @@ func SetupRouter() *gin.Engine {
 				ssh.GET("/sessions/:id", sshController.GetSessionInfo)
 				ssh.DELETE("/sessions/:id", sshController.CloseSession)
 				ssh.POST("/sessions/:id/resize", sshController.ResizeSession)
+				ssh.POST("/sessions/health-check", middleware.RequirePermission("admin"), sshController.HealthCheckSessions)
+			ssh.POST("/sessions/force-cleanup", middleware.RequirePermission("admin"), sshController.ForceCleanupSessions)
 				ssh.POST("/keypair", sshController.GenerateKeyPair)
 			}
 
@@ -156,15 +160,64 @@ func SetupRouter() *gin.Engine {
 
 				// 日志清理（需要管理员权限）
 				audit.POST("/cleanup", middleware.RequireAdmin(), auditController.CleanupAuditLogs)
+
+				// ======================== 实时监控路由 ========================
+				// 活跃会话监控（需要监控权限）
+				monitor := audit.Group("/")
+				monitor.Use(middleware.RequirePermission("audit:monitor"))
+				{
+					// 活跃会话列表
+					monitor.GET("/active-sessions", monitorController.GetActiveSessions)
+					
+					// 监控统计数据
+					monitor.GET("/monitor/statistics", monitorController.GetMonitorStatistics)
+					
+					// 会话监控日志
+					monitor.GET("/sessions/:id/monitor-logs", monitorController.GetSessionMonitorLogs)
+				}
+
+				// 会话控制操作（需要终止权限）
+				control := audit.Group("/sessions/:id")
+				control.Use(middleware.RequirePermission("audit:terminate"))
+				{
+					// 终止会话
+					control.POST("/terminate", monitorController.TerminateSession)
+				}
+
+				// 会话警告操作（需要警告权限）  
+				warning := audit.Group("/sessions/:id")
+				warning.Use(middleware.RequirePermission("audit:warning"))
+				{
+					// 发送警告
+					warning.POST("/warning", monitorController.SendSessionWarning)
+				}
+
+				// 警告管理
+				warnings := audit.Group("/warnings")
+				{
+					// 标记警告为已读
+					warnings.POST("/:id/read", monitorController.MarkWarningAsRead)
+				}
 			}
 		}
 
 		// WebSocket路由（使用特殊的WebSocket认证中间件）
-		wsAuth := api.Group("/ws/ssh/sessions")
+		wsAuth := api.Group("/ws")
 		wsAuth.Use(middleware.WebSocketAuthMiddleware())
-		wsAuth.Use(middleware.RequirePermission("asset:connect"))
 		{
-			wsAuth.GET("/:id/ws", sshController.HandleWebSocket)
+			// SSH WebSocket连接
+			sshWS := wsAuth.Group("/ssh/sessions")
+			sshWS.Use(middleware.RequirePermission("asset:connect"))
+			{
+				sshWS.GET("/:id/ws", sshController.HandleWebSocket)
+			}
+
+			// 监控WebSocket连接
+			monitorWS := wsAuth.Group("/")
+			monitorWS.Use(middleware.RequirePermission("audit:monitor"))
+			{
+				monitorWS.GET("/monitor", monitorController.HandleWebSocketMonitor)
+			}
 		}
 	}
 

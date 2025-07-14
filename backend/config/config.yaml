@@ -56,7 +56,7 @@ ssh:
 
 # 会话配置
 session:
-  timeout: 3600   # 会话超时时间，秒
+  timeout: 900    # 会话超时时间，秒（15分钟，原来1小时太长）
   recordPath: "./recordings" # 会话录制文件路径
   enableRecord: true # 是否启用会话录制
 
@@ -113,4 +113,22 @@ audit:
     - "shutdown"
     - "reboot"
     - "passwd"
-    - "userdel" 
+    - "userdel"
+
+# WebSocket配置
+websocket:
+  enable: true
+  port: 8081
+  path: "/ws/monitor"
+  heartbeatInterval: 30  # 心跳间隔（秒）
+  maxConnections: 1000   # 最大连接数
+  messageBufferSize: 256
+  readTimeout: 60
+  writeTimeout: 10
+
+# 实时监控配置
+monitor:
+  enableRealtime: true
+  updateInterval: 5      # 状态更新间隔（秒）
+  sessionTimeout: 900    # 会话超时时间（秒）（15分钟）
+  maxInactiveTime: 600   # 最大非活跃时间（秒）（10分钟） 

@@ -72,10 +72,7 @@ start_backend() {
     force_kill_process "$BACKEND_BINARY"
     
     # 切换到后端目录
-    cd "$BACKEND_DIR" || {
-        log_error "无法进入后端目录: $BACKEND_DIR"
-        return 1
-    }
+    (cd "$BACKEND_DIR" && {
     
     # 编译后端
     log_info "编译后端..."
@@ -101,6 +98,7 @@ start_backend() {
         log_error "后端服务启动失败"
         return 1
     fi
+    })
 }
 
 # 启动前端服务

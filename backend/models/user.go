@@ -526,11 +526,15 @@ type SessionRecord struct {
 	CredentialID uint           `json:"credential_id" gorm:"not null;index"`
 	Protocol     string         `json:"protocol" gorm:"size:10;not null"`
 	IP           string         `json:"ip" gorm:"not null;size:45"`
-	Status       string         `json:"status" gorm:"size:20;not null"` // active, closed, timeout
+	Status       string         `json:"status" gorm:"size:20;not null"` // active, closed, timeout, terminated
 	StartTime    time.Time      `json:"start_time"`
 	EndTime      *time.Time     `json:"end_time"`
 	Duration     int64          `json:"duration"`                    // 会话持续时间，秒
 	RecordPath   string         `json:"record_path" gorm:"size:255"` // 录制文件路径
+	IsTerminated *bool          `json:"is_terminated" gorm:"default:false"` // 是否被终止
+	TerminationReason string    `json:"termination_reason" gorm:"size:255"` // 终止原因
+	TerminatedBy *uint          `json:"terminated_by" gorm:"index"`        // 终止人
+	TerminatedAt *time.Time     `json:"terminated_at"`                     // 终止时间
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
@@ -802,4 +806,199 @@ func (s *SessionRecord) CalculateDuration() int64 {
 		return int64(s.EndTime.Sub(s.StartTime).Seconds())
 	}
 	return int64(time.Since(s.StartTime).Seconds())
+}
+
+// ======================== 实时监控相关模型 ========================
+
+// SessionMonitorLog 会话监控日志模型
+type SessionMonitorLog struct {
+	ID            uint      `json:"id" gorm:"primaryKey"`
+	SessionID     string    `json:"session_id" gorm:"not null;index;size:100"`
+	MonitorUserID uint      `json:"monitor_user_id" gorm:"not null;index"`
+	ActionType    string    `json:"action_type" gorm:"not null;size:50"` // terminate, warning, view
+	ActionData    string    `json:"action_data" gorm:"type:json"`
+	Reason        string    `json:"reason" gorm:"type:text"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+
+	// 关联关系
+	MonitorUser User `json:"monitor_user" gorm:"foreignKey:MonitorUserID"`
+}
+
+// SessionWarning 会话警告消息模型
+type SessionWarning struct {
+	ID             uint       `json:"id" gorm:"primaryKey"`
+	SessionID      string     `json:"session_id" gorm:"not null;index;size:100"`
+	SenderUserID   uint       `json:"sender_user_id" gorm:"not null;index"`
+	ReceiverUserID uint       `json:"receiver_user_id" gorm:"not null;index"`
+	Message        string     `json:"message" gorm:"type:text;not null"`
+	Level          string     `json:"level" gorm:"size:20;default:warning"` // info, warning, error
+	IsRead         bool       `json:"is_read" gorm:"default:false"`
+	CreatedAt      time.Time  `json:"created_at"`
+	ReadAt         *time.Time `json:"read_at"`
+
+	// 关联关系
+	SenderUser   User `json:"sender_user" gorm:"foreignKey:SenderUserID"`
+	ReceiverUser User `json:"receiver_user" gorm:"foreignKey:ReceiverUserID"`
+}
+
+// WebSocketConnection WebSocket连接日志模型（可选）
+type WebSocketConnection struct {
+	ID             uint       `json:"id" gorm:"primaryKey"`
+	ClientID       string     `json:"client_id" gorm:"not null;index;size:100"`
+	UserID         uint       `json:"user_id" gorm:"not null;index"`
+	ConnectTime    time.Time  `json:"connect_time"`
+	DisconnectTime *time.Time `json:"disconnect_time"`
+	IPAddress      string     `json:"ip_address" gorm:"size:45"`
+	UserAgent      string     `json:"user_agent" gorm:"type:text"`
+	Duration       int        `json:"duration"` // 连接持续时间（秒）
+
+	// 关联关系
+	User User `json:"user" gorm:"foreignKey:UserID"`
+}
+
+// ======================== 实时监控请求响应结构 ========================
+
+// ActiveSessionListRequest 活跃会话列表请求
+type ActiveSessionListRequest struct {
+	Page      int    `form:"page" binding:"omitempty,min=1"`
+	PageSize  int    `form:"page_size" binding:"omitempty,min=1,max=100"`
+	Username  string `form:"username" binding:"omitempty,max=50"`
+	AssetName string `form:"asset_name" binding:"omitempty,max=100"`
+	Protocol  string `form:"protocol" binding:"omitempty,oneof=ssh rdp vnc"`
+	IP        string `form:"ip" binding:"omitempty,max=45"`
+}
+
+// TerminateSessionRequest 终止会话请求
+type TerminateSessionRequest struct {
+	Reason string `json:"reason" binding:"required,max=255"`
+	Force  bool   `json:"force"` // 是否强制终止
+}
+
+// SessionWarningRequest 会话警告请求
+type SessionWarningRequest struct {
+	Message string `json:"message" binding:"required,max=500"`
+	Level   string `json:"level" binding:"required,oneof=info warning error"`
+}
+
+// ActiveSessionResponse 活跃会话响应
+type ActiveSessionResponse struct {
+	SessionRecordResponse
+	ConnectionTime   int64  `json:"connection_time"`    // 连接时长（秒）
+	InactiveTime     int64  `json:"inactive_time"`      // 非活跃时长（秒）
+	LastActivity     string `json:"last_activity"`      // 最后活动时间
+	IsMonitored      bool   `json:"is_monitored"`       // 是否被监控
+	MonitorCount     int    `json:"monitor_count"`      // 监控次数
+	CanTerminate     bool   `json:"can_terminate"`      // 是否可以终止
+	UnreadWarnings   int    `json:"unread_warnings"`    // 未读警告数
+}
+
+// SessionMonitorLogResponse 会话监控日志响应
+type SessionMonitorLogResponse struct {
+	ID            uint      `json:"id"`
+	SessionID     string    `json:"session_id"`
+	MonitorUserID uint      `json:"monitor_user_id"`
+	MonitorUser   string    `json:"monitor_user"`
+	ActionType    string    `json:"action_type"`
+	ActionData    string    `json:"action_data"`
+	Reason        string    `json:"reason"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// SessionWarningResponse 会话警告响应
+type SessionWarningResponse struct {
+	ID             uint       `json:"id"`
+	SessionID      string     `json:"session_id"`
+	SenderUserID   uint       `json:"sender_user_id"`
+	SenderUser     string     `json:"sender_user"`
+	ReceiverUserID uint       `json:"receiver_user_id"`
+	ReceiverUser   string     `json:"receiver_user"`
+	Message        string     `json:"message"`
+	Level          string     `json:"level"`
+	IsRead         bool       `json:"is_read"`
+	CreatedAt      time.Time  `json:"created_at"`
+	ReadAt         *time.Time `json:"read_at"`
+}
+
+// MonitorStatistics 监控统计数据
+type MonitorStatistics struct {
+	ActiveSessions     int64 `json:"active_sessions"`
+	ConnectedMonitors  int64 `json:"connected_monitors"`
+	TotalConnections   int64 `json:"total_connections"`
+	TerminatedSessions int64 `json:"terminated_sessions"`
+	SentWarnings       int64 `json:"sent_warnings"`
+	UnreadWarnings     int64 `json:"unread_warnings"`
+}
+
+// ======================== 表名映射 ========================
+
+func (SessionMonitorLog) TableName() string {
+	return "session_monitor_logs"
+}
+
+func (SessionWarning) TableName() string {
+	return "session_warnings"
+}
+
+func (WebSocketConnection) TableName() string {
+	return "websocket_connections"
+}
+
+// ======================== 模型方法 ========================
+
+func (s *SessionMonitorLog) ToResponse() *SessionMonitorLogResponse {
+	return &SessionMonitorLogResponse{
+		ID:            s.ID,
+		SessionID:     s.SessionID,
+		MonitorUserID: s.MonitorUserID,
+		MonitorUser:   s.MonitorUser.Username,
+		ActionType:    s.ActionType,
+		ActionData:    s.ActionData,
+		Reason:        s.Reason,
+		CreatedAt:     s.CreatedAt,
+	}
+}
+
+func (s *SessionWarning) ToResponse() *SessionWarningResponse {
+	return &SessionWarningResponse{
+		ID:             s.ID,
+		SessionID:      s.SessionID,
+		SenderUserID:   s.SenderUserID,
+		SenderUser:     s.SenderUser.Username,
+		ReceiverUserID: s.ReceiverUserID,
+		ReceiverUser:   s.ReceiverUser.Username,
+		Message:        s.Message,
+		Level:          s.Level,
+		IsRead:         s.IsRead,
+		CreatedAt:      s.CreatedAt,
+		ReadAt:         s.ReadAt,
+	}
+}
+
+// 扩展SessionRecord模型方法
+func (s *SessionRecord) ToActiveResponse() *ActiveSessionResponse {
+	base := s.ToResponse()
+	
+	connectionTime := int64(time.Since(s.StartTime).Seconds())
+	inactiveTime := int64(0)
+	if s.UpdatedAt.After(s.StartTime) {
+		inactiveTime = int64(time.Since(s.UpdatedAt).Seconds())
+	}
+
+	return &ActiveSessionResponse{
+		SessionRecordResponse: *base,
+		ConnectionTime:        connectionTime,
+		InactiveTime:          inactiveTime,
+		LastActivity:          s.UpdatedAt.Format("2006-01-02 15:04:05"),
+		IsMonitored:           false, // 需要从其他地方获取
+		MonitorCount:          0,     // 需要从数据库查询
+		CanTerminate:          s.Status == "active",
+		UnreadWarnings:        0,     // 需要从数据库查询
+	}
+}
+
+func (s *SessionWarning) MarkAsRead() {
+	now := time.Now()
+	s.IsRead = true
+	s.ReadAt = &now
 }

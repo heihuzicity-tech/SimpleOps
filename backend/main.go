@@ -82,14 +82,20 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// 启动SSH服务的会话清理任务
+	// 启动服务
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 从路由器中获取SSH服务（需要修改路由器以暴露服务）
-	// 这里暂时创建一个临时的SSH服务实例用于清理任务
+	// 初始化WebSocket服务
+	services.InitWebSocketService()
+
+	// 启动SSH服务的会话清理任务
 	sshService := services.NewSSHService(utils.GetDB())
 	go sshService.StartSessionCleanup(ctx)
+
+	// 启动监控服务的定时任务
+	monitorService := services.NewMonitorService(utils.GetDB())
+	go monitorService.StartMonitoringTasks()
 
 	// 启动服务器
 	go func() {

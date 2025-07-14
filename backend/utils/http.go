@@ -2,6 +2,8 @@ package utils
 
 import (
 	"bytes"
+	"crypto/rand"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -36,4 +38,11 @@ func GetClientIP(req *http.Request) string {
 // GetUserAgent 获取用户代理字符串
 func GetUserAgent(req *http.Request) string {
 	return req.Header.Get("User-Agent")
+}
+
+// GenerateID 生成随机ID
+func GenerateID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
 }

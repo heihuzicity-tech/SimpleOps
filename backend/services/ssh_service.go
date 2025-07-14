@@ -18,14 +18,16 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"gorm.io/gorm"
+	"github.com/sirupsen/logrus"
 )
 
 // SSHService SSH服务
 type SSHService struct {
 	db           *gorm.DB
 	auditService *AuditService
-	sessions     map[string]*SSHSession
+	sessions     map[string]*SSHSession // 内存中的SSH连接
 	sessionsMu   sync.RWMutex
+	redisSession *RedisSessionService // Redis会话管理
 }
 
 // SSHSession SSH会话
@@ -80,10 +82,17 @@ type SSHSessionResponse struct {
 
 // NewSSHService 创建SSH服务实例
 func NewSSHService(db *gorm.DB) *SSHService {
+	redisSessionService := NewRedisSessionService()
+	if redisSessionService != nil {
+		// 启动 Redis 会话清理任务
+		redisSessionService.StartSessionCleanupTask()
+	}
+	
 	return &SSHService{
 		db:           db,
 		auditService: NewAuditService(db),
 		sessions:     make(map[string]*SSHSession),
+		redisSession: redisSessionService,
 	}
 }
 
@@ -189,12 +198,30 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		return nil, fmt.Errorf("failed to start shell: %w", err)
 	}
 
-	// 保存会话
+	// 保存会话到内存
 	s.sessionsMu.Lock()
 	s.sessions[sessionID] = session
 	s.sessionsMu.Unlock()
 
-	// 记录会话开始到审计日志
+	// 保存会话到 Redis
+	if s.redisSession != nil {
+		redisData := &RedisSessionData{
+			SessionID:    sessionID,
+			UserID:       userID,
+			Username:     user.Username,
+			AssetID:      request.AssetID,
+			AssetName:    asset.Name,
+			AssetAddress: fmt.Sprintf("%s:%d", asset.Address, asset.Port),
+			CredentialID: request.CredentialID,
+			Protocol:     "ssh",
+			TTL:          config.GlobalConfig.Session.Timeout,
+		}
+		if err := s.redisSession.CreateSession(redisData); err != nil {
+			logrus.WithError(err).Error("Failed to store session in Redis")
+		}
+	}
+
+	// 记录会话开始到审计日志（统一使用审计服务）
 	clientIP := "127.0.0.1" // 这里需要从上下文中获取真实IP
 	go s.auditService.RecordSessionStart(
 		sessionID,
@@ -249,7 +276,35 @@ func (s *SSHService) GetSession(sessionID string) (*SSHSession, error) {
 	return session, nil
 }
 
-// GetSessions 获取用户的所有活跃会话
+// GetSessionsFromRedis 从 Redis 获取用户的所有活跃会话
+func (s *SSHService) GetSessionsFromRedis(userID uint) ([]*SSHSessionResponse, error) {
+	if s.redisSession == nil {
+		return s.GetSessions(userID)
+	}
+
+	redisSessions, err := s.redisSession.GetActiveSessionsByUser(userID)
+	if err != nil {
+		logrus.WithError(err).Error("Failed to get sessions from Redis")
+		return s.GetSessions(userID) // 备选方案
+	}
+
+	var sessions []*SSHSessionResponse
+	for _, redisSession := range redisSessions {
+		sessions = append(sessions, &SSHSessionResponse{
+			ID:         redisSession.SessionID,
+			Status:     redisSession.Status,
+			AssetName:  redisSession.AssetName,
+			AssetAddr:  redisSession.AssetAddress,
+			Username:   redisSession.Username,
+			CreatedAt:  redisSession.StartTime,
+			LastActive: redisSession.LastActive,
+		})
+	}
+
+	return sessions, nil
+}
+
+// GetSessions 获取用户的所有活跃会话 (内存版本)
 func (s *SSHService) GetSessions(userID uint) ([]*SSHSessionResponse, error) {
 	s.sessionsMu.RLock()
 	defer s.sessionsMu.RUnlock()
@@ -291,8 +346,14 @@ func (s *SSHService) CloseSession(sessionID string) error {
 
 	session, exists := s.sessions[sessionID]
 	if !exists {
-		return fmt.Errorf("session not found")
+		// 即使内存中没有会话，也要尝试清理Redis和数据库
+		logrus.WithField("session_id", sessionID).Warn("内存中未找到会话，但仍尝试清理Redis和数据库")
+		s.cleanupSessionFromAllSources(sessionID)
+		return fmt.Errorf("session not found in memory")
 	}
+
+	// 统一清理所有数据源中的会话
+	s.cleanupSessionFromAllSources(sessionID)
 
 	// 获取用户信息
 	var user models.User
@@ -322,6 +383,32 @@ func (s *SSHService) CloseSession(sessionID string) error {
 	delete(s.sessions, sessionID)
 
 	return nil
+}
+
+// cleanupSessionFromAllSources 统一清理所有数据源中的会话
+func (s *SSHService) cleanupSessionFromAllSources(sessionID string) {
+	now := time.Now()
+	
+	// 1. 从Redis中删除会话
+	if s.redisSession != nil {
+		if err := s.redisSession.CloseSession(sessionID, "closed"); err != nil {
+			logrus.WithError(err).WithField("session_id", sessionID).Error("Failed to close session in Redis")
+		} else {
+			logrus.WithField("session_id", sessionID).Info("成功从Redis中清理会话")
+		}
+	}
+
+	// 2. 更新数据库中的会话状态
+	updates := map[string]interface{}{
+		"status":     "closed",
+		"end_time":   now,
+		"updated_at": now,
+	}
+	if err := s.db.Model(&models.SessionRecord{}).Where("session_id = ?", sessionID).Updates(updates).Error; err != nil {
+		logrus.WithError(err).WithField("session_id", sessionID).Error("Failed to update session status in database")
+	} else {
+		logrus.WithField("session_id", sessionID).Info("成功在数据库中更新会话状态")
+	}
 }
 
 // WriteToSession 向会话写入数据
@@ -454,11 +541,31 @@ func (s *SSHService) generateSessionID() string {
 
 // recordSessionToDB 记录会话到数据库
 func (s *SSHService) recordSessionToDB(session *SSHSession, asset models.Asset, credential models.Credential) error {
-	// 这里可以记录会话信息到数据库
-	// 为了简化，暂时只记录日志
-	log.Printf("Session created: ID=%s, User=%d, Asset=%s, Credential=%s",
-		session.ID, session.UserID, asset.Name, credential.Username)
-	return nil
+	// 创建会话记录
+	sessionRecord := &models.SessionRecord{
+		SessionID:    session.ID,
+		UserID:       session.UserID,
+		AssetID:      session.AssetID,
+		AssetName:    asset.Name,
+		AssetAddress: fmt.Sprintf("%s:%d", asset.Address, asset.Port),
+		CredentialID: session.CredentialID,
+		Protocol:     "ssh",
+		IP:           "127.0.0.1", // 这里需要从上下文中获取真实 IP
+		Status:       "active",
+		StartTime:    session.CreatedAt,
+		IsTerminated: nil, // 设置为 nil 表示未被终止
+		CreatedAt:    session.CreatedAt,
+		UpdatedAt:    session.CreatedAt,
+	}
+
+	// 获取用户名
+	var user models.User
+	if err := s.db.Where("id = ?", session.UserID).First(&user).Error; err == nil {
+		sessionRecord.Username = user.Username
+	}
+
+	// 保存到数据库
+	return s.db.Create(sessionRecord).Error
 }
 
 // Close 关闭SSH会话连接
@@ -485,7 +592,24 @@ func (session *SSHSession) IsActive() bool {
 	session.mu.RLock()
 	defer session.mu.RUnlock()
 
-	return session.Status == "active" && session.SessionConn != nil
+	if session.Status != "active" || session.SessionConn == nil {
+		return false
+	}
+
+	// ✅ 增强：检查SSH连接是否真实可用
+	return session.IsConnectionAlive()
+}
+
+// IsConnectionAlive 检查SSH连接是否真实存活
+func (session *SSHSession) IsConnectionAlive() bool {
+	if session.ClientConn == nil || session.SessionConn == nil {
+		return false
+	}
+
+	// 尝试发送一个简单的keepalive请求来检测连接状态
+	// 如果连接已断开，这会返回错误
+	_, _, err := session.ClientConn.SendRequest("keepalive@openssh.com", true, nil)
+	return err == nil
 }
 
 // UpdateActivity 更新活动时间
@@ -532,11 +656,38 @@ func (s *SSHService) CleanupInactiveSessions() {
 	cutoff := time.Now().Add(-timeout)
 
 	for id, session := range s.sessions {
-		if session.LastActive.Before(cutoff) {
-			log.Printf("Cleaning up inactive session: %s", id)
+		shouldCleanup := false
+		cleanupReason := ""
 
-			// 记录会话超时到审计日志
-			go s.auditService.RecordSessionEnd(id, "timeout")
+		// 检查超时
+		if session.LastActive.Before(cutoff) {
+			shouldCleanup = true
+			cleanupReason = "timeout"
+		}
+
+		// ✅ 增强：检查连接健康状态
+		if !shouldCleanup && !session.IsConnectionAlive() {
+			shouldCleanup = true
+			cleanupReason = "connection_lost"
+		}
+
+		if shouldCleanup {
+			log.Printf("Cleaning up session %s: reason=%s, last_active=%v", 
+				id, cleanupReason, session.LastActive)
+
+			// 更新数据库中的会话状态
+			now := time.Now()
+			updates := map[string]interface{}{
+				"status":     cleanupReason, // "timeout" 或 "connection_lost"
+				"end_time":   now,
+				"updated_at": now,
+			}
+			if err := s.db.Model(&models.SessionRecord{}).Where("session_id = ?", id).Updates(updates).Error; err != nil {
+				logrus.WithError(err).Errorf("Failed to update session %s status in database", id)
+			}
+
+			// 记录会话结束到审计日志
+			go s.auditService.RecordSessionEnd(id, cleanupReason)
 
 			session.Close()
 			delete(s.sessions, id)
@@ -546,15 +697,88 @@ func (s *SSHService) CleanupInactiveSessions() {
 
 // StartSessionCleanup 启动会话清理任务
 func (s *SSHService) StartSessionCleanup(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Minute) // 每5分钟清理一次
+	// ✅ 优化：缩短清理间隔，提高清理效率
+	ticker := time.NewTicker(2 * time.Minute) // 每2分钟清理一次（原来5分钟太长）
 	defer ticker.Stop()
+
+	log.Printf("SSH session cleanup service started (interval: 2 minutes)")
 
 	for {
 		select {
 		case <-ctx.Done():
+			log.Printf("SSH session cleanup service stopped")
 			return
 		case <-ticker.C:
 			s.CleanupInactiveSessions()
 		}
 	}
+}
+
+// HealthCheckSessions 立即健康检查所有会话
+func (s *SSHService) HealthCheckSessions() int {
+	s.sessionsMu.RLock()
+	sessionCount := len(s.sessions)
+	s.sessionsMu.RUnlock()
+
+	log.Printf("Starting health check for %d sessions", sessionCount)
+	
+	// 触发立即清理
+	s.CleanupInactiveSessions()
+
+	s.sessionsMu.RLock()
+	activeCount := len(s.sessions)
+	s.sessionsMu.RUnlock()
+
+	cleanedCount := sessionCount - activeCount
+	if cleanedCount > 0 {
+		log.Printf("Health check completed: cleaned %d inactive sessions, %d remaining", 
+			cleanedCount, activeCount)
+	}
+
+	return activeCount
+}
+
+// ForceCleanupAllSessions 强制清理所有会话和数据库状态
+func (s *SSHService) ForceCleanupAllSessions() error {
+	s.sessionsMu.Lock()
+	defer s.sessionsMu.Unlock()
+
+	memorySessionCount := len(s.sessions)
+	log.Printf("Force cleaning up all %d memory sessions", memorySessionCount)
+
+	// 清理内存中的会话
+	for id, session := range s.sessions {
+		log.Printf("Force closing session %s", id)
+		session.Close()
+		delete(s.sessions, id)
+	}
+
+	// 清理 Redis 中的会话
+	redisCleanedCount := 0
+	if s.redisSession != nil {
+		count, err := s.redisSession.ForceCleanupAllSessions()
+		if err != nil {
+			logrus.WithError(err).Error("Failed to cleanup Redis sessions")
+		} else {
+			redisCleanedCount = count
+		}
+	}
+
+	// 更新数据库中所有活跃会话的状态
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status":     "closed",
+		"end_time":   now,
+		"updated_at": now,
+	}
+
+	result := s.db.Model(&models.SessionRecord{}).Where("status = ?", "active").Updates(updates)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update database session status: %w", result.Error)
+	}
+
+	log.Printf("Force cleanup completed: cleaned %d memory sessions, %d Redis sessions, updated %d database records", 
+		memorySessionCount, redisCleanedCount, result.RowsAffected)
+
+	return nil
 }

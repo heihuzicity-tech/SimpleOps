@@ -8,17 +8,19 @@ import (
 
 // Config 应用程序配置结构
 type Config struct {
-	App      AppConfig      `mapstructure:"app"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Redis    RedisConfig    `mapstructure:"redis"`
-	JWT      JWTConfig      `mapstructure:"jwt"`
-	Log      LogConfig      `mapstructure:"log"`
-	SSH      SSHConfig      `mapstructure:"ssh"`
-	Session  SessionConfig  `mapstructure:"session"`
-	Security SecurityConfig `mapstructure:"security"`
-	Upload   UploadConfig   `mapstructure:"upload"`
-	Monitor  MonitorConfig  `mapstructure:"monitoring"`
-	Audit    AuditConfig    `mapstructure:"audit"`
+	App       AppConfig         `mapstructure:"app"`
+	Database  DatabaseConfig    `mapstructure:"database"`
+	Redis     RedisConfig       `mapstructure:"redis"`
+	JWT       JWTConfig         `mapstructure:"jwt"`
+	Log       LogConfig         `mapstructure:"log"`
+	SSH       SSHConfig         `mapstructure:"ssh"`
+	Session   SessionConfig     `mapstructure:"session"`
+	Security  SecurityConfig    `mapstructure:"security"`
+	Upload    UploadConfig      `mapstructure:"upload"`
+	Monitoring MonitoringConfig `mapstructure:"monitoring"`
+	Audit     AuditConfig       `mapstructure:"audit"`
+	WebSocket WebSocketConfig   `mapstructure:"websocket"`
+	Monitor   MonitorConfig     `mapstructure:"monitor"`
 }
 
 // AppConfig 应用程序配置
@@ -124,8 +126,8 @@ type UploadConfig struct {
 	SavePath   string   `mapstructure:"savePath"`
 }
 
-// MonitorConfig 监控配置
-type MonitorConfig struct {
+// MonitoringConfig 监控配置
+type MonitoringConfig struct {
 	EnableMetrics bool   `mapstructure:"enableMetrics"`
 	MetricsPath   string `mapstructure:"metricsPath"`
 	EnableHealth  bool   `mapstructure:"enableHealth"`
@@ -138,6 +140,26 @@ type AuditConfig struct {
 	EnableSessionRecord bool     `mapstructure:"enableSessionRecord"`
 	RetentionDays       int      `mapstructure:"retentionDays"`
 	DangerousCommands   []string `mapstructure:"dangerousCommands"`
+}
+
+// WebSocketConfig WebSocket配置
+type WebSocketConfig struct {
+	Enable            bool `mapstructure:"enable"`
+	Port              int  `mapstructure:"port"`
+	Path              string `mapstructure:"path"`
+	HeartbeatInterval int  `mapstructure:"heartbeatInterval"`
+	MaxConnections    int  `mapstructure:"maxConnections"`
+	MessageBufferSize int  `mapstructure:"messageBufferSize"`
+	ReadTimeout       int  `mapstructure:"readTimeout"`
+	WriteTimeout      int  `mapstructure:"writeTimeout"`
+}
+
+// MonitorConfig 实时监控配置
+type MonitorConfig struct {
+	EnableRealtime   bool `mapstructure:"enableRealtime"`
+	UpdateInterval   int  `mapstructure:"updateInterval"`
+	SessionTimeout   int  `mapstructure:"sessionTimeout"`
+	MaxInactiveTime  int  `mapstructure:"maxInactiveTime"`
 }
 
 var GlobalConfig *Config

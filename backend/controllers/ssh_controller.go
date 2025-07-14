@@ -268,7 +268,14 @@ func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 
 // handleWebSocketConnection 处理WebSocket连接
 func (sc *SSHController) handleWebSocketConnection(wsConn *WebSocketConnection) {
-	defer wsConn.conn.Close()
+	defer func() {
+		wsConn.conn.Close()
+		// ✅ 修复：WebSocket断开时立即清理SSH会话
+		log.Printf("WebSocket disconnected for session %s, cleaning up SSH session", wsConn.sessionID)
+		if err := sc.sshService.CloseSession(wsConn.sessionID); err != nil {
+			log.Printf("Failed to cleanup SSH session %s: %v", wsConn.sessionID, err)
+		}
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -554,5 +561,73 @@ func (sc *SSHController) GetSessionInfo(c *gin.Context) {
 			"last_active": session.LastActive,
 			"is_active":   session.IsActive(),
 		},
+	})
+}
+
+// HealthCheckSessions 健康检查所有SSH会话
+// @Summary      健康检查SSH会话
+// @Description  检查并清理不活跃的SSH会话
+// @Tags         SSH管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]interface{}  "检查完成"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Failure      500  {object}  map[string]interface{}  "服务器错误"
+// @Router       /ssh/sessions/health-check [post]
+func (sc *SSHController) HealthCheckSessions(c *gin.Context) {
+	// 执行健康检查
+	activeCount := sc.sshService.HealthCheckSessions()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Health check completed",
+		"data": gin.H{
+			"active_sessions": activeCount,
+		},
+	})
+}
+
+// ForceCleanupSessions 强制清理所有会话
+// @Summary      强制清理所有SSH会话
+// @Description  强制关闭所有活跃的SSH会话并同步数据库状态
+// @Tags         SSH管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]interface{}  "清理完成"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Failure      403  {object}  map[string]interface{}  "权限不足"
+// @Failure      500  {object}  map[string]interface{}  "服务器错误"
+// @Router       /ssh/sessions/force-cleanup [post]
+func (sc *SSHController) ForceCleanupSessions(c *gin.Context) {
+	// 检查管理员权限
+	userInterface, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "User not found",
+		})
+		return
+	}
+
+	user := userInterface.(*models.User)
+	if !user.HasRole("admin") {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Permission denied",
+		})
+		return
+	}
+
+	// 执行强制清理
+	if err := sc.sshService.ForceCleanupAllSessions(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to cleanup sessions: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "All sessions have been forcefully cleaned up",
 	})
 }
