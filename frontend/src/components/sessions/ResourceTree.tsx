@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tree, Input, Card } from 'antd';
+import { Tree, Input, Card, message } from 'antd';
 import { 
   FolderOutlined, 
   FolderOpenOutlined,
@@ -10,6 +10,7 @@ import {
   HddOutlined
 } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
+import { getAssetGroups, AssetGroup } from '../../services/assetAPI';
 
 const { Search } = Input;
 
@@ -23,62 +24,50 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({ onSelect, resourceType }) =
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [searchValue, setSearchValue] = useState('');
   const [autoExpandParent, setAutoExpandParent] = useState(true);
+  const [groups, setGroups] = useState<AssetGroup[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // 加载资产分组数据
+  const loadAssetGroups = async () => {
+    try {
+      setLoading(true);
+      const response = await getAssetGroups({ page: 1, page_size: 100 });
+      const groupsData = response.data.data || [];
+      setGroups(groupsData);
+    } catch (error) {
+      console.error('加载资产分组失败:', error);
+      message.error('加载资产分组失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // 模拟树形数据
+    loadAssetGroups();
+  }, []);
+
+  useEffect(() => {
+    // 根据真实API数据生成树形数据
     const generateTreeData = (): DataNode[] => {
       if (resourceType === 'host') {
+        // 将分组数据转换为树形结构
+        const groupItems = groups.map(group => ({
+          title: `${group.name} (${group.asset_count})`,
+          key: group.id.toString(),
+          icon: <FolderOutlined />,
+          isLeaf: true,
+        }));
+
         return [
           {
             title: '全部主机',
             key: 'all',
             icon: <FolderOutlined />,
-            children: [
-              {
-                title: '生产环境',
-                key: 'production',
-                icon: <CloudServerOutlined />,
-                children: [
-                  {
-                    title: 'Web服务器',
-                    key: 'web-servers',
-                    icon: <DesktopOutlined />,
-                  },
-                  {
-                    title: '应用服务器',
-                    key: 'app-servers',
-                    icon: <DesktopOutlined />,
-                  },
-                ],
-              },
-              {
-                title: '测试环境',
-                key: 'test',
-                icon: <HddOutlined />,
-                children: [
-                  {
-                    title: '测试服务器',
-                    key: 'test-servers',
-                    icon: <DesktopOutlined />,
-                  },
-                ],
-              },
-              {
-                title: '开发环境',
-                key: 'dev',
-                icon: <HddOutlined />,
-                children: [
-                  {
-                    title: '开发服务器',
-                    key: 'dev-servers',
-                    icon: <DesktopOutlined />,
-                  },
-                ],
-              },
-            ],
+            children: groupItems,
           },
         ];
       } else {
+        // 数据库类型，暂时保持简单结构
         return [
           {
             title: '全部数据库',
@@ -114,7 +103,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({ onSelect, resourceType }) =
     const data = generateTreeData();
     setTreeData(data);
     setExpandedKeys(['all']);
-  }, [resourceType]);
+  }, [resourceType, groups]);
 
   const onExpand = (newExpandedKeys: React.Key[]) => {
     setExpandedKeys(newExpandedKeys as string[]);
