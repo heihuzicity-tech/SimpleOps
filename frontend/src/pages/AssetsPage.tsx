@@ -56,6 +56,7 @@ const AssetsPage: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   const [testingConnection, setTestingConnection] = useState<number | null>(null);
+  const [testResults, setTestResults] = useState<Record<number, { success: boolean; message: string }>>({});
   const [assetGroups, setAssetGroups] = useState<AssetGroup[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [groupTreeData, setGroupTreeData] = useState<any[]>([]);
@@ -224,14 +225,83 @@ const AssetsPage: React.FC = () => {
     });
   };
 
-  const handleTestConnection = async (id: number) => {
-    setTestingConnection(id);
+  const handleTestConnection = async (asset: any) => {
+    // 获取该资产的凭据列表
+    const assetCredentials = credentials.filter(cred => 
+      cred.assets && cred.assets.some(a => a.id === asset.id)
+    );
+    
+    if (assetCredentials.length === 0) {
+      message.warning('该资产没有关联的凭据，请先配置凭据');
+      return;
+    }
+
+    // 使用第一个可用的凭据进行测试
+    const credentialId = assetCredentials[0].id;
+    
+    setTestingConnection(asset.id);
     try {
-      await dispatch(testConnection(id)).unwrap();
+      // 分层测试策略：先测主机连通性，再测服务
+      await performLayeredConnectionTest(asset, credentialId);
     } catch (error) {
       console.error('连接测试失败:', error);
     } finally {
       setTestingConnection(null);
+    }
+  };
+
+  // 分层连接测试
+  const performLayeredConnectionTest = async (asset: any, credentialId: number) => {
+    try {
+      // 第一层：主机连通性测试
+      const pingResult = await dispatch(testConnection({
+        asset_id: asset.id,
+        credential_id: credentialId,
+        test_type: 'ping'
+      })).unwrap();
+      
+      if (!pingResult.result.success) {
+        // 主机不可达，显示网络错误
+        const errorMsg = `主机不可达: ${asset.address}`;
+        message.error(errorMsg, 4);
+        setTestResults(prev => ({ ...prev, [asset.id]: { success: false, message: errorMsg } }));
+        return;
+      }
+      
+      // 第二层：服务端口测试
+      let serviceTestType = 'ping';
+      if (asset.type === 'server') {
+        if (asset.protocol === 'ssh') serviceTestType = 'ssh';
+        else if (asset.protocol === 'rdp') serviceTestType = 'rdp';
+      } else if (asset.type === 'database') {
+        serviceTestType = 'database';
+      }
+      
+      if (serviceTestType !== 'ping') {
+        const serviceResult = await dispatch(testConnection({
+          asset_id: asset.id,
+          credential_id: credentialId,
+          test_type: serviceTestType as 'ping' | 'ssh' | 'rdp' | 'database'
+        })).unwrap();
+        
+        if (serviceResult.result.success) {
+          const successMsg = `${serviceTestType.toUpperCase()}服务正常 (延迟: ${serviceResult.result.latency}ms)`;
+          message.success(successMsg, 3);
+          setTestResults(prev => ({ ...prev, [asset.id]: { success: true, message: successMsg } }));
+        } else {
+          const errorMsg = `${serviceTestType.toUpperCase()}服务异常: ${serviceResult.result.message}`;
+          message.error(errorMsg, 4);
+          setTestResults(prev => ({ ...prev, [asset.id]: { success: false, message: errorMsg } }));
+        }
+      } else {
+        const successMsg = `主机连通正常 (延迟: ${pingResult.result.latency}ms)`;
+        message.success(successMsg, 3);
+        setTestResults(prev => ({ ...prev, [asset.id]: { success: true, message: successMsg } }));
+      }
+    } catch (error: any) {
+      const errorMsg = `连接测试异常: ${error.message}`;
+      message.error(errorMsg, 4);
+      setTestResults(prev => ({ ...prev, [asset.id]: { success: false, message: errorMsg } }));
     }
   };
 
@@ -400,11 +470,13 @@ const AssetsPage: React.FC = () => {
               详情
             </Button>
           </Tooltip>
-          <Tooltip title="测试连接">
+          <Tooltip title={testResults[record.id] ? testResults[record.id].message : "测试连接"}>
             <Button 
               icon={<ApiOutlined />}
               loading={testingConnection === record.id}
-              onClick={() => handleTestConnection(record.id)}
+              onClick={() => handleTestConnection(record)}
+              type={testResults[record.id] && testResults[record.id].success ? 'primary' : 'default'}
+              danger={testResults[record.id] && !testResults[record.id].success}
             >
               测试
             </Button>
@@ -625,6 +697,47 @@ const AssetsPage: React.FC = () => {
           </Form.Item>
 
           <Form.Item
+            label="协议"
+            name="protocol"
+            rules={[{ required: true, message: '请选择协议' }]}
+          >
+            <Select 
+              placeholder="请选择协议"
+              onChange={(value) => {
+                // 根据协议自动填充端口号
+                const defaultPorts: Record<string, number> = {
+                  ssh: 22,
+                  rdp: 3389,
+                  vnc: 5900,
+                  mysql: 3306,
+                  postgresql: 5432,
+                  redis: 6379,
+                  mongodb: 27017,
+                  telnet: 23,
+                  ftp: 21,
+                  http: 80,
+                  https: 443,
+                };
+                if (defaultPorts[value]) {
+                  form.setFieldsValue({ port: defaultPorts[value] });
+                }
+              }}
+            >
+              <Option value="ssh">SSH</Option>
+              <Option value="rdp">RDP</Option>
+              <Option value="vnc">VNC</Option>
+              <Option value="mysql">MySQL</Option>
+              <Option value="postgresql">PostgreSQL</Option>
+              <Option value="redis">Redis</Option>
+              <Option value="mongodb">MongoDB</Option>
+              <Option value="telnet">Telnet</Option>
+              <Option value="ftp">FTP</Option>
+              <Option value="http">HTTP</Option>
+              <Option value="https">HTTPS</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
             label="端口"
             name="port"
             rules={[
@@ -640,21 +753,10 @@ const AssetsPage: React.FC = () => {
               },
             ]}
           >
-            <Input type="number" placeholder="请输入端口号" />
-          </Form.Item>
-
-          <Form.Item
-            label="协议"
-            name="protocol"
-            rules={[{ required: true, message: '请选择协议' }]}
-          >
-            <Select placeholder="请选择协议">
-              <Option value="ssh">SSH</Option>
-              <Option value="rdp">RDP</Option>
-              <Option value="vnc">VNC</Option>
-              <Option value="mysql">MySQL</Option>
-              <Option value="postgresql">PostgreSQL</Option>
-            </Select>
+            <Input 
+              placeholder="请输入端口号（协议选择后自动填充）"
+              style={{ width: '100%' }}
+            />
           </Form.Item>
 
           <Form.Item

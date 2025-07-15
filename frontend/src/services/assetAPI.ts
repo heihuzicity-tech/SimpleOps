@@ -54,10 +54,23 @@ export interface CreateAssetRequest {
   credential_ids?: number[];
 }
 
-export interface TestConnectionResponse {
+export interface TestConnectionRequest {
+  asset_id: number;
+  credential_id: number;
+  test_type: 'ping' | 'ssh' | 'rdp' | 'database';
+}
+
+export interface TestConnectionResult {
   success: boolean;
   message: string;
   latency?: number;
+  error?: string;
+  tested_at?: string;
+}
+
+export interface TestConnectionResponse {
+  success: boolean;
+  data: TestConnectionResult;
 }
 
 export const getAssets = async (params: GetAssetsParams = {}) => {
@@ -85,8 +98,8 @@ export const deleteAsset = async (id: number) => {
   return response;
 };
 
-export const testConnection = async (id: number) => {
-  const response = await apiClient.post<TestConnectionResponse>(`/assets/${id}/test-connection`);
+export const testConnection = async (request: TestConnectionRequest) => {
+  const response = await apiClient.post<TestConnectionResponse>('/assets/test-connection', request);
   return response;
 };
 

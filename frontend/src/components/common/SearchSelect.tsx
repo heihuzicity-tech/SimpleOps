@@ -34,7 +34,7 @@ const SearchSelect: React.FC<SearchSelectProps> = ({
       onChange={onSearchTypeChange}
       size={size}
       style={{ width: 120 }}
-      bordered={false}
+      variant="borderless"
     >
       {searchOptions.map(option => (
         <Option key={option.value} value={option.value}>

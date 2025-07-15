@@ -95,9 +95,9 @@ export const deleteAsset = createAsyncThunk(
 
 export const testConnection = createAsyncThunk(
   'asset/testConnection',
-  async (id: number) => {
-    const response = await assetAPI.testConnection(id);
-    return { id, result: response.data };
+  async (request: assetAPI.TestConnectionRequest) => {
+    const response = await assetAPI.testConnection(request);
+    return { id: request.asset_id, result: response.data.data };
   }
 );
 
@@ -171,12 +171,12 @@ const assetSlice = createSlice({
         state.error = action.error.message || '删除资产失败';
         message.error(state.error);
       })
-      // 测试连接
+      // 测试连接 - 由前端页面处理消息显示
       .addCase(testConnection.fulfilled, (state, action) => {
-        message.success('连接测试成功');
+        // 不在这里显示消息，由调用方处理
       })
       .addCase(testConnection.rejected, (state, action) => {
-        message.error('连接测试失败: ' + action.error.message);
+        // 不在这里显示消息，由调用方处理
       });
   },
 });

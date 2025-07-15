@@ -24,9 +24,10 @@ const { Content } = Layout;
 
 // 配置全局消息
 message.config({
-  top: 100,
-  duration: 3,
-  maxCount: 3,
+  top: 80,           // 更靠上一点，更明显
+  duration: 4,       // 稍长一点的显示时间
+  maxCount: 5,       // 允许更多消息同时显示
+  rtl: false,        // 确保从左到右显示
 });
 
 const App: React.FC = () => {
