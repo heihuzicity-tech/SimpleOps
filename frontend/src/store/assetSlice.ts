@@ -6,6 +6,7 @@ interface Asset {
   id: number;
   name: string;
   type: 'server' | 'database';
+  os_type?: string;
   address: string;
   port: number;
   protocol: string;

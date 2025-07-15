@@ -18,6 +18,7 @@ import SessionAuditPage from './pages/audit/SessionAuditPage';
 import CommandAuditPage from './pages/audit/CommandAuditPage';
 import OperationAuditPage from './pages/audit/OperationAuditPage';
 import AuditOverviewPage from './pages/audit/AuditOverviewPage';
+import GroupManagePage from './pages/GroupManagePage';
 
 const { Content } = Layout;
 
@@ -68,6 +69,14 @@ const App: React.FC = () => {
                     element={
                       <PermissionGuard requiredRole={['admin', 'operator']}>
                         <AssetsPage />
+                      </PermissionGuard>
+                    } 
+                  />
+                  <Route 
+                    path="/assets/groups" 
+                    element={
+                      <PermissionGuard requiredRole="admin">
+                        <GroupManagePage />
                       </PermissionGuard>
                     } 
                   />

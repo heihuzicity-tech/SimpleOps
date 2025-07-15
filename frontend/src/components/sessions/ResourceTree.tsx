@@ -17,9 +17,16 @@ const { Search } = Input;
 interface ResourceTreeProps {
   onSelect?: (selectedKeys: React.Key[], info: any) => void;
   resourceType: 'host' | 'database';
+  selectedKeys?: React.Key[];
+  treeData?: DataNode[];
 }
 
-const ResourceTree: React.FC<ResourceTreeProps> = ({ onSelect, resourceType }) => {
+const ResourceTree: React.FC<ResourceTreeProps> = ({ 
+  onSelect, 
+  resourceType, 
+  selectedKeys: externalSelectedKeys = [], 
+  treeData: externalTreeData 
+}) => {
   const [treeData, setTreeData] = useState<DataNode[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [searchValue, setSearchValue] = useState('');
@@ -47,6 +54,13 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({ onSelect, resourceType }) =
   }, []);
 
   useEffect(() => {
+    // 优先使用外部传入的树数据
+    if (externalTreeData && externalTreeData.length > 0) {
+      setTreeData(externalTreeData);
+      setExpandedKeys(['all']);
+      return;
+    }
+    
     // 根据真实API数据生成树形数据
     const generateTreeData = (): DataNode[] => {
       if (resourceType === 'host') {
@@ -103,7 +117,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({ onSelect, resourceType }) =
     const data = generateTreeData();
     setTreeData(data);
     setExpandedKeys(['all']);
-  }, [resourceType, groups]);
+  }, [resourceType, groups, externalTreeData]);
 
   const onExpand = (newExpandedKeys: React.Key[]) => {
     setExpandedKeys(newExpandedKeys as string[]);
@@ -189,6 +203,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({ onSelect, resourceType }) =
         expandedKeys={expandedKeys}
         autoExpandParent={autoExpandParent}
         onSelect={onSelect}
+        selectedKeys={externalSelectedKeys}
         treeData={renderTreeNodes(treeData)}
         style={{ background: 'transparent' }}
         height={400}

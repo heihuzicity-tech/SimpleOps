@@ -43,13 +43,13 @@ func (s *AssetService) CreateAsset(request *models.AssetCreateRequest) (*models.
 	}
 
 	// 如果指定了分组ID，检查分组是否存在
-	var groups []models.AssetGroup
-	if len(request.GroupIDs) > 0 {
-		if err := s.db.Where("id IN ?", request.GroupIDs).Find(&groups).Error; err != nil {
-			return nil, fmt.Errorf("failed to check groups: %w", err)
-		}
-		if len(groups) != len(request.GroupIDs) {
-			return nil, errors.New("some groups not found")
+	var group models.AssetGroup
+	if request.GroupID != nil {
+		if err := s.db.Where("id = ?", *request.GroupID).First(&group).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errors.New("group not found")
+			}
+			return nil, fmt.Errorf("failed to check group: %w", err)
 		}
 	}
 
@@ -63,6 +63,7 @@ func (s *AssetService) CreateAsset(request *models.AssetCreateRequest) (*models.
 		Protocol: request.Protocol,
 		Tags:     request.Tags,
 		Status:   1, // 默认启用
+		GroupID:  request.GroupID,
 	}
 	
 	// 如果没有指定操作系统类型，根据资产类型设置默认值
@@ -89,18 +90,12 @@ func (s *AssetService) CreateAsset(request *models.AssetCreateRequest) (*models.
 		}
 	}
 
-	// 关联分组
-	if len(groups) > 0 {
-		if err := tx.Model(&asset).Association("Groups").Append(groups); err != nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("failed to associate groups: %w", err)
-		}
-	}
+	// 分组关联已经在创建时设置，无需额外处理
 
 	tx.Commit()
 
 	// 重新查询包含关联数据的资产
-	if err := s.db.Preload("Credentials").Preload("Groups").Where("id = ?", asset.ID).First(&asset).Error; err != nil {
+	if err := s.db.Preload("Credentials").Preload("Group").Where("id = ?", asset.ID).First(&asset).Error; err != nil {
 		return nil, fmt.Errorf("failed to query created asset: %w", err)
 	}
 
@@ -130,10 +125,14 @@ func (s *AssetService) GetAssets(request *models.AssetListRequest) ([]*models.As
 		query = query.Where("status = ?", *request.Status)
 	}
 
-	// 分组过滤 - 通过多对多关联表
+	// 分组过滤 - 通过一对多关系
 	if request.GroupID != nil {
-		query = query.Joins("JOIN asset_group_assets ON assets.id = asset_group_assets.asset_id").
-			Where("asset_group_assets.asset_group_id = ?", *request.GroupID)
+		if *request.GroupID == 0 {
+			// 特殊值0表示查询未分组的资产
+			query = query.Where("group_id IS NULL")
+		} else {
+			query = query.Where("group_id = ?", *request.GroupID)
+		}
 	}
 
 	// 计算总数
@@ -148,7 +147,7 @@ func (s *AssetService) GetAssets(request *models.AssetListRequest) ([]*models.As
 	}
 
 	// 查询资产，预加载凭证和分组
-	if err := query.Preload("Credentials").Preload("Groups").Find(&assets).Error; err != nil {
+	if err := query.Preload("Credentials").Preload("Group").Find(&assets).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to query assets: %w", err)
 	}
 
@@ -164,7 +163,7 @@ func (s *AssetService) GetAssets(request *models.AssetListRequest) ([]*models.As
 // GetAsset 获取单个资产
 func (s *AssetService) GetAsset(id uint) (*models.AssetResponse, error) {
 	var asset models.Asset
-	if err := s.db.Preload("Credentials").Preload("Groups").Where("id = ?", id).First(&asset).Error; err != nil {
+	if err := s.db.Preload("Credentials").Preload("Group").Where("id = ?", id).First(&asset).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("asset not found")
 		}
@@ -196,13 +195,13 @@ func (s *AssetService) UpdateAsset(id uint, request *models.AssetUpdateRequest) 
 	}
 
 	// 如果指定了分组ID，检查分组是否存在
-	var groups []models.AssetGroup
-	if len(request.GroupIDs) > 0 {
-		if err := s.db.Where("id IN ?", request.GroupIDs).Find(&groups).Error; err != nil {
-			return nil, fmt.Errorf("failed to check groups: %w", err)
-		}
-		if len(groups) != len(request.GroupIDs) {
-			return nil, errors.New("some groups not found")
+	if request.GroupID != nil {
+		var group models.AssetGroup
+		if err := s.db.Where("id = ?", *request.GroupID).First(&group).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errors.New("group not found")
+			}
+			return nil, fmt.Errorf("failed to check group: %w", err)
 		}
 	}
 
@@ -240,6 +239,10 @@ func (s *AssetService) UpdateAsset(id uint, request *models.AssetUpdateRequest) 
 	if request.Status != nil {
 		updates["status"] = *request.Status
 	}
+	// 更新分组关联
+	if request.GroupID != nil {
+		updates["group_id"] = *request.GroupID
+	}
 
 	if len(updates) > 0 {
 		if err := tx.Model(&asset).Updates(updates).Error; err != nil {
@@ -248,24 +251,10 @@ func (s *AssetService) UpdateAsset(id uint, request *models.AssetUpdateRequest) 
 		}
 	}
 
-	// 更新分组关联
-	if len(request.GroupIDs) > 0 {
-		// 先清除现有的分组关联
-		if err := tx.Model(&asset).Association("Groups").Clear(); err != nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("failed to clear asset groups: %w", err)
-		}
-		// 添加新的分组关联
-		if err := tx.Model(&asset).Association("Groups").Append(groups); err != nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("failed to associate groups: %w", err)
-		}
-	}
-
 	tx.Commit()
 
 	// 重新查询资产，包含凭证和分组信息
-	if err := s.db.Preload("Credentials").Preload("Groups").Where("id = ?", id).First(&asset).Error; err != nil {
+	if err := s.db.Preload("Credentials").Preload("Group").Where("id = ?", id).First(&asset).Error; err != nil {
 		return nil, fmt.Errorf("failed to query updated asset: %w", err)
 	}
 
@@ -842,5 +831,38 @@ func (s *AssetService) DeleteAssetGroup(id uint) error {
 		return fmt.Errorf("failed to delete asset group: %w", err)
 	}
 
+	return nil
+}
+
+// BatchMoveAssetsToGroup 批量移动资产到分组（管理员专用）
+func (s *AssetService) BatchMoveAssetsToGroup(request *models.AssetBatchMoveRequest) error {
+	// 1. 验证资产是否存在且未删除
+	var existingAssets int64
+	if err := s.db.Model(&models.Asset{}).Where("id IN ? AND deleted_at IS NULL", request.AssetIDs).Count(&existingAssets).Error; err != nil {
+		return fmt.Errorf("failed to count assets: %w", err)
+	}
+	
+	if existingAssets != int64(len(request.AssetIDs)) {
+		return errors.New("some assets not found or deleted")
+	}
+	
+	// 2. 如果指定了目标分组，验证分组是否存在
+	if request.TargetGroupID != nil {
+		var group models.AssetGroup
+		if err := s.db.Where("id = ? AND deleted_at IS NULL", *request.TargetGroupID).First(&group).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("target group not found")
+			}
+			return fmt.Errorf("failed to check target group: %w", err)
+		}
+	}
+	
+	// 3. 执行批量移动（简单的UPDATE操作）
+	if err := s.db.Model(&models.Asset{}).
+		Where("id IN ?", request.AssetIDs).
+		Update("group_id", request.TargetGroupID).Error; err != nil {
+		return fmt.Errorf("failed to move assets to group: %w", err)
+	}
+	
 	return nil
 }

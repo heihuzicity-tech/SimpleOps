@@ -414,8 +414,8 @@ func (aw *AssetWrapper) GetHost() string             { return aw.Asset.Address }
 func (aw *AssetWrapper) GetPort() int                { return aw.Asset.Port }
 func (aw *AssetWrapper) GetType() string             { return aw.Asset.Protocol }
 func (aw *AssetWrapper) GetGroupID() uint            { 
-	if len(aw.Asset.Groups) > 0 {
-		return aw.Asset.Groups[0].ID
+	if aw.Asset.GroupID != nil {
+		return *aw.Asset.GroupID
 	}
 	return 0
 }

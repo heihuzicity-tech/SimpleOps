@@ -99,6 +99,13 @@ func SetupRouter() *gin.Engine {
 				roles.DELETE("/:id", roleController.DeleteRole)
 			}
 
+			// 管理员专用资产管理路由
+			admin := authenticated.Group("/admin")
+			admin.Use(middleware.RequireAdmin())
+			{
+				admin.POST("/assets/batch-move", assetController.BatchMoveAssets)
+			}
+
 			// 资产管理路由（需要asset权限）
 			assets := authenticated.Group("/assets")
 			assets.Use(middleware.RequirePermission("asset:read"))

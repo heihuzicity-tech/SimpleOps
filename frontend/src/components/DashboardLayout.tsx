@@ -12,6 +12,7 @@ import {
   EyeOutlined,
   CodeOutlined,
   GlobalOutlined,
+  FolderOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -85,6 +86,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               icon: <ConsoleSqlOutlined />,
               label: '数据库',
             },
+            // 只有管理员才能看到分组管理
+            ...(hasAdminPermission(user) ? [{
+              key: '/assets/groups',
+              icon: <FolderOutlined />,
+              label: '分组管理',
+            }] : []),
           ],
         },
         {

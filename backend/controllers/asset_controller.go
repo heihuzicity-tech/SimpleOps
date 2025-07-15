@@ -758,3 +758,67 @@ func (ac *AssetController) DeleteAssetGroup(c *gin.Context) {
 		"message": "资产分组删除成功",
 	})
 }
+
+// BatchMoveAssets 批量移动资产到分组（管理员专用）
+// @Summary      批量移动资产到分组
+// @Description  批量移动指定资产到目标分组，只有管理员可以操作
+// @Tags         资产管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body models.AssetBatchMoveRequest true "批量移动请求"
+// @Success      200  {object}  map[string]interface{}  "移动成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Failure      403  {object}  map[string]interface{}  "权限不足"
+// @Failure      404  {object}  map[string]interface{}  "资产或分组不存在"
+// @Failure      500  {object}  map[string]interface{}  "服务器错误"
+// @Router       /admin/assets/batch-move [post]
+func (ac *AssetController) BatchMoveAssets(c *gin.Context) {
+	var request models.AssetBatchMoveRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "请求参数格式错误",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// 调用资产服务
+	err := ac.assetService.BatchMoveAssetsToGroup(&request)
+	if err != nil {
+		switch err.Error() {
+		case "some assets not found or deleted":
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "部分资产不存在或已删除",
+			})
+		case "target group not found":
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "目标分组不存在",
+			})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "批量移动资产失败",
+				"details": err.Error(),
+			})
+		}
+		return
+	}
+
+	// 构建成功响应消息
+	var message string
+	if request.TargetGroupID != nil {
+		message = "成功移动资产到指定分组"
+	} else {
+		message = "成功将资产移出所有分组"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": message,
+		"data": gin.H{
+			"moved_count": len(request.AssetIDs),
+			"target_group_id": request.TargetGroupID,
+		},
+	})
+}

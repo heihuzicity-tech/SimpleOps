@@ -254,9 +254,11 @@ type Asset struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 
-	// 关联关系 - 多对多
+	// 关联关系
 	Credentials []Credential `json:"credentials" gorm:"many2many:asset_credentials"`
-	Groups      []AssetGroup `json:"groups" gorm:"many2many:asset_group_assets"`
+	// 分组关系改为一对多（一个资产只能属于一个分组）
+	GroupID     *uint      `json:"group_id" gorm:"index;comment:资产分组ID"`
+	Group       *AssetGroup `json:"group,omitempty" gorm:"foreignKey:GroupID"`
 }
 
 // Credential 凭证模型
@@ -295,8 +297,8 @@ type AssetGroup struct {
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
 
-	// 关联关系
-	Assets []Asset `json:"assets" gorm:"many2many:asset_group_assets"`
+	// 关联关系 - 一对多关系
+	Assets []Asset `json:"assets" gorm:"foreignKey:GroupID"`
 }
 
 // AssetCreateRequest 资产创建请求
@@ -309,7 +311,7 @@ type AssetCreateRequest struct {
 	Protocol      string `json:"protocol" binding:"required,oneof=ssh rdp vnc mysql postgresql"`
 	Tags          string `json:"tags"`
 	CredentialIDs []uint `json:"credential_ids" binding:"omitempty"` // 可选的凭证ID列表
-	GroupIDs      []uint `json:"group_ids" binding:"omitempty"`      // 可选的分组ID列表
+	GroupID       *uint  `json:"group_id" binding:"omitempty"`        // 可选的分组ID
 }
 
 // AssetUpdateRequest 资产更新请求
@@ -323,7 +325,7 @@ type AssetUpdateRequest struct {
 	Tags          string `json:"tags"`
 	Status        *int   `json:"status" binding:"omitempty,oneof=0 1"`
 	CredentialIDs []uint `json:"credential_ids" binding:"omitempty"` // 可选的凭证ID列表
-	GroupIDs      []uint `json:"group_ids" binding:"omitempty"`      // 可选的分组ID列表
+	GroupID       *uint  `json:"group_id" binding:"omitempty"`        // 可选的分组ID
 }
 
 // AssetResponse 资产响应
@@ -340,7 +342,8 @@ type AssetResponse struct {
 	CreatedAt        time.Time    `json:"created_at"`
 	UpdatedAt        time.Time    `json:"updated_at"`
 	Credentials      []Credential `json:"credentials,omitempty"`
-	Groups           []AssetGroup `json:"groups,omitempty"`
+	GroupID          *uint        `json:"group_id,omitempty"`
+	Group            *AssetGroup  `json:"group,omitempty"`
 	ConnectionStatus string       `json:"connection_status,omitempty"`
 }
 
@@ -441,7 +444,8 @@ func (a *Asset) ToResponse() *AssetResponse {
 		CreatedAt:   a.CreatedAt,
 		UpdatedAt:   a.UpdatedAt,
 		Credentials: a.Credentials,
-		Groups:      a.Groups,
+		GroupID:     a.GroupID,
+		Group:       a.Group,
 	}
 }
 
@@ -1026,6 +1030,12 @@ type AssetGroupCreateRequest struct {
 type AssetGroupUpdateRequest struct {
 	Name        string `json:"name" binding:"omitempty,min=1,max=50"`
 	Description string `json:"description" binding:"omitempty,max=500"`
+}
+
+// AssetBatchMoveRequest 资产批量移动请求
+type AssetBatchMoveRequest struct {
+	AssetIDs      []uint `json:"asset_ids" binding:"required,min=1"`
+	TargetGroupID *uint  `json:"target_group_id"`  // null表示移出分组
 }
 
 // AssetGroupResponse 资产分组响应

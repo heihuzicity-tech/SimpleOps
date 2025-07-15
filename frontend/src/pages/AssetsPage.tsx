@@ -15,25 +15,30 @@ import {
   message,
   Row,
   Col,
+  Dropdown,
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  ReloadOutlined,
   CheckCircleOutlined,
   LinkOutlined,
   DesktopOutlined,
   EyeOutlined,
   ConsoleSqlOutlined,
+  ReloadOutlined,
+  ApiOutlined,
+  InfoCircleOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { AppDispatch, RootState } from '../store';
 import { fetchAssets, createAsset, updateAsset, deleteAsset, testConnection } from '../store/assetSlice';
 import { fetchCredentials } from '../store/credentialSlice';
-import { getAssetGroups, createAssetGroup, deleteAssetGroup, AssetGroup } from '../services/assetAPI';
+import { getAssetGroups, AssetGroup } from '../services/assetAPI';
 import ResourceTree from '../components/sessions/ResourceTree';
+import SearchSelect from '../components/common/SearchSelect';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -47,13 +52,14 @@ const AssetsPage: React.FC = () => {
   const [editingAsset, setEditingAsset] = useState<any>(null);
   const [form] = Form.useForm();
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchType, setSearchType] = useState('name'); // 搜索类型：name, address, os_type
   const [typeFilter, setTypeFilter] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   const [testingConnection, setTestingConnection] = useState<number | null>(null);
   const [assetGroups, setAssetGroups] = useState<AssetGroup[]>([]);
-  const [isGroupModalVisible, setIsGroupModalVisible] = useState(false);
-  const [groupForm] = Form.useForm();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [groupTreeData, setGroupTreeData] = useState<any[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   // 根据路径确定当前资产类型
   const getCurrentAssetType = () => {
@@ -74,9 +80,10 @@ const AssetsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadAssets();
     loadCredentials();
     loadAssetGroups();
+    // 初始化时加载全部资产
+    loadAssetsByGroup('all');
   }, []);
 
   const loadCredentials = () => {
@@ -86,21 +93,26 @@ const AssetsPage: React.FC = () => {
   const loadAssetGroups = async () => {
     try {
       const response = await getAssetGroups({ page: 1, page_size: 100 });
-      setAssetGroups(response.data.data || []);
+      const groups = response.data.data || [];
+      setAssetGroups(groups);
+      
+      // 构建分组树数据
+      const treeData = [
+        {
+          title: '全部主机',
+          key: 'all',
+          children: groups.map((group: AssetGroup) => ({
+            title: `${group.name} (${group.asset_count || 0})`,
+            key: group.id.toString(),
+          }))
+        }
+      ];
+      setGroupTreeData(treeData);
     } catch (error) {
       console.error('加载资产分组失败:', error);
     }
   };
 
-  const loadAssets = () => {
-    const currentType = getCurrentAssetType();
-    dispatch(fetchAssets({
-      page: pagination.current,
-      page_size: pagination.pageSize,
-      keyword: searchKeyword,
-      type: currentType,
-    }));
-  };
 
   const handleAdd = () => {
     setEditingAsset(null);
@@ -123,9 +135,9 @@ const AssetsPage: React.FC = () => {
     } else {
       formData.tags = '';
     }
-    // 设置分组字段
-    if (asset.groups && asset.groups.length > 0) {
-      formData.group_ids = asset.groups.map((group: AssetGroup) => group.id);
+    // 设置分组字段（一对多关系）
+    if (asset.group_id) {
+      formData.group_id = asset.group_id;
     }
     form.setFieldsValue(formData);
   };
@@ -133,7 +145,9 @@ const AssetsPage: React.FC = () => {
   const handleDelete = async (id: number) => {
     try {
       await dispatch(deleteAsset(id)).unwrap();
-      loadAssets();
+      // 同时刷新资产列表和分组数据
+      loadAssetsByGroup(selectedCategory);
+      loadAssetGroups(); // 添加分组数据刷新
     } catch (error) {
       console.error('删除资产失败:', error);
     }
@@ -155,7 +169,9 @@ const AssetsPage: React.FC = () => {
         await dispatch(createAsset(submitData)).unwrap();
       }
       setIsModalVisible(false);
-      loadAssets();
+      // 同时刷新资产列表和分组数据
+      loadAssetsByGroup(selectedCategory);
+      loadAssetGroups(); // 添加分组数据刷新
     } catch (error: any) {
       console.error('保存资产失败:', error);
       
@@ -179,6 +195,35 @@ const AssetsPage: React.FC = () => {
     }
   };
 
+  const handleViewDetails = (asset: any) => {
+    Modal.info({
+      title: '资产详情',
+      width: 600,
+      content: (
+        <div>
+          <p><strong>资产名称:</strong> {asset.name}</p>
+          <p><strong>资产地址:</strong> {asset.address}</p>
+          <p><strong>端口:</strong> {asset.port}</p>
+          <p><strong>协议:</strong> {asset.protocol}</p>
+          <p><strong>系统类型:</strong> {asset.os_type}</p>
+          <p><strong>资产类型:</strong> {getTypeText(asset.type)}</p>
+          <p><strong>标签:</strong> {asset.tags && asset.tags !== '{}' ? (
+            (() => {
+              try {
+                const parsedTags = JSON.parse(asset.tags);
+                return parsedTags.tags || asset.tags;
+              } catch {
+                return asset.tags;
+              }
+            })()
+          ) : '无'}</p>
+          <p><strong>创建时间:</strong> {new Date(asset.created_at).toLocaleString()}</p>
+        </div>
+      ),
+      okText: '关闭',
+    });
+  };
+
   const handleTestConnection = async (id: number) => {
     setTestingConnection(id);
     try {
@@ -193,13 +238,16 @@ const AssetsPage: React.FC = () => {
   const handleSearch = (value: string) => {
     setSearchKeyword(value);
     setPagination({ ...pagination, current: 1 });
-    const currentType = getCurrentAssetType();
-    dispatch(fetchAssets({
-      page: 1,
-      page_size: pagination.pageSize,
-      keyword: value,
-      type: currentType,
-    }));
+    // 使用当前选中的分组进行搜索
+    loadAssetsByGroupWithKeyword(selectedCategory, value);
+  };
+
+  const handleSearchTypeChange = (value: string) => {
+    setSearchType(value);
+    // 如果已有搜索关键词，立即执行搜索
+    if (searchKeyword) {
+      handleSearch(searchKeyword);
+    }
   };
 
   const handleTypeFilter = (value: string) => {
@@ -213,27 +261,6 @@ const AssetsPage: React.FC = () => {
     }));
   };
 
-  const handleCreateGroup = async (values: any) => {
-    try {
-      await createAssetGroup(values);
-      message.success('分组创建成功');
-      setIsGroupModalVisible(false);
-      groupForm.resetFields();
-      loadAssetGroups();
-    } catch (error) {
-      message.error('分组创建失败');
-    }
-  };
-
-  const handleDeleteGroup = async (groupId: number) => {
-    try {
-      await deleteAssetGroup(groupId);
-      message.success('分组删除成功');
-      loadAssetGroups();
-    } catch (error) {
-      message.error('分组删除失败');
-    }
-  };
 
   const handleTreeSelect = (selectedKeys: React.Key[]) => {
     if (selectedKeys.length > 0) {
@@ -241,18 +268,24 @@ const AssetsPage: React.FC = () => {
       setSelectedCategory(categoryKey);
       // 根据选中的分组重新加载资产数据
       loadAssetsByGroup(categoryKey);
+    } else {
+      // 如果没有选中任何分组，默认选择'all'
+      setSelectedCategory('all');
+      loadAssetsByGroup('all');
     }
   };
 
   // 根据分组加载资产
-  const loadAssetsByGroup = (groupKey: string) => {
+  const loadAssetsByGroup = (groupKey: string, keyword?: string) => {
     const currentType = getCurrentAssetType();
+    const searchTerm = keyword !== undefined ? keyword : searchKeyword;
+    
     if (groupKey === 'all') {
       // 加载所有资产
       dispatch(fetchAssets({
         page: pagination.current,
         page_size: pagination.pageSize,
-        keyword: searchKeyword,
+        keyword: searchTerm,
         type: currentType,
       }));
     } else {
@@ -260,10 +293,28 @@ const AssetsPage: React.FC = () => {
       dispatch(fetchAssets({
         page: pagination.current,
         page_size: pagination.pageSize,
-        keyword: searchKeyword,
+        keyword: searchTerm,
         type: currentType,
         group_id: parseInt(groupKey),
       }));
+    }
+  };
+
+  // 使用关键字搜索的辅助函数
+  const loadAssetsByGroupWithKeyword = (groupKey: string, keyword: string) => {
+    loadAssetsByGroup(groupKey, keyword);
+  };
+
+  // 手动刷新函数
+  const handleRefresh = async () => {
+    try {
+      await Promise.all([
+        loadAssetsByGroup(selectedCategory),
+        loadAssetGroups()
+      ]);
+      message.success('刷新成功');
+    } catch (error) {
+      message.error('刷新失败');
     }
   };
 
@@ -338,23 +389,33 @@ const AssetsPage: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 150,
+      width: 280,
       render: (text: any, record: any) => (
         <Space size="small">
-          <Tooltip title="查看详情">
+          <Tooltip title="详情">
             <Button 
-              size="small"
-              icon={<EyeOutlined />}
+              icon={<InfoCircleOutlined />}
+              onClick={() => handleViewDetails(record)}
+            >
+              详情
+            </Button>
+          </Tooltip>
+          <Tooltip title="测试连接">
+            <Button 
+              icon={<ApiOutlined />}
               loading={testingConnection === record.id}
               onClick={() => handleTestConnection(record.id)}
-            />
+            >
+              测试
+            </Button>
           </Tooltip>
           <Tooltip title="编辑">
             <Button 
-              size="small" 
               icon={<EditOutlined />}
               onClick={() => handleEdit(record)}
-            />
+            >
+              编辑
+            </Button>
           </Tooltip>
           <Tooltip title="删除">
             <Popconfirm
@@ -362,10 +423,11 @@ const AssetsPage: React.FC = () => {
               onConfirm={() => handleDelete(record.id)}
             >
               <Button 
-                size="small" 
                 danger
                 icon={<DeleteOutlined />}
-              />
+              >
+                删除
+              </Button>
             </Popconfirm>
           </Tooltip>
         </Space>
@@ -379,6 +441,22 @@ const AssetsPage: React.FC = () => {
     // 只显示当前类型的资产
     if (asset.type !== currentType) return false;
     
+    // 根据搜索类型过滤
+    if (searchKeyword) {
+      const keyword = searchKeyword.toLowerCase();
+      switch (searchType) {
+        case 'name':
+          if (!asset.name.toLowerCase().includes(keyword)) return false;
+          break;
+        case 'address':
+          if (!asset.address.toLowerCase().includes(keyword)) return false;
+          break;
+        case 'os_type':
+          if (!asset.os_type || !asset.os_type.toLowerCase().includes(keyword)) return false;
+          break;
+      }
+    }
+    
     if (selectedCategory === 'all') return true;
     // 这里可以根据实际的分类逻辑过滤
     return true;
@@ -391,66 +469,101 @@ const AssetsPage: React.FC = () => {
           <ResourceTree 
             resourceType={getCurrentResourceType()}
             onSelect={handleTreeSelect}
+            selectedKeys={[selectedCategory]}
+            treeData={groupTreeData}
           />
         </Col>
-        <Col span={20} style={{ height: '100%' }}>
-          <Card 
-            title={
-              <Space>
-                {getCurrentPageTitle() === '主机资源' ? <DesktopOutlined /> : <ConsoleSqlOutlined />}
-                <span>{getCurrentPageTitle()}</span>
-                <Badge count={filteredAssets.length} showZero />
-              </Space>
-            }
-            extra={
-              <Space>
-                <Search
-                  placeholder="请输入主机名称、主机地址搜索"
-                  allowClear
-                  onSearch={handleSearch}
-                  style={{ width: 250 }}
-                  size="small"
-                />
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={loadAssets}
-                  loading={loading}
-                  size="small"
-                >
-                  刷新
-                </Button>
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={handleAdd}
-                  size="small"
-                >
-                  新增资产
-                </Button>
-                <Button
-                  onClick={() => setIsGroupModalVisible(true)}
-                  size="small"
-                >
-                  分组管理
-                </Button>
-              </Space>
-            }
-            style={{ height: '100%' }}
-            styles={{ body: { height: 'calc(100% - 56px)', overflow: 'auto' } }}
-          >
-            <Table
-              columns={columns}
-              dataSource={filteredAssets}
-              loading={loading}
-              rowKey="id"
-              pagination={{
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total) => `共 ${total} 条记录`,
-              }}
-              size="small"
-              scroll={{ x: 900 }}
+        <Col span={20} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ 
+            marginBottom: 8, 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            backgroundColor: '#fafafa',
+            padding: '8px 16px',
+            borderRadius: 8
+          }}>
+            <SearchSelect
+              searchType={searchType}
+              onSearchTypeChange={handleSearchTypeChange}
+              onSearch={handleSearch}
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder="请输入关键字搜索"
+              searchOptions={[
+                { value: 'name', label: '主机名称' },
+                { value: 'address', label: '主机地址' },
+                { value: 'os_type', label: '系统类型' },
+              ]}
+              style={{ width: 300 }}
             />
+            <Space>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={handleRefresh}
+                title="刷新数据"
+              >
+                刷新
+              </Button>
+              <Dropdown
+                menu={{
+                  items: [
+                    { key: 'import', label: '导入主机', icon: <PlusOutlined /> },
+                  ],
+                }}
+              >
+                <Button>
+                  导入主机 <DownOutlined />
+                </Button>
+              </Dropdown>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleAdd}
+              >
+                新建
+              </Button>
+            </Space>
+          </div>
+          <Card 
+            style={{ flex: 1, overflow: 'hidden' }}
+            styles={{ body: { height: '100%', overflow: 'auto', padding: 0 } }}
+          >
+            <div style={{ padding: '12px 16px' }}>
+              {selectedRowKeys.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <Space>
+                    <Button icon={<DeleteOutlined />}>
+                      批量删除
+                    </Button>
+                    <span style={{ marginLeft: 8 }}>
+                      已选 {selectedRowKeys.length} 项
+                    </span>
+                  </Space>
+                </div>
+              )}
+              <Table
+                rowSelection={{
+                  selectedRowKeys,
+                  onChange: (keys) => setSelectedRowKeys(keys),
+                }}
+                columns={columns}
+                dataSource={filteredAssets}
+                loading={loading}
+                rowKey="id"
+                pagination={{
+                  showSizeChanger: true,
+                  showQuickJumper: true,
+                  showTotal: (total, range) => (
+                    <Space>
+                      <span>共 {total} 条数据</span>
+                    </Space>
+                  ),
+                }}
+                size="small"
+                scroll={{ x: 900 }}
+              />
+            </div>
           </Card>
         </Col>
       </Row>
@@ -572,11 +685,10 @@ const AssetsPage: React.FC = () => {
 
           <Form.Item
             label="资产分组"
-            name="group_ids"
-            tooltip="可选：选择资产所属的分组"
+            name="group_id"
+            tooltip="可选：选择资产所属的分组（一个资产只能属于一个分组）"
           >
             <Select 
-              mode="multiple" 
               placeholder="选择资产分组（可选）"
               allowClear
               showSearch
@@ -602,89 +714,6 @@ const AssetsPage: React.FC = () => {
         </Form>
       </Modal>
 
-      {/* 分组管理弹窗 */}
-      <Modal
-        title="分组管理"
-        open={isGroupModalVisible}
-        onCancel={() => setIsGroupModalVisible(false)}
-        footer={null}
-        width={800}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <Form
-            form={groupForm}
-            layout="inline"
-            onFinish={handleCreateGroup}
-          >
-            <Form.Item
-              name="name"
-              rules={[{ required: true, message: '请输入分组名称' }]}
-            >
-              <Input placeholder="分组名称" />
-            </Form.Item>
-            <Form.Item
-              name="description"
-            >
-              <Input placeholder="分组描述（可选）" />
-            </Form.Item>
-            <Form.Item>
-              <Button type="primary" htmlType="submit">
-                创建分组
-              </Button>
-            </Form.Item>
-          </Form>
-        </div>
-        
-        <Table
-          dataSource={assetGroups}
-          rowKey="id"
-          pagination={false}
-          columns={[
-            {
-              title: 'ID',
-              dataIndex: 'id',
-              key: 'id',
-              width: 80,
-            },
-            {
-              title: '分组名称',
-              dataIndex: 'name',
-              key: 'name',
-            },
-            {
-              title: '描述',
-              dataIndex: 'description',
-              key: 'description',
-              render: (text: string) => text || '-',
-            },
-            {
-              title: '资产数量',
-              dataIndex: 'asset_count',
-              key: 'asset_count',
-            },
-            {
-              title: '创建时间',
-              dataIndex: 'created_at',
-              key: 'created_at',
-              render: (text: string) => new Date(text).toLocaleString(),
-            },
-            {
-              title: '操作',
-              key: 'action',
-              render: (text: any, record: AssetGroup) => (
-                <Popconfirm
-                  title="确定要删除这个分组吗？"
-                  onConfirm={() => handleDeleteGroup(record.id)}
-                >
-                  <Button type="text" danger icon={<DeleteOutlined />}>
-                    删除
-                  </Button>
-                </Popconfirm>
-              ),
-            },
-          ]}
-        />
-      </Modal>
     </div>
   );
 };
