@@ -11,6 +11,7 @@ import {
   DatabaseOutlined
 } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
+import { getAssetGroups, createAssetGroup, deleteAssetGroup, AssetGroup } from '../../services/assetAPI';
 
 const { Search } = Input;
 
@@ -26,40 +27,44 @@ const AssetGroupTree: React.FC<AssetGroupTreeProps> = ({ onSelect, onGroupChange
   const [autoExpandParent, setAutoExpandParent] = useState(true);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [form] = Form.useForm();
+  const [groups, setGroups] = useState<AssetGroup[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // 模拟的分组数据
-  const mockGroups = [
-    { id: 1, name: '生产环境', type: 'production', parentId: null },
-    { id: 2, name: '测试环境', type: 'test', parentId: null },
-    { id: 3, name: '开发环境', type: 'dev', parentId: null },
-    { id: 4, name: 'Web服务器', type: 'production', parentId: 1 },
-    { id: 5, name: '应用服务器', type: 'production', parentId: 1 },
-    { id: 6, name: '数据库服务器', type: 'production', parentId: 1 },
-    { id: 7, name: '测试服务器', type: 'test', parentId: 2 },
-    { id: 8, name: '开发服务器', type: 'dev', parentId: 3 },
-  ];
+  // 加载资产分组数据
+  const loadAssetGroups = async () => {
+    try {
+      setLoading(true);
+      const response = await getAssetGroups({ page: 1, page_size: 100 });
+      const groupsData = response.data.data || [];
+      setGroups(groupsData);
+    } catch (error) {
+      console.error('加载资产分组失败:', error);
+      message.error('加载资产分组失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const [groups, setGroups] = useState(mockGroups);
+  useEffect(() => {
+    loadAssetGroups();
+  }, []);
 
   useEffect(() => {
     const generateTreeData = (): DataNode[] => {
-      const buildTree = (parentId: number | null): DataNode[] => {
-        return groups
-          .filter(group => group.parentId === parentId)
-          .map(group => ({
-            title: group.name,
-            key: group.id.toString(),
-            icon: getGroupIcon(group.type),
-            children: buildTree(group.id),
-          }));
-      };
+      // 将后端的扁平分组数据转换为树形结构
+      const groupItems = groups.map(group => ({
+        title: `${group.name} (${group.asset_count})`,
+        key: group.id.toString(),
+        icon: <FolderOutlined />,
+        isLeaf: true,
+      }));
 
       return [
         {
-          title: '全部资产',
+          title: '全部主机',
           key: 'all',
           icon: <FolderOutlined />,
-          children: buildTree(null),
+          children: groupItems,
         },
       ];
     };
@@ -119,38 +124,57 @@ const AssetGroupTree: React.FC<AssetGroupTreeProps> = ({ onSelect, onGroupChange
     form.resetFields();
   };
 
-  const handleSubmit = (values: any) => {
-    // 模拟创建分组
-    const newGroup = {
-      id: Date.now(),
-      name: values.name,
-      type: values.type || 'general',
-      parentId: values.parentId || null,
-    };
-    
-    setGroups([...groups, newGroup]);
-    setIsModalVisible(false);
-    message.success('分组创建成功');
-    
-    if (onGroupChange) {
-      onGroupChange();
+  const handleSubmit = async (values: any) => {
+    try {
+      setLoading(true);
+      await createAssetGroup({
+        name: values.name,
+        description: values.description || '',
+      });
+      setIsModalVisible(false);
+      message.success('分组创建成功');
+      form.resetFields();
+      
+      // 重新加载分组数据
+      await loadAssetGroups();
+      
+      if (onGroupChange) {
+        onGroupChange();
+      }
+    } catch (error) {
+      console.error('创建分组失败:', error);
+      message.error('创建分组失败');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDeleteGroup = (groupId: string) => {
-    // 检查是否有子分组
-    const hasChildren = groups.some(group => group.parentId === parseInt(groupId));
-    if (hasChildren) {
-      message.error('该分组下还有子分组，请先删除子分组');
+  const handleDeleteGroup = async (groupId: string) => {
+    const group = groups.find(g => g.id === parseInt(groupId));
+    if (!group) return;
+    
+    // 检查是否还有主机在该分组中
+    if (group.asset_count > 0) {
+      message.error('该分组下还有主机，请先移除主机');
       return;
     }
 
-    // 模拟删除分组
-    setGroups(groups.filter(group => group.id !== parseInt(groupId)));
-    message.success('分组删除成功');
-    
-    if (onGroupChange) {
-      onGroupChange();
+    try {
+      setLoading(true);
+      await deleteAssetGroup(parseInt(groupId));
+      message.success('分组删除成功');
+      
+      // 重新加载分组数据
+      await loadAssetGroups();
+      
+      if (onGroupChange) {
+        onGroupChange();
+      }
+    } catch (error) {
+      console.error('删除分组失败:', error);
+      message.error('删除分组失败');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -266,32 +290,10 @@ const AssetGroupTree: React.FC<AssetGroupTreeProps> = ({ onSelect, onGroupChange
           </Form.Item>
 
           <Form.Item
-            label="分组类型"
-            name="type"
-            rules={[{ required: true, message: '请选择分组类型' }]}
+            label="分组描述"
+            name="description"
           >
-            <select className="ant-select-selector" style={{ width: '100%', height: '32px', border: '1px solid #d9d9d9', borderRadius: '6px', padding: '0 8px' }}>
-              <option value="">请选择分组类型</option>
-              <option value="production">生产环境</option>
-              <option value="test">测试环境</option>
-              <option value="dev">开发环境</option>
-              <option value="general">通用分组</option>
-            </select>
-          </Form.Item>
-
-          <Form.Item
-            label="父分组"
-            name="parentId"
-            tooltip="可选：选择父分组创建层级结构"
-          >
-            <select className="ant-select-selector" style={{ width: '100%', height: '32px', border: '1px solid #d9d9d9', borderRadius: '6px', padding: '0 8px' }}>
-              <option value="">无父分组（顶级分组）</option>
-              {groups.map(group => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
+            <Input.TextArea placeholder="请输入分组描述（可选）" rows={3} />
           </Form.Item>
 
           <Form.Item>

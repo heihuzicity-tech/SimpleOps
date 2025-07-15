@@ -351,6 +351,7 @@ type AssetListRequest struct {
 	Keyword  string `form:"keyword" binding:"omitempty,max=50"`
 	Type     string `form:"type" binding:"omitempty,oneof=server database"`
 	Status   *int   `form:"status" binding:"omitempty,oneof=0 1"`
+	GroupID  *uint  `form:"group_id" binding:"omitempty"` // 分组ID过滤
 }
 
 // CredentialCreateRequest 凭证创建请求

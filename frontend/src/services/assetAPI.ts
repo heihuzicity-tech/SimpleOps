@@ -28,6 +28,7 @@ export interface GetAssetsParams {
   page_size?: number;
   keyword?: string;
   type?: string;
+  group_id?: number;
 }
 
 export interface GetAssetsResponse {

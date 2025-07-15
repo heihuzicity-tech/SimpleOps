@@ -130,6 +130,12 @@ func (s *AssetService) GetAssets(request *models.AssetListRequest) ([]*models.As
 		query = query.Where("status = ?", *request.Status)
 	}
 
+	// 分组过滤 - 通过多对多关联表
+	if request.GroupID != nil {
+		query = query.Joins("JOIN asset_group_assets ON assets.id = asset_group_assets.asset_id").
+			Where("asset_group_assets.asset_group_id = ?", *request.GroupID)
+	}
+
 	// 计算总数
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to count assets: %w", err)

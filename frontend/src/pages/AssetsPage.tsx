@@ -237,7 +237,33 @@ const AssetsPage: React.FC = () => {
 
   const handleTreeSelect = (selectedKeys: React.Key[]) => {
     if (selectedKeys.length > 0) {
-      setSelectedCategory(selectedKeys[0] as string);
+      const categoryKey = selectedKeys[0] as string;
+      setSelectedCategory(categoryKey);
+      // 根据选中的分组重新加载资产数据
+      loadAssetsByGroup(categoryKey);
+    }
+  };
+
+  // 根据分组加载资产
+  const loadAssetsByGroup = (groupKey: string) => {
+    const currentType = getCurrentAssetType();
+    if (groupKey === 'all') {
+      // 加载所有资产
+      dispatch(fetchAssets({
+        page: pagination.current,
+        page_size: pagination.pageSize,
+        keyword: searchKeyword,
+        type: currentType,
+      }));
+    } else {
+      // 根据分组ID过滤资产
+      dispatch(fetchAssets({
+        page: pagination.current,
+        page_size: pagination.pageSize,
+        keyword: searchKeyword,
+        type: currentType,
+        group_id: parseInt(groupKey),
+      }));
     }
   };
 
