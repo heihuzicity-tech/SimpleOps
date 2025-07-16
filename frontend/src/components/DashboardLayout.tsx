@@ -98,6 +98,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           key: '/credentials',
           icon: <KeyOutlined />,
           label: '凭证管理',
+          children: [
+            {
+              key: '/credentials/password',
+              icon: <KeyOutlined />,
+              label: '密码凭证',
+            },
+            {
+              key: '/credentials/ssh-key',
+              icon: <KeyOutlined />,
+              label: 'SSH密钥凭证',
+            },
+          ],
         },
         {
           key: '/connect',
@@ -196,6 +208,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     // 如果是资产管理子页面，需要展开资产管理菜单
     if (currentPath.startsWith('/assets/')) {
       openKeys = ['/assets'];
+    }
+    
+    // 如果是凭证管理子页面，需要展开凭证管理菜单
+    if (currentPath.startsWith('/credentials/')) {
+      openKeys = ['/credentials'];
     }
 
     return { selectedKeys, openKeys };

@@ -9,26 +9,18 @@ import {
   Form,
   Select,
   Tag,
-  Badge,
   Popconfirm,
   Tooltip,
+  Popover,
   message,
-  Row,
-  Col,
   Dropdown,
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  CheckCircleOutlined,
-  LinkOutlined,
-  DesktopOutlined,
-  EyeOutlined,
-  ConsoleSqlOutlined,
   ReloadOutlined,
   ApiOutlined,
-  InfoCircleOutlined,
   DownOutlined,
 } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -140,6 +132,13 @@ const AssetsPage: React.FC = () => {
     if (asset.group_id) {
       formData.group_id = asset.group_id;
     }
+    // 设置关联凭证字段
+    const assetCredentials = credentials.filter(cred => 
+      (asset.credential_ids && asset.credential_ids.includes(cred.id)) ||
+      (cred.assets && cred.assets.some(a => a.id === asset.id))
+    );
+    formData.credential_ids = assetCredentials.map(cred => cred.id);
+    
     form.setFieldsValue(formData);
   };
 
@@ -196,34 +195,6 @@ const AssetsPage: React.FC = () => {
     }
   };
 
-  const handleViewDetails = (asset: any) => {
-    Modal.info({
-      title: '资产详情',
-      width: 600,
-      content: (
-        <div>
-          <p><strong>资产名称:</strong> {asset.name}</p>
-          <p><strong>资产地址:</strong> {asset.address}</p>
-          <p><strong>端口:</strong> {asset.port}</p>
-          <p><strong>协议:</strong> {asset.protocol}</p>
-          <p><strong>系统类型:</strong> {asset.os_type}</p>
-          <p><strong>资产类型:</strong> {getTypeText(asset.type)}</p>
-          <p><strong>标签:</strong> {asset.tags && asset.tags !== '{}' ? (
-            (() => {
-              try {
-                const parsedTags = JSON.parse(asset.tags);
-                return parsedTags.tags || asset.tags;
-              } catch {
-                return asset.tags;
-              }
-            })()
-          ) : '无'}</p>
-          <p><strong>创建时间:</strong> {new Date(asset.created_at).toLocaleString()}</p>
-        </div>
-      ),
-      okText: '关闭',
-    });
-  };
 
   const handleTestConnection = async (asset: any) => {
     // 获取该资产的凭据列表
@@ -451,6 +422,47 @@ const AssetsPage: React.FC = () => {
       },
     },
     {
+      title: '关联凭证',
+      dataIndex: 'credential_ids',
+      key: 'credentials',
+      render: (credentialIds: number[], record: any) => {
+        // 获取该资产关联的凭证
+        const assetCredentials = credentials.filter(cred => 
+          credentialIds?.includes(cred.id) || 
+          (cred.assets && cred.assets.some(a => a.id === record.id))
+        );
+        
+        if (assetCredentials.length === 0) {
+          return <Tag color="default">未关联</Tag>;
+        }
+        
+        const popoverContent = (
+          <div style={{ maxWidth: 300 }}>
+            {assetCredentials.map(cred => (
+              <div key={cred.id} style={{ marginBottom: 8 }}>
+                <Tag color={cred.type === 'password' ? 'blue' : 'green'}>
+                  {cred.type === 'password' ? '密码' : '密钥'}
+                </Tag>
+                <span>{cred.name}</span>
+              </div>
+            ))}
+          </div>
+        );
+        
+        return (
+          <Popover 
+            content={popoverContent}
+            title="关联凭证列表"
+            placement="top"
+          >
+            <Button type="link" size="small">
+              {assetCredentials.length} 个凭证
+            </Button>
+          </Popover>
+        );
+      },
+    },
+    {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
@@ -459,17 +471,9 @@ const AssetsPage: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 280,
+      width: 220,
       render: (text: any, record: any) => (
         <Space size="small">
-          <Tooltip title="详情">
-            <Button 
-              icon={<InfoCircleOutlined />}
-              onClick={() => handleViewDetails(record)}
-            >
-              详情
-            </Button>
-          </Tooltip>
           <Tooltip title={testResults[record.id] ? testResults[record.id].message : "测试连接"}>
             <Button 
               icon={<ApiOutlined />}
@@ -535,17 +539,33 @@ const AssetsPage: React.FC = () => {
   });
 
   return (
-    <div style={{ height: 'calc(100vh - 100px)' }}>
-      <Row gutter={12} style={{ height: '100%' }}>
-        <Col span={4} style={{ height: '100%' }}>
+    <>
+      <div style={{ height: 'calc(100vh - 100px)', display: 'flex', gap: '12px' }}>
+        <div 
+          style={{ 
+            width: '280px',
+            minWidth: '200px',
+            maxWidth: '320px',
+            height: '100%',
+            flexShrink: 0
+          }}
+        >
           <ResourceTree 
             resourceType={getCurrentResourceType()}
             onSelect={handleTreeSelect}
             selectedKeys={[selectedCategory]}
             treeData={groupTreeData}
           />
-        </Col>
-        <Col span={20} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        </div>
+        <div 
+          style={{ 
+            flex: 1,
+            height: '100%', 
+            display: 'flex', 
+            flexDirection: 'column',
+            minWidth: 0
+          }}
+        >
           <div style={{ 
             marginBottom: 8, 
             display: 'flex', 
@@ -637,8 +657,8 @@ const AssetsPage: React.FC = () => {
               />
             </div>
           </Card>
-        </Col>
-      </Row>
+        </div>
+      </div>
 
       <Modal
         title={editingAsset ? '编辑资产' : '新增资产'}
@@ -815,8 +835,7 @@ const AssetsPage: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
-
-    </div>
+    </>
   );
 };
 

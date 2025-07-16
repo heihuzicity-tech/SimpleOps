@@ -84,6 +84,18 @@ const App: React.FC = () => {
                   />
                   <Route 
                     path="/credentials" 
+                    element={<Navigate to="/credentials/password" replace />} 
+                  />
+                  <Route 
+                    path="/credentials/password" 
+                    element={
+                      <PermissionGuard requiredRole={['admin', 'operator']}>
+                        <CredentialsPage />
+                      </PermissionGuard>
+                    } 
+                  />
+                  <Route 
+                    path="/credentials/ssh-key" 
                     element={
                       <PermissionGuard requiredRole={['admin', 'operator']}>
                         <CredentialsPage />
