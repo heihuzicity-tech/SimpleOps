@@ -95,6 +95,11 @@ export const deleteCredential = async (id: number) => {
   return response;
 };
 
+export const batchDeleteCredentials = async (ids: number[]) => {
+  const response = await apiClient.delete('/credentials/batch', { data: { ids } });
+  return response;
+};
+
 export const testConnection = async (testData: ConnectionTestRequest) => {
   const response = await apiClient.post<ConnectionTestResponse>('/assets/test-connection', testData);
   return response;

@@ -26,7 +26,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { AppDispatch, RootState } from '../store';
-import { fetchAssets, createAsset, updateAsset, deleteAsset, testConnection } from '../store/assetSlice';
+import { fetchAssets, createAsset, updateAsset, deleteAsset, batchDeleteAssets, testConnection } from '../store/assetSlice';
 import { fetchCredentials } from '../store/credentialSlice';
 import { getAssetGroups, AssetGroup } from '../services/assetAPI';
 import ResourceTree from '../components/sessions/ResourceTree';
@@ -53,6 +53,7 @@ const AssetsPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [groupTreeData, setGroupTreeData] = useState<any[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchDeleting, setBatchDeleting] = useState(false);
 
   // 根据路径确定当前资产类型
   const getCurrentAssetType = () => {
@@ -150,6 +151,27 @@ const AssetsPage: React.FC = () => {
       loadAssetGroups(); // 添加分组数据刷新
     } catch (error) {
       console.error('删除资产失败:', error);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请选择要删除的资产');
+      return;
+    }
+
+    setBatchDeleting(true);
+    try {
+      const ids = selectedRowKeys.map(key => Number(key));
+      await dispatch(batchDeleteAssets(ids)).unwrap();
+      setSelectedRowKeys([]);
+      // 同时刷新资产列表和分组数据
+      loadAssetsByGroup(selectedCategory);
+      loadAssetGroups();
+    } catch (error) {
+      console.error('批量删除资产失败:', error);
+    } finally {
+      setBatchDeleting(false);
     }
   };
 
@@ -584,10 +606,7 @@ const AssetsPage: React.FC = () => {
             marginBottom: 8, 
             display: 'flex', 
             justifyContent: 'space-between', 
-            alignItems: 'center',
-            backgroundColor: '#fafafa',
-            padding: '8px 16px',
-            borderRadius: 8
+            alignItems: 'center'
           }}>
             <SearchSelect
               searchType={searchType}
@@ -636,18 +655,6 @@ const AssetsPage: React.FC = () => {
             styles={{ body: { height: '100%', overflow: 'auto', padding: 0 } }}
           >
             <div style={{ padding: '12px 16px' }}>
-              {selectedRowKeys.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  <Space>
-                    <Button icon={<DeleteOutlined />}>
-                      批量删除
-                    </Button>
-                    <span style={{ marginLeft: 8 }}>
-                      已选 {selectedRowKeys.length} 项
-                    </span>
-                  </Space>
-                </div>
-              )}
               <Table
                 rowSelection={{
                   selectedRowKeys,
@@ -669,6 +676,38 @@ const AssetsPage: React.FC = () => {
                 size="small"
                 scroll={{ x: true }}
               />
+              
+              {/* 批量删除按钮 - 与分页器保持同一水平高度 */}
+              <div style={{ 
+                marginTop: -40, 
+                display: 'flex', 
+                justifyContent: 'flex-start',
+                alignItems: 'center',
+                height: '32px'
+              }}>
+                <Popconfirm
+                  title={`确定要删除这 ${selectedRowKeys.length} 个资产吗？`}
+                  onConfirm={handleBatchDelete}
+                  okText="确定"
+                  cancelText="取消"
+                  disabled={selectedRowKeys.length === 0}
+                >
+                  <Button 
+                    danger 
+                    icon={<DeleteOutlined />}
+                    loading={batchDeleting}
+                    disabled={selectedRowKeys.length === 0}
+                    title={selectedRowKeys.length === 0 ? "请先选择要删除的资产" : `删除选中的 ${selectedRowKeys.length} 个资产`}
+                  >
+                    批量删除 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+                  </Button>
+                </Popconfirm>
+                {selectedRowKeys.length > 0 && (
+                  <span style={{ marginLeft: 12, color: '#666' }}>
+                    已选择 {selectedRowKeys.length} 个资产
+                  </span>
+                )}
+              </div>
             </div>
           </Card>
         </div>

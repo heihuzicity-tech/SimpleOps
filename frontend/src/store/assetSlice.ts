@@ -93,6 +93,14 @@ export const deleteAsset = createAsyncThunk(
   }
 );
 
+export const batchDeleteAssets = createAsyncThunk(
+  'asset/batchDeleteAssets',
+  async (ids: number[]) => {
+    await assetAPI.batchDeleteAssets(ids);
+    return ids;
+  }
+);
+
 export const testConnection = createAsyncThunk(
   'asset/testConnection',
   async (request: assetAPI.TestConnectionRequest) => {
@@ -169,6 +177,20 @@ const assetSlice = createSlice({
       })
       .addCase(deleteAsset.rejected, (state, action) => {
         state.error = action.error.message || '删除资产失败';
+        message.error(state.error);
+      })
+      // 批量删除资产
+      .addCase(batchDeleteAssets.fulfilled, (state, action) => {
+        if (!state.assets) {
+          state.assets = [];
+          return;
+        }
+        state.assets = state.assets.filter(asset => !action.payload.includes(asset.id));
+        state.total = Math.max(0, state.total - action.payload.length);
+        message.success(`成功删除 ${action.payload.length} 个资产`);
+      })
+      .addCase(batchDeleteAssets.rejected, (state, action) => {
+        state.error = action.error.message || '批量删除资产失败';
         message.error(state.error);
       })
       // 测试连接 - 由前端页面处理消息显示

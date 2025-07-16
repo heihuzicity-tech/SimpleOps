@@ -25,7 +25,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { AppDispatch, RootState } from '../store';
-import { fetchCredentials, createCredential, updateCredential, deleteCredential } from '../store/credentialSlice';
+import { fetchCredentials, createCredential, updateCredential, deleteCredential, batchDeleteCredentials } from '../store/credentialSlice';
 import { fetchAssets } from '../store/assetSlice';
 import SearchSelect from '../components/common/SearchSelect';
 
@@ -44,6 +44,8 @@ const CredentialsPage: React.FC = () => {
   const [searchType, setSearchType] = useState('name'); // 搜索类型：name, username, asset
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   const [selectedCredentialType, setSelectedCredentialType] = useState<'password' | 'key'>('password');
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchDeleting, setBatchDeleting] = useState(false);
   
   // 根据路由确定凭证类型
   const getCredentialTypeFromRoute = () => {
@@ -120,6 +122,25 @@ const CredentialsPage: React.FC = () => {
       loadCredentials();
     } catch (error) {
       console.error('删除凭证失败:', error);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请选择要删除的凭证');
+      return;
+    }
+
+    setBatchDeleting(true);
+    try {
+      const ids = selectedRowKeys.map(key => Number(key));
+      await dispatch(batchDeleteCredentials(ids)).unwrap();
+      setSelectedRowKeys([]);
+      loadCredentials();
+    } catch (error) {
+      console.error('批量删除凭证失败:', error);
+    } finally {
+      setBatchDeleting(false);
     }
   };
 
@@ -330,10 +351,7 @@ const CredentialsPage: React.FC = () => {
           marginBottom: 16, 
           display: 'flex', 
           justifyContent: 'space-between', 
-          alignItems: 'center',
-          backgroundColor: '#fafafa',
-          padding: '8px 16px',
-          borderRadius: 8
+          alignItems: 'center'
         }}>
           <SearchSelect
             searchType={searchType}
@@ -382,7 +400,12 @@ const CredentialsPage: React.FC = () => {
           </Space>
         </div>
 
+
         <Table
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+          }}
           columns={columns}
           dataSource={credentials}
           loading={loading}
@@ -405,6 +428,38 @@ const CredentialsPage: React.FC = () => {
             },
           }}
         />
+        
+        {/* 批量删除按钮 - 与分页器保持同一水平高度 */}
+        <div style={{ 
+          marginTop: -40, 
+          display: 'flex', 
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          height: '32px'
+        }}>
+          <Popconfirm
+            title={`确定要删除这 ${selectedRowKeys.length} 个${pageInfo.itemName}吗？`}
+            onConfirm={handleBatchDelete}
+            okText="确定"
+            cancelText="取消"
+            disabled={selectedRowKeys.length === 0}
+          >
+            <Button 
+              danger 
+              icon={<DeleteOutlined />}
+              loading={batchDeleting}
+              disabled={selectedRowKeys.length === 0}
+              title={selectedRowKeys.length === 0 ? "请先选择要删除的凭证" : `删除选中的 ${selectedRowKeys.length} 个${pageInfo.itemName}`}
+            >
+              批量删除 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            </Button>
+          </Popconfirm>
+          {selectedRowKeys.length > 0 && (
+            <span style={{ marginLeft: 12, color: '#666' }}>
+              已选择 {selectedRowKeys.length} 个{pageInfo.itemName}
+            </span>
+          )}
+        </div>
       </Card>
 
       <Modal

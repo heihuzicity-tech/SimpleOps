@@ -98,6 +98,11 @@ export const deleteAsset = async (id: number) => {
   return response;
 };
 
+export const batchDeleteAssets = async (ids: number[]) => {
+  const response = await apiClient.delete('/assets/batch', { data: { ids } });
+  return response;
+};
+
 export const testConnection = async (request: TestConnectionRequest) => {
   const response = await apiClient.post<TestConnectionResponse>('/assets/test-connection', request);
   return response;

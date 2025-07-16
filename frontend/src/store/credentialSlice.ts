@@ -95,6 +95,14 @@ export const deleteCredential = createAsyncThunk(
   }
 );
 
+export const batchDeleteCredentials = createAsyncThunk(
+  'credential/batchDeleteCredentials',
+  async (ids: number[]) => {
+    await credentialAPI.batchDeleteCredentials(ids);
+    return ids;
+  }
+);
+
 export const testConnection = createAsyncThunk(
   'credential/testConnection',
   async (testData: { asset_id: number; credential_id: number; test_type: 'ping' | 'ssh' | 'rdp' | 'database' }) => {
@@ -171,6 +179,20 @@ const credentialSlice = createSlice({
       })
       .addCase(deleteCredential.rejected, (state, action) => {
         state.error = action.error.message || '删除凭证失败';
+        message.error(state.error);
+      })
+      // 批量删除凭证
+      .addCase(batchDeleteCredentials.fulfilled, (state, action) => {
+        if (!state.credentials) {
+          state.credentials = [];
+          return;
+        }
+        state.credentials = state.credentials.filter(credential => !action.payload.includes(credential.id));
+        state.total = Math.max(0, state.total - action.payload.length);
+        message.success(`成功删除 ${action.payload.length} 个凭证`);
+      })
+      .addCase(batchDeleteCredentials.rejected, (state, action) => {
+        state.error = action.error.message || '批量删除凭证失败';
         message.error(state.error);
       })
       // 测试连接
