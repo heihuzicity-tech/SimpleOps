@@ -386,16 +386,22 @@ const AssetsPage: React.FC = () => {
       title: '主机名称',
       dataIndex: 'name',
       key: 'name',
+      width: 160,
+      ellipsis: true,
     },
     {
       title: '主机地址',
       dataIndex: 'address',
       key: 'address',
+      width: 140,
+      ellipsis: true,
     },
     {
       title: '系统类型',
       dataIndex: 'os_type',
       key: 'os_type',
+      width: 100,
+      align: 'center' as const,
       render: (osType: string) => {
         const displayType = osType === 'linux' ? 'Linux' : osType === 'windows' ? 'Windows' : 'Unknown';
         const color = osType === 'linux' ? 'blue' : osType === 'windows' ? 'green' : 'default';
@@ -406,6 +412,8 @@ const AssetsPage: React.FC = () => {
       title: '标签',
       dataIndex: 'tags',
       key: 'tags',
+      width: 80,
+      align: 'center' as const,
       render: (tags: string) => {
         if (!tags || tags === '{}') return '-';
         try {
@@ -425,6 +433,8 @@ const AssetsPage: React.FC = () => {
       title: '关联凭证',
       dataIndex: 'credential_ids',
       key: 'credentials',
+      width: 120,
+      align: 'center' as const,
       render: (credentialIds: number[], record: any) => {
         // 获取该资产关联的凭证
         const assetCredentials = credentials.filter(cred => 
@@ -466,12 +476,16 @@ const AssetsPage: React.FC = () => {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
+      width: 160,
+      align: 'center' as const,
       render: (text: string) => new Date(text).toLocaleString(),
     },
     {
       title: '操作',
       key: 'action',
-      width: 220,
+      width: 200,
+      align: 'center' as const,
+      fixed: 'right' as const,
       render: (text: any, record: any) => (
         <Space size="small">
           <Tooltip title={testResults[record.id] ? testResults[record.id].message : "测试连接"}>
@@ -543,9 +557,9 @@ const AssetsPage: React.FC = () => {
       <div style={{ height: 'calc(100vh - 100px)', display: 'flex', gap: '12px' }}>
         <div 
           style={{ 
-            width: '280px',
+            width: '240px',
             minWidth: '200px',
-            maxWidth: '320px',
+            maxWidth: '260px',
             height: '100%',
             flexShrink: 0
           }}
@@ -653,7 +667,7 @@ const AssetsPage: React.FC = () => {
                   ),
                 }}
                 size="small"
-                scroll={{ x: 900 }}
+                scroll={{ x: true }}
               />
             </div>
           </Card>

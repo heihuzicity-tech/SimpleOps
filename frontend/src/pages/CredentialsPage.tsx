@@ -10,7 +10,7 @@ import {
   Select,
   Tag,
   Popconfirm,
-  Tooltip,
+  Popover,
   message,
   Alert,
 } from 'antd';
@@ -27,8 +27,8 @@ import { useLocation } from 'react-router-dom';
 import { AppDispatch, RootState } from '../store';
 import { fetchCredentials, createCredential, updateCredential, deleteCredential } from '../store/credentialSlice';
 import { fetchAssets } from '../store/assetSlice';
+import SearchSelect from '../components/common/SearchSelect';
 
-const { Search } = Input;
 const { Option } = Select;
 const { TextArea } = Input;
 
@@ -41,7 +41,7 @@ const CredentialsPage: React.FC = () => {
   const [editingCredential, setEditingCredential] = useState<any>(null);
   const [form] = Form.useForm();
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [assetFilter, setAssetFilter] = useState('');
+  const [searchType, setSearchType] = useState('name'); // 搜索类型：name, username, asset
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   const [selectedCredentialType, setSelectedCredentialType] = useState<'password' | 'key'>('password');
   
@@ -75,7 +75,6 @@ const CredentialsPage: React.FC = () => {
       page_size: pagination.pageSize,
       keyword: searchKeyword,
       type: newTypeFilter as 'password' | 'key' | undefined,
-      asset_id: assetFilter ? parseInt(assetFilter) : undefined,
     }));
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -85,7 +84,6 @@ const CredentialsPage: React.FC = () => {
       page_size: pagination.pageSize,
       keyword: searchKeyword,
       type: typeFilter as 'password' | 'key' | undefined,
-      asset_id: assetFilter ? parseInt(assetFilter) : undefined,
     }));
   };
 
@@ -169,8 +167,15 @@ const CredentialsPage: React.FC = () => {
       page_size: pagination.pageSize,
       keyword: value,
       type: typeFilter as 'password' | 'key' | undefined,
-      asset_id: assetFilter ? parseInt(assetFilter) : undefined,
     }));
+  };
+
+  const handleSearchTypeChange = (value: string) => {
+    setSearchType(value);
+    // 如果已有搜索关键词，立即执行搜索
+    if (searchKeyword) {
+      handleSearch(searchKeyword);
+    }
   };
 
   const handleTypeFilter = (value: string) => {
@@ -181,22 +186,36 @@ const CredentialsPage: React.FC = () => {
       page_size: pagination.pageSize,
       keyword: searchKeyword,
       type: value as 'password' | 'key' | undefined,
-      asset_id: assetFilter ? parseInt(assetFilter) : undefined,
     }));
   };
 
-  const handleAssetFilter = (value: string) => {
-    setAssetFilter(value);
-    setPagination({ ...pagination, current: 1 });
-    dispatch(fetchCredentials({
-      page: 1,
-      page_size: pagination.pageSize,
-      keyword: searchKeyword,
-      type: typeFilter as 'password' | 'key' | undefined,
-      asset_id: value ? parseInt(value) : undefined,
-    }));
+
+  // 根据路由获取页面信息
+  const getPageInfo = () => {
+    if (location.pathname.includes('/credentials/password')) {
+      return {
+        title: '密码凭证管理',
+        type: 'password',
+        itemName: '密码凭证',
+        searchLabel: '密码名称'
+      };
+    } else if (location.pathname.includes('/credentials/ssh-key')) {
+      return {
+        title: '密钥凭证管理', 
+        type: 'key',
+        itemName: '密钥凭证',
+        searchLabel: '密钥名称'
+      };
+    }
+    return {
+      title: '凭证管理',
+      type: '',
+      itemName: '凭证',
+      searchLabel: '凭证名称'
+    };
   };
 
+  const pageInfo = getPageInfo();
 
   const renderCredentialType = (type: string) => {
     return (
@@ -208,58 +227,80 @@ const CredentialsPage: React.FC = () => {
 
   const columns = [
     {
-      title: '名称',
+      title: pageInfo.searchLabel,
       dataIndex: 'name',
       key: 'name',
-    },
-    {
-      title: '类型',
-      dataIndex: 'type',
-      key: 'type',
-      render: (type: string) => renderCredentialType(type),
+      width: 200,
+      ellipsis: true,
     },
     {
       title: '用户名',
       dataIndex: 'username',
       key: 'username',
+      width: 150,
+      ellipsis: true,
     },
     {
       title: '关联资产',
       dataIndex: 'assets',
       key: 'assets',
+      width: 150,
+      align: 'center' as const,
       render: (credentialAssets: any[]) => {
         if (!credentialAssets || credentialAssets.length === 0) {
-          return <span style={{ color: '#999' }}>0</span>;
+          return <Tag color="default">未关联</Tag>;
         }
         
-        const tooltipContent = (
-          <div>
-            {credentialAssets.map((asset, index) => (
-              <div key={asset.id} style={{ marginBottom: index < credentialAssets.length - 1 ? 4 : 0 }}>
-                {asset.name}
+        const popoverContent = (
+          <div style={{ maxWidth: 300 }}>
+            {credentialAssets.map(asset => (
+              <div key={asset.id} style={{ marginBottom: 8 }}>
+                <Tag color="blue">
+                  {(() => {
+                    // 根据协议判断资产类型
+                    if (asset.protocol === 'ssh' || asset.protocol === 'rdp') {
+                      return '主机';
+                    } else if (asset.protocol === 'mysql' || asset.protocol === 'postgresql' || asset.protocol === 'mongodb') {
+                      return '数据库';
+                    } else if (asset.type === 'host') {
+                      return '主机';
+                    } else if (asset.type === 'database') {
+                      return '数据库';
+                    } else {
+                      return '资产';
+                    }
+                  })()}
+                </Tag>
+                <span>{asset.name}</span>
+                {asset.address && (
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: 2 }}>
+                    {asset.address}:{asset.port}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         );
         
         return (
-          <Tooltip title={tooltipContent} placement="topLeft">
-            <span style={{ color: '#1890ff', cursor: 'pointer' }}>
-              {credentialAssets.length}
-            </span>
-          </Tooltip>
+          <Popover 
+            content={popoverContent}
+            title="关联资产列表"
+            placement="top"
+          >
+            <Button type="link" size="small">
+              {credentialAssets.length} 个资产
+            </Button>
+          </Popover>
         );
       },
     },
     {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (text: string) => new Date(text).toLocaleString(),
-    },
-    {
       title: '操作',
       key: 'action',
+      width: 120,
+      align: 'center' as const,
+      fixed: 'right' as const,
       render: (text: any, record: any) => (
         <Space size="middle">
           <Button
@@ -282,77 +323,63 @@ const CredentialsPage: React.FC = () => {
     },
   ];
 
-  // 根据路由获取页面标题
-  const getPageTitle = () => {
-    if (location.pathname.includes('/credentials/password')) {
-      return '密码凭证管理';
-    } else if (location.pathname.includes('/credentials/ssh-key')) {
-      return 'SSH密钥凭证管理';
-    }
-    return '凭证管理';
-  };
-
   return (
     <div>
-      <Card title={getPageTitle()}>
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Space>
-              <Button
-                key="add"
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={handleAdd}
-              >
-                {location.pathname.includes('/credentials/password') ? '新增密码凭证' : 
-                 location.pathname.includes('/credentials/ssh-key') ? '新增SSH密钥凭证' : '新增凭证'}
-              </Button>
-              <Button
-                key="refresh"
-                icon={<ReloadOutlined />}
-                onClick={loadCredentials}
-              >
-                刷新
-              </Button>
-            </Space>
-            <Space>
-              {/* 只有在通用凭证管理页面才显示类型筛选器 */}
-              {!location.pathname.includes('/credentials/password') && !location.pathname.includes('/credentials/ssh-key') && (
-                <Select
-                  key="typeFilter"
-                  placeholder="筛选类型"
-                  allowClear
-                  style={{ width: 120 }}
-                  onChange={handleTypeFilter}
-                  value={typeFilter}
-                >
-                  <Option value="">全部</Option>
-                  <Option value="password">密码</Option>
-                  <Option value="key">密钥</Option>
-                </Select>
-              )}
+      <Card title={pageInfo.title}>
+        <div style={{ 
+          marginBottom: 16, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          backgroundColor: '#fafafa',
+          padding: '8px 16px',
+          borderRadius: 8
+        }}>
+          <SearchSelect
+            searchType={searchType}
+            onSearchTypeChange={handleSearchTypeChange}
+            onSearch={handleSearch}
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            placeholder="请输入关键字搜索"
+            searchOptions={[
+              { value: 'name', label: pageInfo.searchLabel },
+              { value: 'username', label: '用户名' },
+              { value: 'asset', label: '关联资产' },
+            ]}
+            style={{ width: 300 }}
+          />
+          <Space>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={loadCredentials}
+              title="刷新数据"
+            >
+              刷新
+            </Button>
+            {/* 只有在通用凭证管理页面才显示类型筛选器 */}
+            {!location.pathname.includes('/credentials/password') && !location.pathname.includes('/credentials/ssh-key') && (
               <Select
-                key="assetFilter"
-                placeholder="筛选资产"
+                placeholder="筛选类型"
                 allowClear
-                style={{ width: 200 }}
-                onChange={handleAssetFilter}
+                style={{ width: 120 }}
+                onChange={handleTypeFilter}
+                value={typeFilter}
               >
-                <Option value="">全部资产</Option>
-                {assets.map(asset => (
-                  <Option key={asset.id} value={asset.id}>
-                    {asset.name}
-                  </Option>
-                ))}
+                <Option value="">全部</Option>
+                <Option value="password">密码</Option>
+                <Option value="key">密钥</Option>
               </Select>
-              <Search
-                placeholder="搜索凭证名称或用户名"
-                allowClear
-                onSearch={handleSearch}
-                style={{ width: 300 }}
-              />
-            </Space>
-          </div>
+            )}
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleAdd}
+              title={`新建${pageInfo.itemName}`}
+            >
+              新建
+            </Button>
+          </Space>
         </div>
 
         <Table
@@ -374,7 +401,6 @@ const CredentialsPage: React.FC = () => {
                 page_size: pageSize || 10,
                 keyword: searchKeyword,
                 type: typeFilter as 'password' | 'key' | undefined,
-                asset_id: assetFilter ? parseInt(assetFilter) : undefined,
               }));
             },
           }}
@@ -382,9 +408,7 @@ const CredentialsPage: React.FC = () => {
       </Card>
 
       <Modal
-        title={editingCredential ? '编辑凭证' : 
-               (location.pathname.includes('/credentials/password') ? '新增密码凭证' : 
-                location.pathname.includes('/credentials/ssh-key') ? '新增SSH密钥凭证' : '新增凭证')}
+        title={editingCredential ? `编辑${pageInfo.itemName}` : `新建${pageInfo.itemName}`}
         open={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
         footer={null}
@@ -396,23 +420,23 @@ const CredentialsPage: React.FC = () => {
           onFinish={handleSubmit}
         >
           <Form.Item
-            label="凭证名称"
+            label={pageInfo.searchLabel}
             name="name"
             rules={[
-              { required: true, message: '请输入凭证名称' },
+              { required: true, message: `请输入${pageInfo.searchLabel}` },
               { min: 1, max: 100, message: '名称长度为1-100个字符' },
             ]}
           >
-            <Input placeholder="请输入凭证名称" />
+            <Input placeholder={`请输入${pageInfo.searchLabel}`} />
           </Form.Item>
 
           <Form.Item
-            label="凭证类型"
+            label={pageInfo.type ? `${pageInfo.itemName}类型` : '凭证类型'}
             name="type"
-            rules={[{ required: true, message: '请选择凭证类型' }]}
+            rules={[{ required: true, message: `请选择${pageInfo.type ? pageInfo.itemName : '凭证'}类型` }]}
           >
             <Select 
-              placeholder="请选择凭证类型"
+              placeholder={`请选择${pageInfo.type ? pageInfo.itemName : '凭证'}类型`}
               onChange={(value) => setSelectedCredentialType(value)}
               disabled={location.pathname.includes('/credentials/password') || location.pathname.includes('/credentials/ssh-key')}
             >
@@ -488,7 +512,7 @@ const CredentialsPage: React.FC = () => {
           <Form.Item>
             <Space>
               <Button key="submit" type="primary" htmlType="submit">
-                {editingCredential ? '更新' : '创建'}
+                {editingCredential ? `更新${pageInfo.itemName}` : `创建${pageInfo.itemName}`}
               </Button>
               <Button key="cancel" onClick={() => setIsModalVisible(false)}>
                 取消
