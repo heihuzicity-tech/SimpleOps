@@ -19,6 +19,7 @@ import CommandAuditPage from './pages/audit/CommandAuditPage';
 import OperationAuditPage from './pages/audit/OperationAuditPage';
 import AuditOverviewPage from './pages/audit/AuditOverviewPage';
 import GroupManagePage from './pages/GroupManagePage';
+import TerminalPage from './pages/connect/TerminalPage';
 
 const { Content } = Layout;
 
@@ -91,10 +92,22 @@ const App: React.FC = () => {
                   />
                   <Route 
                     path="/sessions" 
-                    element={<Navigate to="/sessions/hosts" replace />} 
+                    element={<Navigate to="/connect/hosts" replace />} 
                   />
                   <Route 
                     path="/sessions/hosts" 
+                    element={<Navigate to="/connect/hosts" replace />} 
+                  />
+                  <Route 
+                    path="/sessions/databases" 
+                    element={<Navigate to="/connect/databases" replace />} 
+                  />
+                  <Route 
+                    path="/connect" 
+                    element={<Navigate to="/connect/hosts" replace />} 
+                  />
+                  <Route 
+                    path="/connect/hosts" 
                     element={
                       <PermissionGuard requiredRole={['admin', 'operator']}>
                         <HostSessionsPage />
@@ -102,10 +115,18 @@ const App: React.FC = () => {
                     } 
                   />
                   <Route 
-                    path="/sessions/databases" 
+                    path="/connect/databases" 
                     element={
                       <PermissionGuard requiredRole={['admin', 'operator']}>
                         <DatabaseSessionsPage />
+                      </PermissionGuard>
+                    } 
+                  />
+                  <Route 
+                    path="/connect/terminal/:sessionId" 
+                    element={
+                      <PermissionGuard requiredRole={['admin', 'operator']}>
+                        <TerminalPage />
                       </PermissionGuard>
                     } 
                   />

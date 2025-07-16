@@ -17,6 +17,8 @@ interface WebTerminalProps {
   sessionId: string;
   onClose: () => void;
   onError?: (error: Error) => void;
+  showHeader?: boolean; // 是否显示头部
+  style?: React.CSSProperties;
 }
 
 const WebTerminal: React.FC<WebTerminalProps> = ({
@@ -345,48 +347,29 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
   };
 
   return (
-    <Card
-      size="small"
+    <div
       style={{
-        position: isFullscreen ? 'fixed' : 'relative',
-        top: isFullscreen ? 0 : 'auto',
-        left: isFullscreen ? 0 : 'auto',
-        width: isFullscreen ? '100vw' : '100%',
-        height: isFullscreen ? '100vh' : '500px',
-        zIndex: isFullscreen ? 9999 : 'auto',
-        margin: 0,
-      }}
-      title={
-        <Space>
-          <Text>SSH Terminal - {sessionId.slice(0, 8)}</Text>
-          <Tag color={getStatusColor(connectionStatus)}>
-            {getStatusText(connectionStatus)}
-          </Tag>
-        </Space>
-      }
-      extra={
-        <Space>
-          <Button
-            size="small"
-            icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-            onClick={toggleFullscreen}
-          />
-          <Button
-            size="small"
-            danger
-            icon={<CloseOutlined />}
-            onClick={handleClose}
-          />
-        </Space>
-      }
-      styles={{
-        body: {
-          padding: 0,
-          height: isFullscreen ? 'calc(100vh - 57px)' : '460px',
-          overflow: 'hidden',
-        }
+        width: '100%',
+        height: '100%',
+        background: '#1e1e1e',
+        position: 'relative',
       }}
     >
+      {/* 状态条 */}
+      <div style={{
+        position: 'absolute',
+        top: 8,
+        right: 16,
+        zIndex: 10,
+        background: 'rgba(0, 0, 0, 0.7)',
+        padding: '4px 12px',
+        borderRadius: 4,
+      }}>
+        <Tag color={getStatusColor(connectionStatus)}>
+          {getStatusText(connectionStatus)}
+        </Tag>
+      </div>
+      
       <div
         ref={terminalRef}
         style={{
@@ -395,7 +378,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
           background: '#1e1e1e',
         }}
       />
-    </Card>
+    </div>
   );
 };
 

@@ -19,12 +19,20 @@ export interface SSHSessionResponse {
 
 export interface SSHSessionInfo {
   id: string;
+  session_id: string;
+  asset_name: string;
+  asset_address: string;
+  username: string;
+  port?: number;
+  protocol: string;
   status: string;
-  startTime: string;
-  endTime?: string;
+  created_at: string;
+  updated_at?: string;
+  start_time: string;
+  end_time?: string;
   duration?: number;
-  commandCount?: number;
-  bytesTransferred?: number;
+  command_count?: number;
+  bytes_transferred?: number;
 }
 
 // WebSocket消息类型

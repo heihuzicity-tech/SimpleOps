@@ -100,19 +100,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           label: '凭证管理',
         },
         {
-          key: '/sessions',
-          icon: <ConsoleSqlOutlined />,
-          label: '会话管理',
+          key: '/connect',
+          icon: <GlobalOutlined />,
+          label: '远程连接',
           children: [
             {
-              key: '/sessions/hosts',
+              key: '/connect/hosts',
               icon: <DesktopOutlined />,
-              label: '主机资源',
+              label: '主机连接',
             },
             {
-              key: '/sessions/databases',
+              key: '/connect/databases',
               icon: <ConsoleSqlOutlined />,
-              label: '数据库',
+              label: '数据库连接',
             },
           ],
         }
