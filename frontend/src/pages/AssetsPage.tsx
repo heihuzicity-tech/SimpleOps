@@ -590,7 +590,6 @@ const AssetsPage: React.FC = () => {
             resourceType={getCurrentResourceType()}
             onSelect={handleTreeSelect}
             selectedKeys={[selectedCategory]}
-            treeData={groupTreeData}
           />
         </div>
         <div 
