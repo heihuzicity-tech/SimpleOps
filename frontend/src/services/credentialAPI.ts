@@ -1,22 +1,5 @@
 import { apiClient } from './apiClient';
-
-export interface Credential {
-  id: number;
-  name: string;
-  type: 'password' | 'key';
-  username: string;
-  assets?: AssetInfo[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AssetInfo {
-  id: number;
-  name: string;
-  address: string;
-  port: number;
-  protocol: string;
-}
+import { Credential, Asset } from '../types';
 
 export interface GetCredentialsParams {
   page?: number;

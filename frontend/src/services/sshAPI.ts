@@ -2,6 +2,27 @@ import apiClient from './apiClient';
 import { SSHSessionRequest, SSHSessionResponse, SSHSessionInfo } from '../types/ssh';
 
 export const sshAPI = {
+  // 创建SSH连接 (用于工作台)
+  async createConnection(params: {
+    host_id: number;
+    credential_id: number;
+    protocol: string;
+    port: number;
+  }): Promise<{ session_id: string; [key: string]: any }> {
+    const response = await apiClient.post('/ssh/connections', {
+      asset_id: params.host_id,
+      credential_id: params.credential_id,
+      protocol: params.protocol,
+      port: params.port
+    });
+    return response.data.data;
+  },
+
+  // 关闭SSH连接 (用于工作台)
+  async closeConnection(sessionId: string): Promise<void> {
+    await apiClient.delete(`/ssh/connections/${sessionId}`);
+  },
+
   // 创建SSH会话
   async createSession(params: SSHSessionRequest): Promise<SSHSessionResponse> {
     const response = await apiClient.post('/ssh/sessions', params);

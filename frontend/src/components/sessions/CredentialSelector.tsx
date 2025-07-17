@@ -1,18 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Select, Form, Spin, Empty, Tag, Space, Typography } from 'antd';
 import { LockOutlined, UserOutlined, KeyOutlined } from '@ant-design/icons';
+import { Credential } from '../../types';
 
 const { Option } = Select;
 const { Text } = Typography;
-
-interface Credential {
-  id: number;
-  name: string;
-  type: string;
-  username: string;
-  created_at: string;
-  assets?: any[];
-}
 
 interface CredentialSelectorProps {
   visible: boolean;

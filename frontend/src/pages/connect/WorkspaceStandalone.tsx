@@ -4,13 +4,22 @@ import { PlusOutlined, SettingOutlined, MinusOutlined, MenuFoldOutlined, MenuUnf
 import { useSelector, useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store';
-import { WorkspaceState, TabInfo } from '../../types/workspace';
 import SidePanel from '../../components/workspace/SidePanel';
 import TabContainer from '../../components/workspace/TabContainer';
+import ConnectionCreator from '../../components/workspace/ConnectionCreator';
 import { Asset } from '../../types';
-import { nanoid } from 'nanoid';
 import { fetchAssets } from '../../store/assetSlice';
+import { fetchCredentials } from '../../store/credentialSlice';
 import { getCurrentUser } from '../../store/authSlice';
+import { 
+  setActiveTab, 
+  closeTab, 
+  closeAllTabs, 
+  setSidebarCollapsed, 
+  createNewTab,
+  duplicateTab,
+  createSSHConnection
+} from '../../store/workspaceSlice';
 
 const { Sider, Content } = Layout;
 const { Title } = Typography;
@@ -19,7 +28,9 @@ const WorkspaceStandalone: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const location = useLocation();
   const { assets } = useSelector((state: RootState) => state.asset);
+  const { credentials } = useSelector((state: RootState) => state.credential);
   const { user, token, loading } = useSelector((state: RootState) => state.auth);
+  const workspaceState = useSelector((state: RootState) => state.workspace);
 
   // 获取用户信息
   useEffect(() => {
@@ -27,63 +38,28 @@ const WorkspaceStandalone: React.FC = () => {
       dispatch(getCurrentUser());
     }
   }, [dispatch, token, user, loading]);
-  
-  // 独立工作台状态管理
-  const [workspaceState, setWorkspaceState] = useState<WorkspaceState>({
-    tabs: [],
-    activeTabId: '',
-    sidebarWidth: 280,
-    sidebarCollapsed: false,
-    layout: 'horizontal',
-    loading: false,
-    error: null
-  });
 
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
+  const [connectionCreatorVisible, setConnectionCreatorVisible] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
 
   // 侧边栏折叠状态
   const handleSidebarToggle = useCallback(() => {
-    setWorkspaceState(prev => ({
-      ...prev,
-      sidebarCollapsed: !prev.sidebarCollapsed
-    }));
-  }, []);
+    dispatch(setSidebarCollapsed(!workspaceState.sidebarCollapsed));
+  }, [dispatch, workspaceState.sidebarCollapsed]);
 
   // 新建连接
   const handleNewConnection = useCallback(() => {
-    const newTab: TabInfo = {
-      id: nanoid(),
-      title: `新连接-${Date.now().toString().slice(-4)}`,
-      type: 'ssh',
-      assetInfo: {
-        id: Math.floor(Math.random() * 1000),
-        name: `demo-server-${Date.now().toString().slice(-4)}`,
-        address: '192.168.1.100',
-        port: 22,
-        protocol: 'ssh',
-        os_type: 'linux'
-      },
-      credentialInfo: {
-        id: 1,
-        username: 'root',
-        type: 'password',
-        name: '演示凭证'
-      },
-      closable: true,
-      modified: false,
-      connectionStatus: 'idle',
-      createdAt: new Date(),
-      lastActivity: new Date()
-    };
-
-    setWorkspaceState(prev => ({
-      ...prev,
-      tabs: [...prev.tabs, newTab],
-      activeTabId: newTab.id
-    }));
-
-    message.success(`已创建新连接: ${newTab.title}`);
-  }, []);
+    if (assets.length === 0) {
+      message.warning('暂无可用主机资源，请先添加主机');
+      return;
+    }
+    
+    // 选择第一个可用资产作为默认选择
+    const defaultAsset = assets[0];
+    setSelectedAsset(defaultAsset);
+    setConnectionCreatorVisible(true);
+  }, [assets]);
 
   // 资产选择处理
   const handleAssetSelect = useCallback((asset: Asset) => {
@@ -92,98 +68,26 @@ const WorkspaceStandalone: React.FC = () => {
     // 检查是否已有相同资产的连接
     const existingTab = workspaceState.tabs.find(tab => tab.assetInfo.id === asset.id);
     if (existingTab) {
-      setWorkspaceState(prev => ({
-        ...prev,
-        activeTabId: existingTab.id
-      }));
+      dispatch(setActiveTab(existingTab.id));
       message.info(`切换到已有连接: ${asset.name}`);
       return;
     }
 
-    // 创建基于真实资产的连接标签页
-    const newTab: TabInfo = {
-      id: nanoid(),
-      title: `${asset.name}`,
-      type: 'ssh',
-      assetInfo: {
-        id: asset.id,
-        name: asset.name,
-        address: asset.address,
-        port: asset.port || 22,
-        protocol: asset.protocol || 'ssh',
-        os_type: asset.os_type
-      },
-      credentialInfo: {
-        id: 1,
-        username: 'root',
-        type: 'password',
-        name: '默认凭证'
-      },
-      closable: true,
-      modified: false,
-      connectionStatus: 'connecting',
-      createdAt: new Date(),
-      lastActivity: new Date()
-    };
-
-    setWorkspaceState(prev => ({
-      ...prev,
-      tabs: [...prev.tabs, newTab],
-      activeTabId: newTab.id
-    }));
-
-    // 模拟连接过程
-    setTimeout(() => {
-      setWorkspaceState(prev => ({
-        ...prev,
-        tabs: prev.tabs.map(tab => 
-          tab.id === newTab.id 
-            ? { ...tab, connectionStatus: 'connected' as const, sessionId: `session_${nanoid()}` }
-            : tab
-        )
-      }));
-      message.success(`成功连接到 ${asset.name}`);
-    }, 2000);
-    
-    message.info(`正在连接到 ${asset.name}...`);
-  }, [workspaceState.tabs]);
+    // 打开连接创建对话框
+    setSelectedAsset(asset);
+    setConnectionCreatorVisible(true);
+  }, [workspaceState.tabs, dispatch]);
 
   // 标签页切换处理
   const handleTabChange = useCallback((tabId: string) => {
-    setWorkspaceState(prev => ({
-      ...prev,
-      activeTabId: tabId
-    }));
-  }, []);
+    dispatch(setActiveTab(tabId));
+  }, [dispatch]);
 
   // 标签页关闭处理
   const handleTabClose = useCallback((tabId: string) => {
-    setWorkspaceState(prev => {
-      const tabIndex = prev.tabs.findIndex(tab => tab.id === tabId);
-      if (tabIndex === -1) return prev;
-
-      const newTabs = prev.tabs.filter(tab => tab.id !== tabId);
-      let newActiveTabId = prev.activeTabId;
-
-      // 如果关闭的是当前活跃标签页，切换到其他标签页
-      if (prev.activeTabId === tabId) {
-        if (newTabs.length > 0) {
-          const newActiveIndex = Math.max(0, tabIndex - 1);
-          newActiveTabId = newTabs[newActiveIndex]?.id || '';
-        } else {
-          newActiveTabId = '';
-        }
-      }
-
-      return {
-        ...prev,
-        tabs: newTabs,
-        activeTabId: newActiveTabId
-      };
-    });
-
+    dispatch(closeTab(tabId));
     message.info('连接已关闭');
-  }, []);
+  }, [dispatch]);
 
   // 关闭所有连接
   const handleCloseAll = useCallback(() => {
@@ -196,15 +100,54 @@ const WorkspaceStandalone: React.FC = () => {
       cancelText: '取消',
       okType: 'danger',
       onOk() {
-        setWorkspaceState(prev => ({
-          ...prev,
-          tabs: [],
-          activeTabId: ''
-        }));
+        dispatch(closeAllTabs());
         message.success('已关闭所有连接');
       }
     });
-  }, [workspaceState.tabs.length]);
+  }, [workspaceState.tabs.length, dispatch]);
+
+  // 复制标签页
+  const handleTabDuplicate = useCallback((tabId: string) => {
+    dispatch(duplicateTab(tabId));
+    message.success('标签页已复制');
+  }, [dispatch]);
+
+  // 重新连接
+  const handleTabReconnect = useCallback(async (tabId: string) => {
+    const tab = workspaceState.tabs.find(t => t.id === tabId);
+    if (!tab) return;
+
+    try {
+      // 重新创建SSH连接
+      await dispatch(createSSHConnection({
+        asset: {
+          id: tab.assetInfo.id,
+          name: tab.assetInfo.name,
+          address: tab.assetInfo.address,
+          port: tab.assetInfo.port,
+          protocol: tab.assetInfo.protocol,
+          type: 'server',
+          status: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          os_type: tab.assetInfo.os_type
+        },
+        credential: {
+          id: tab.credentialInfo.id,
+          username: tab.credentialInfo.username,
+          type: tab.credentialInfo.type,
+          name: tab.credentialInfo.name,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        },
+        tabId: tab.id
+      })).unwrap();
+      
+      message.success(`重连成功: ${tab.assetInfo.name}`);
+    } catch (error: any) {
+      message.error(`重连失败: ${error.message || '未知错误'}`);
+    }
+  }, [workspaceState.tabs, dispatch]);
 
   // 监听键盘快捷键
   useEffect(() => {
@@ -265,12 +208,15 @@ const WorkspaceStandalone: React.FC = () => {
     }
   }, [location.search, assets, dispatch]);
 
-  // 加载资产数据
+  // 加载资产和凭证数据
   useEffect(() => {
     if (assets.length === 0) {
       dispatch(fetchAssets({ page: 1, page_size: 100, type: 'server' }));
     }
-  }, [dispatch, assets.length]);
+    if (credentials.length === 0) {
+      dispatch(fetchCredentials({ page: 1, page_size: 100 }));
+    }
+  }, [dispatch, assets.length, credentials.length]);
 
   // 设置页面标题
   useEffect(() => {
@@ -402,9 +348,27 @@ const WorkspaceStandalone: React.FC = () => {
             onTabChange={handleTabChange}
             onTabClose={handleTabClose}
             onNewTab={handleNewConnection}
+            onTabDuplicate={handleTabDuplicate}
+            onTabReconnect={handleTabReconnect}
           />
         </Content>
       </Layout>
+
+      {/* 连接创建对话框 */}
+      <ConnectionCreator
+        visible={connectionCreatorVisible}
+        asset={selectedAsset}
+        onCancel={() => {
+          setConnectionCreatorVisible(false);
+          setSelectedAsset(null);
+        }}
+        onSuccess={(tabId) => {
+          dispatch(setActiveTab(tabId));
+          setConnectionCreatorVisible(false);
+          setSelectedAsset(null);
+          message.success('连接创建成功');
+        }}
+      />
 
       {/* 设置对话框 */}
       <Modal

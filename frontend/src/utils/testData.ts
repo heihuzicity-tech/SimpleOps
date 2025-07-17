@@ -14,6 +14,7 @@ export const addTestConnectionHistory = () => {
       assetAddress: '192.168.1.100',
       credentialId: 1,
       username: 'root',
+      protocol: 'ssh',
       connectedAt: new Date(Date.now() - 1000 * 60 * 5), // 5分钟前
       duration: 120,
       status: 'success' as const
@@ -24,6 +25,7 @@ export const addTestConnectionHistory = () => {
       assetAddress: '192.168.1.101',
       credentialId: 2,
       username: 'mysql',
+      protocol: 'ssh',
       connectedAt: new Date(Date.now() - 1000 * 60 * 30), // 30分钟前
       duration: 300,
       status: 'success' as const
@@ -34,6 +36,7 @@ export const addTestConnectionHistory = () => {
       assetAddress: '192.168.1.102',
       credentialId: 3,
       username: 'ubuntu',
+      protocol: 'ssh',
       connectedAt: new Date(Date.now() - 1000 * 60 * 60), // 1小时前
       duration: 600,
       status: 'success' as const
@@ -44,6 +47,7 @@ export const addTestConnectionHistory = () => {
       assetAddress: '192.168.1.103',
       credentialId: 4,
       username: 'redis',
+      protocol: 'ssh',
       connectedAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2小时前
       duration: 0,
       status: 'failed' as const
@@ -54,6 +58,7 @@ export const addTestConnectionHistory = () => {
       assetAddress: '192.168.1.104',
       credentialId: 5,
       username: 'nginx',
+      protocol: 'ssh',
       connectedAt: new Date(Date.now() - 1000 * 60 * 60 * 6), // 6小时前
       duration: 450,
       status: 'success' as const

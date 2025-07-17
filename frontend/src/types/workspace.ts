@@ -21,7 +21,8 @@ export interface TabInfo {
   };
   closable: boolean;
   modified: boolean;
-  connectionStatus: 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
+  connectionStatus: 'idle' | 'connecting' | 'connected' | 'disconnected' | 'disconnecting' | 'error';
+  error?: string;
   createdAt: Date;
   lastActivity: Date;
 }
@@ -51,6 +52,7 @@ export interface ConnectionHistory {
   assetAddress: string;
   credentialId: number;
   username: string;
+  protocol: string;
   connectedAt: Date;
   duration?: number;
   status: 'success' | 'failed' | 'timeout';

@@ -101,6 +101,7 @@ export class WorkspaceTestSuite {
         assetAddress: '192.168.1.999',
         credentialId: 1,
         username: 'test',
+        protocol: 'ssh',
         connectedAt: new Date(),
         duration: 120,
         status: 'success'
@@ -181,6 +182,7 @@ export class WorkspaceTestSuite {
           assetAddress: `192.168.1.${i}`,
           credentialId: i,
           username: `user${i}`,
+          protocol: 'ssh',
           connectedAt: new Date(Date.now() - i * 60000),
           duration: i * 60,
           status: i % 2 === 0 ? 'success' : 'failed'

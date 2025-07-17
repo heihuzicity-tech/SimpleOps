@@ -1,22 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { message } from 'antd';
 import * as credentialAPI from '../services/credentialAPI';
-
-interface Credential {
-  id: number;
-  name: string;
-  type: 'password' | 'key';
-  username: string;
-  assets?: Array<{
-    id: number;
-    name: string;
-    address: string;
-    port: number;
-    protocol: string;
-  }>;
-  created_at: string;
-  updated_at: string;
-}
+import { Credential } from '../types';
 
 interface CredentialState {
   credentials: Credential[];
@@ -81,7 +66,7 @@ export const createCredential = createAsyncThunk(
 
 export const updateCredential = createAsyncThunk(
   'credential/updateCredential',
-  async ({ id, credentialData }: { id: number; credentialData: Partial<Credential> }) => {
+  async ({ id, credentialData }: { id: number; credentialData: credentialAPI.UpdateCredentialRequest }) => {
     const response = await credentialAPI.updateCredential(id, credentialData);
     return response.data;
   }

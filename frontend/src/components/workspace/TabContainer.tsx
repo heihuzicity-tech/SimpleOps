@@ -1,7 +1,9 @@
-import React from 'react';
-import { Tabs, Button, Empty, Typography, Badge } from 'antd';
-import { PlusOutlined, CloseOutlined } from '@ant-design/icons';
+import React, { useState, useCallback } from 'react';
+import { Tabs, Button, Empty, Typography, Badge, Dropdown, message } from 'antd';
+import { PlusOutlined, CloseOutlined, MoreOutlined, CopyOutlined, ReloadOutlined } from '@ant-design/icons';
+import type { MenuProps } from 'antd';
 import { TabInfo } from '../../types/workspace';
+import WorkspaceTerminal from './WorkspaceTerminal';
 
 const { TabPane } = Tabs;
 const { Title, Paragraph } = Typography;
@@ -12,6 +14,8 @@ interface TabContainerProps {
   onTabChange: (tabId: string) => void;
   onTabClose: (tabId: string) => void;
   onNewTab: () => void;
+  onTabDuplicate: (tabId: string) => void;
+  onTabReconnect: (tabId: string) => void;
 }
 
 const TabContainer: React.FC<TabContainerProps> = ({
@@ -19,8 +23,56 @@ const TabContainer: React.FC<TabContainerProps> = ({
   activeTabId,
   onTabChange,
   onTabClose,
-  onNewTab
+  onNewTab,
+  onTabDuplicate,
+  onTabReconnect
 }) => {
+  const [contextMenuTabId, setContextMenuTabId] = useState<string | null>(null);
+
+  // 获取标签页右键菜单项
+  const getTabContextMenu = useCallback((tab: TabInfo): MenuProps['items'] => [
+    {
+      key: 'reconnect',
+      label: '重新连接',
+      icon: <ReloadOutlined />,
+      disabled: tab.connectionStatus === 'connecting',
+      onClick: () => {
+        onTabReconnect(tab.id);
+        message.info(`正在重新连接到 ${tab.assetInfo.name}`);
+      }
+    },
+    {
+      key: 'duplicate',
+      label: '复制标签页',
+      icon: <CopyOutlined />,
+      onClick: () => {
+        onTabDuplicate(tab.id);
+        message.success(`已复制标签页: ${tab.title}`);
+      }
+    },
+    {
+      type: 'divider'
+    },
+    {
+      key: 'close',
+      label: '关闭标签页',
+      icon: <CloseOutlined />,
+      onClick: () => {
+        onTabClose(tab.id);
+      }
+    },
+    {
+      key: 'close-others',
+      label: '关闭其他标签页',
+      disabled: tabs.length <= 1,
+      onClick: () => {
+        const otherTabs = tabs.filter(t => t.id !== tab.id);
+        otherTabs.forEach(t => onTabClose(t.id));
+        message.success(`已关闭 ${otherTabs.length} 个其他标签页`);
+      }
+    }
+  ], [tabs, onTabClose, onTabDuplicate, onTabReconnect]);
+
   // 渲染连接状态指示器
   const StatusIndicator: React.FC<{ status: TabInfo['connectionStatus'] }> = ({ status }) => {
     const getStatusConfig = () => {
@@ -57,39 +109,44 @@ const TabContainer: React.FC<TabContainerProps> = ({
 
   // 渲染标签页标题
   const renderTabTitle = (tab: TabInfo) => (
-    <div 
-      style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: 4,
-        maxWidth: 150
-      }}
+    <Dropdown
+      menu={{ items: getTabContextMenu(tab) }}
+      trigger={['contextMenu']}
     >
-      <StatusIndicator status={tab.connectionStatus} />
-      <span 
+      <div 
         style={{ 
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          fontSize: '12px'
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 4,
+          maxWidth: 150
         }}
-        title={tab.title}
       >
-        {tab.title}
-      </span>
-      {tab.modified && (
-        <div
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            backgroundColor: '#faad14',
-            marginLeft: 2
+        <StatusIndicator status={tab.connectionStatus} />
+        <span 
+          style={{ 
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontSize: '12px'
           }}
-          title="有未保存的更改"
-        />
-      )}
-    </div>
+          title={tab.title}
+        >
+          {tab.title}
+        </span>
+        {tab.modified && (
+          <div
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              backgroundColor: '#faad14',
+              marginLeft: 2
+            }}
+            title="有未保存的更改"
+          />
+        )}
+      </div>
+    </Dropdown>
   );
 
   // 渲染空状态页面
@@ -181,47 +238,15 @@ const TabContainer: React.FC<TabContainerProps> = ({
               borderRadius: '6px',
               overflow: 'hidden'
             }}>
-              {/* 临时内容 - 后续会替换为 WebTerminal 组件 */}
-              <div style={{ 
-                padding: 16,
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexDirection: 'column',
-                gap: 16
-              }}>
-                <Badge 
-                  status={
-                    tab.connectionStatus === 'connected' ? 'success' :
-                    tab.connectionStatus === 'connecting' ? 'processing' :
-                    tab.connectionStatus === 'error' ? 'error' : 'default'
-                  } 
-                  text={
-                    tab.connectionStatus === 'connected' ? '终端已连接' :
-                    tab.connectionStatus === 'connecting' ? '正在连接终端...' :
-                    tab.connectionStatus === 'error' ? '连接失败' : '等待连接'
-                  }
-                />
-                <div style={{ textAlign: 'center', color: '#8c8c8c' }}>
-                  <p><strong>主机:</strong> {tab.assetInfo.name}</p>
-                  <p><strong>地址:</strong> {tab.assetInfo.address}:{tab.assetInfo.port}</p>
-                  <p><strong>用户:</strong> {tab.credentialInfo.username}</p>
-                  <p><strong>协议:</strong> {tab.assetInfo.protocol?.toUpperCase() || 'SSH'}</p>
-                  {tab.sessionId && (
-                    <p><strong>会话ID:</strong> {tab.sessionId}</p>
-                  )}
-                </div>
-                <div style={{ 
-                  background: '#f0f0f0', 
-                  padding: '8px 12px', 
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  color: '#666'
-                }}>
-                  终端组件将在后续集成
-                </div>
-              </div>
+              <WorkspaceTerminal
+                tab={tab}
+                onReconnect={() => {
+                  console.log(`重新连接到 ${tab.assetInfo.name}`);
+                }}
+                onDisconnect={() => {
+                  console.log(`断开与 ${tab.assetInfo.name} 的连接`);
+                }}
+              />
             </div>
           </TabPane>
         ))}

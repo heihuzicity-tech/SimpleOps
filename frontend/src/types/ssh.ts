@@ -37,7 +37,7 @@ export interface SSHSessionInfo {
 
 // WebSocket消息类型
 export interface WSMessage {
-  type: 'input' | 'output' | 'resize' | 'ping' | 'pong' | 'error';
+  type: 'input' | 'output' | 'resize' | 'ping' | 'pong' | 'error' | 'close';
   data?: string;
   rows?: number;
   cols?: number;

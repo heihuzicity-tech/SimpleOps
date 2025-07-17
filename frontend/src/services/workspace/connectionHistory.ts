@@ -11,6 +11,7 @@ export class ConnectionHistoryService {
     assetAddress: string;
     credentialId: number;
     username: string;
+    protocol: string;
     connectedAt: Date;
     duration?: number;
     status: 'success' | 'failed' | 'timeout';
@@ -39,6 +40,7 @@ export class ConnectionHistoryService {
           assetAddress: connectionInfo.assetAddress,
           credentialId: connectionInfo.credentialId,
           username: connectionInfo.username,
+          protocol: connectionInfo.protocol,
           connectedAt: connectionInfo.connectedAt,
           duration: connectionInfo.duration || 0,
           status: connectionInfo.status
