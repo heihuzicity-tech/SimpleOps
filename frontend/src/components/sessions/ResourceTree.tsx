@@ -20,6 +20,8 @@ interface ResourceTreeProps {
   selectedKeys?: React.Key[];
   treeData?: DataNode[];
   totalCount?: number; // 新增：总数量统计
+  searchValue?: string; // 新增：外部搜索值
+  hideSearch?: boolean; // 新增：是否隐藏搜索框
 }
 
 const ResourceTree: React.FC<ResourceTreeProps> = ({ 
@@ -27,11 +29,13 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
   resourceType, 
   selectedKeys: externalSelectedKeys = [], 
   treeData: externalTreeData,
-  totalCount = 0 // 新增：总数量参数
+  totalCount = 0, // 新增：总数量参数
+  searchValue: externalSearchValue = '', // 新增：外部搜索值
+  hideSearch = false // 新增：是否隐藏搜索框
 }) => {
   const [treeData, setTreeData] = useState<DataNode[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
-  const [searchValue, setSearchValue] = useState('');
+  const [searchValue, setSearchValue] = useState(externalSearchValue);
   const [autoExpandParent, setAutoExpandParent] = useState(true);
   const [groups, setGroups] = useState<AssetGroup[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,6 +58,35 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
   useEffect(() => {
     loadAssetGroups();
   }, []);
+
+  // 同步外部搜索值
+  useEffect(() => {
+    if (externalSearchValue !== searchValue) {
+      setSearchValue(externalSearchValue);
+      
+      if (!externalSearchValue) {
+        setExpandedKeys(['all']);
+        setAutoExpandParent(false);
+        return;
+      }
+
+      // 搜索功能
+      const expandedKeys: string[] = [];
+      const loop = (data: DataNode[]): void => {
+        data.forEach((item) => {
+          if (item.title && item.title.toString().toLowerCase().includes(externalSearchValue.toLowerCase())) {
+            expandedKeys.push(item.key as string);
+          }
+          if (item.children) {
+            loop(item.children);
+          }
+        });
+      };
+      loop(treeData);
+      setExpandedKeys(expandedKeys);
+      setAutoExpandParent(true);
+    }
+  }, [externalSearchValue, searchValue, treeData]);
 
   useEffect(() => {
     // 优先使用外部传入的树数据
@@ -192,13 +225,16 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
       style={{ height: '100%' }}
       styles={{ body: { padding: '12px' } }}
     >
-      <Search
-        style={{ marginBottom: 8 }}
-        placeholder="搜索资源"
-        onChange={onChange}
-        prefix={<SearchOutlined />}
-        size="small"
-      />
+      {!hideSearch && (
+        <Search
+          style={{ marginBottom: 8 }}
+          placeholder="搜索资源"
+          value={searchValue}
+          onChange={onChange}
+          prefix={<SearchOutlined />}
+          size="small"
+        />
+      )}
       <Tree
         showIcon
         onExpand={onExpand}
@@ -208,7 +244,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
         selectedKeys={externalSelectedKeys}
         treeData={renderTreeNodes(treeData)}
         style={{ background: 'transparent' }}
-        height={400}
+        height={hideSearch ? 432 : 400}
       />
     </Card>
   );

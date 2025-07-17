@@ -5,6 +5,9 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store';
 import { WorkspaceState, TabInfo } from '../../types/workspace';
+import SidePanel from '../../components/workspace/SidePanel';
+import { Asset } from '../../types';
+import { addTestConnectionHistory } from '../../utils/testData';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Paragraph } = Typography;
@@ -52,72 +55,15 @@ const WorkspaceLayout: React.FC = () => {
   }, []);
 
   // 资产选择处理
-  const handleAssetSelect = useCallback((asset: any) => {
+  const handleAssetSelect = useCallback((asset: Asset) => {
     console.log('选中资产:', asset);
-    message.info(`选中了资产: ${asset?.name || '未知资产'}`);
+    message.info(`选中了资产: ${asset.name}`);
+    
+    // 后续会在这里触发凭证选择和连接创建
+    // 暂时先显示选择结果
   }, []);
 
-  // 渲染侧边栏内容
-  const renderSidebarContent = () => {
-    if (workspaceState.sidebarCollapsed) {
-      return (
-        <div style={{ 
-          height: '100%', 
-          display: 'flex', 
-          flexDirection: 'column',
-          alignItems: 'center',
-          paddingTop: 16
-        }}>
-          <Button 
-            type="text" 
-            icon={<PlusOutlined />} 
-            onClick={handleNewConnection}
-            style={{ marginBottom: 16 }}
-          />
-          <Button 
-            type="text" 
-            icon={<SettingOutlined />}
-            style={{ marginBottom: 16 }}
-          />
-        </div>
-      );
-    }
-
-    return (
-      <Card 
-        size="small" 
-        style={{ height: '100%', border: 'none' }}
-        styles={{ body: { padding: '16px' } }}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <Title level={5} style={{ margin: 0, marginBottom: 8 }}>资源管理</Title>
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />}
-            onClick={handleNewConnection}
-            style={{ width: '100%' }}
-          >
-            新建连接
-          </Button>
-        </div>
-        
-        <div style={{ 
-          height: 'calc(100% - 80px)',
-          border: '1px dashed #d9d9d9',
-          borderRadius: 6,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#fafafa'
-        }}>
-          <div style={{ textAlign: 'center', color: '#999' }}>
-            <Paragraph>资源树组件</Paragraph>
-            <Paragraph>将在Day 2集成</Paragraph>
-          </div>
-        </div>
-      </Card>
-    );
-  };
+  // 移除了renderSidebarContent函数，现在使用SidePanel组件
 
   // 渲染主内容区域
   const renderMainContent = () => {
@@ -214,6 +160,15 @@ const WorkspaceLayout: React.FC = () => {
         
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Button 
+            type="text"
+            onClick={() => {
+              addTestConnectionHistory();
+              message.success('测试数据已添加');
+            }}
+          >
+            添加测试数据
+          </Button>
+          <Button 
             type="text" 
             icon={<SettingOutlined />}
             onClick={() => message.info('设置功能将在后续版本中实现')}
@@ -229,17 +184,12 @@ const WorkspaceLayout: React.FC = () => {
 
       {/* 主体内容 */}
       <Layout style={{ height: 'calc(100vh - 64px)' }}>
-        <Sider
-          width={workspaceState.sidebarCollapsed ? 60 : workspaceState.sidebarWidth}
+        <SidePanel
+          width={workspaceState.sidebarWidth}
           collapsed={workspaceState.sidebarCollapsed}
-          collapsedWidth={60}
-          style={{ 
-            borderRight: '1px solid #f0f0f0',
-            backgroundColor: '#fafafa'
-          }}
-        >
-          {renderSidebarContent()}
-        </Sider>
+          onAssetSelect={handleAssetSelect}
+          onToggleCollapse={handleSidebarToggle}
+        />
         
         <Content style={{ 
           height: '100%', 
