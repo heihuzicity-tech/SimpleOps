@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  Row, 
-  Col, 
   Card, 
   Table, 
   Button, 
@@ -11,32 +9,29 @@ import {
   Tooltip,
   Badge,
   Select,
-  Input
+  Popover,
 } from 'antd';
 import { 
   LinkOutlined, 
-  DesktopOutlined,
   ReloadOutlined,
   CloudServerOutlined,
   ApiOutlined,
-  SearchOutlined,
   WindowsOutlined,
   LinuxOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import ResourceTree from '../../components/sessions/ResourceTree';
 import CredentialSelector from '../../components/sessions/CredentialSelector';
-import QuickAccess from '../../components/sessions/QuickAccess';
+import SearchSelect from '../../components/common/SearchSelect';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
-import { fetchAssets } from '../../store/assetSlice';
+import { fetchAssets, testConnection } from '../../store/assetSlice';
 import { fetchCredentials } from '../../store/credentialSlice';
 import { createSession } from '../../store/sshSessionSlice';
 import { performConnectionTest } from '../../services/connectionTest';
 import type { ColumnsType } from 'antd/es/table';
 import type { Asset } from '../../types';
 
-const { Search } = Input;
 const { Option } = Select;
 
 const HostSessionsPage: React.FC = () => {
@@ -46,10 +41,12 @@ const HostSessionsPage: React.FC = () => {
   const { credentials } = useSelector((state: RootState) => state.credential);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeSessions, setActiveSessions] = useState<Set<number>>(new Set());
-  const [testingAssets, setTestingAssets] = useState<Set<number>>(new Set());
+  const [testingConnection, setTestingConnection] = useState<number | null>(null);
+  const [testResults, setTestResults] = useState<Record<number, { success: boolean; message: string }>>({});
   const [credentialModalVisible, setCredentialModalVisible] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [searchText, setSearchText] = useState('');
+  const [searchType, setSearchType] = useState('name'); // 搜索类型：name, address
   const [osTypeFilter, setOsTypeFilter] = useState<string>('all');
   const [connectionStatusFilter, setConnectionStatusFilter] = useState<string>('all');
 
@@ -64,20 +61,10 @@ const HostSessionsPage: React.FC = () => {
 
   useEffect(() => {
     loadAssets();
-    // 从localStorage加载最近连接
-    const recentConnections = localStorage.getItem('recentConnections');
-    if (recentConnections) {
-      const recent = JSON.parse(recentConnections);
-      setActiveSessions(new Set(recent));
-    }
-  }, [loadAssets]);
+    }, [loadAssets]);
 
   const handleConnect = async (asset: Asset) => {
-    // 获取该资产的可用凭证
-    const assetCredentials = credentials.filter(cred => 
-      cred.assets && cred.assets.some(a => a.id === asset.id)
-    );
-    
+      
     if (credentials.length === 0) {
       message.warning('没有可用的凭证，请先创建凭证');
       return;
@@ -95,15 +82,9 @@ const HostSessionsPage: React.FC = () => {
     
     try {
       // 先进行连接测试
-      setTestingAssets(prev => new Set(prev).add(selectedAsset.id));
       const testResult = await performConnectionTest(dispatch, selectedAsset, credentialId);
       
       if (!testResult.success) {
-        setTestingAssets(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(selectedAsset.id);
-          return newSet;
-        });
         return;
       }
       
@@ -117,9 +98,6 @@ const HostSessionsPage: React.FC = () => {
       // 更新活跃会话状态
       setActiveSessions(prev => new Set(prev).add(selectedAsset.id));
       
-      // 保存到最近连接
-      const recentConnections = Array.from(activeSessions).concat(selectedAsset.id).slice(-10);
-      localStorage.setItem('recentConnections', JSON.stringify(recentConnections));
       
       message.success(`成功连接到 ${selectedAsset.name}`);
       
@@ -127,36 +105,86 @@ const HostSessionsPage: React.FC = () => {
       navigate(`/connect/terminal/${response.id}`);
     } catch (error: any) {
       message.error(`连接失败: ${error.message}`);
-    } finally {
-      setTestingAssets(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(selectedAsset.id);
-        return newSet;
-      });
     }
   };
 
   const handleTest = async (asset: Asset) => {
+    // 获取该资产的凭据列表
     const assetCredentials = credentials.filter(cred => 
       cred.assets && cred.assets.some(a => a.id === asset.id)
     );
     
     if (assetCredentials.length === 0) {
-      message.warning('该资产没有关联的凭证');
+      message.warning('该资产没有关联的凭据，请先配置凭据');
       return;
     }
-    
+    // 使用第一个可用的凭据进行测试
     const credentialId = assetCredentials[0].id;
-    setTestingAssets(prev => new Set(prev).add(asset.id));
     
+    setTestingConnection(asset.id);
     try {
-      await performConnectionTest(dispatch, asset, credentialId);
+      // 分层测试策略：先测主机连通性，再测服务
+      await performLayeredConnectionTest(asset, credentialId);
+    } catch (error) {
+      console.error('连接测试失败:', error);
     } finally {
-      setTestingAssets(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(asset.id);
-        return newSet;
-      });
+      setTestingConnection(null);
+    }
+  };
+  
+  // 分层连接测试
+  const performLayeredConnectionTest = async (asset: any, credentialId: number) => {
+    try {
+      // 第一层：主机连通性测试
+      const pingResult = await dispatch(testConnection({
+        asset_id: asset.id,
+        credential_id: credentialId,
+        test_type: 'ping'
+      })).unwrap();
+      
+      if (!pingResult.result.success) {
+        // 主机不可达，显示网络错误
+        const errorMsg = `主机不可达: ${asset.address}`;
+        message.error(errorMsg, 4);
+        setTestResults(prev => ({ ...prev, [asset.id]: { success: false, message: errorMsg } }));
+        return;
+      }
+      
+      // 第二层：服务端口测试
+      let serviceTestType = 'ping';
+      if (asset.type === 'server') {
+        if (asset.protocol === 'ssh') serviceTestType = 'ssh';
+        else if (asset.protocol === 'rdp') serviceTestType = 'rdp';
+      } else if (asset.type === 'database') {
+        serviceTestType = 'database';
+      }
+      
+      if (serviceTestType !== 'ping') {
+        const serviceResult = await dispatch(testConnection({
+          asset_id: asset.id,
+          credential_id: credentialId,
+          test_type: serviceTestType as 'ping' | 'ssh' | 'rdp' | 'database'
+        })).unwrap();
+        
+        if (serviceResult.result.success) {
+          const successMsg = `${serviceTestType.toUpperCase()}服务正常 (延迟: ${serviceResult.result.latency}ms)`;
+          message.success(successMsg, 3);
+          setTestResults(prev => ({ ...prev, [asset.id]: { success: true, message: successMsg } }));
+        } else {
+          const errorMsg = `${serviceTestType.toUpperCase()}服务不可用: ${serviceResult.result.error}`;
+          message.error(errorMsg, 4);
+          setTestResults(prev => ({ ...prev, [asset.id]: { success: false, message: errorMsg } }));
+        }
+      } else {
+        // 只有ping测试
+        const successMsg = `主机连通正常 (延迟: ${pingResult.result.latency}ms)`;
+        message.success(successMsg, 3);
+        setTestResults(prev => ({ ...prev, [asset.id]: { success: true, message: successMsg } }));
+      }
+    } catch (error: any) {
+      const errorMsg = `连接测试异常: ${error.message}`;
+      message.error(errorMsg, 4);
+      setTestResults(prev => ({ ...prev, [asset.id]: { success: false, message: errorMsg } }));
     }
   };
 
@@ -166,16 +194,6 @@ const HostSessionsPage: React.FC = () => {
     }
   };
   
-  // 处理快速访问连接
-  const handleQuickConnect = async (connection: any) => {
-    // 找到对应的资产
-    const asset = assets.find(a => a.id === connection.id);
-    if (asset) {
-      await handleConnect(asset);
-    } else {
-      message.warning('资产信息不存在，可能已被删除');
-    }
-  };
 
   const columns: ColumnsType<any> = [
     {
@@ -234,15 +252,46 @@ const HostSessionsPage: React.FC = () => {
     },
     {
       title: '关联凭证',
-      dataIndex: 'credentials',
+      dataIndex: 'credential_ids',
       key: 'credentials',
-      width: 80,
-      align: 'center',
-      render: () => (
-        <Tooltip title="可用凭证数量">
-          <span>1</span>
-        </Tooltip>
-      ),
+      width: 120,
+      align: 'center' as const,
+      render: (credentialIds: number[], record: any) => {
+        // 获取该资产关联的凭证
+        const assetCredentials = credentials.filter(cred => 
+          credentialIds?.includes(cred.id) || 
+          (cred.assets && cred.assets.some(a => a.id === record.id))
+        );
+        
+        if (assetCredentials.length === 0) {
+          return <Tag color="default">未关联</Tag>;
+        }
+        
+        const popoverContent = (
+          <div style={{ maxWidth: 300 }}>
+            {assetCredentials.map(cred => (
+              <div key={cred.id} style={{ marginBottom: 8 }}>
+                <Tag color={cred.type === 'password' ? 'blue' : 'green'}>
+                  {cred.type === 'password' ? '密码' : '密钥'}
+                </Tag>
+                <span>{cred.name}</span>
+              </div>
+            ))}
+          </div>
+        );
+        
+        return (
+          <Popover 
+            content={popoverContent}
+            title="关联凭证列表"
+            placement="top"
+          >
+            <Button type="link" size="small">
+              {assetCredentials.length} 个凭证
+            </Button>
+          </Popover>
+        );
+      },
     },
     {
       title: '创建时间',
@@ -262,12 +311,14 @@ const HostSessionsPage: React.FC = () => {
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Tooltip title="测试连接">
+          <Tooltip title={testResults[record.id] ? testResults[record.id].message : "测试连接"}>
             <Button
               size="small"
               icon={<ApiOutlined />}
               onClick={() => handleTest(record)}
-              loading={testingAssets.has(record.id)}
+              loading={testingConnection === record.id}
+              type={testResults[record.id] && testResults[record.id].success ? 'primary' : 'default'}
+              danger={testResults[record.id] && !testResults[record.id].success}
             >
               测试
             </Button>
@@ -298,7 +349,13 @@ const HostSessionsPage: React.FC = () => {
     // 文本搜索
     if (searchText) {
       const search = searchText.toLowerCase();
-      if (!asset.name.toLowerCase().includes(search) && 
+      if (searchType === 'name' && !asset.name.toLowerCase().includes(search)) {
+        return false;
+      }
+      if (searchType === 'address' && !asset.address.toLowerCase().includes(search)) {
+        return false;
+      }
+      if (searchType === 'all' && !asset.name.toLowerCase().includes(search) && 
           !asset.address.toLowerCase().includes(search)) {
         return false;
       }
@@ -324,96 +381,117 @@ const HostSessionsPage: React.FC = () => {
   });
 
   return (
-    <div style={{ height: 'calc(100vh - 100px)' }}>
-      <Row gutter={12} style={{ height: '100%' }}>
-        <Col span={4} style={{ height: '100%' }}>
+    <>
+      <div style={{ height: 'calc(100vh - 100px)', display: 'flex', gap: '12px' }}>
+        <div 
+          style={{ 
+            width: '240px',
+            minWidth: '200px',
+            maxWidth: '260px',
+            height: '100%',
+            flexShrink: 0
+          }}
+        >
           <ResourceTree 
             resourceType="host"
             onSelect={handleTreeSelect}
+            totalCount={filteredAssets.length}
           />
-        </Col>
-        <Col span={20} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          {/* 快速访问 */}
-          <QuickAccess onConnect={handleQuickConnect} />
-          
-          <Card 
-            title={
-              <Space>
-                <DesktopOutlined />
-                <span>主机资源</span>
-                <Badge count={filteredAssets.length} showZero />
-              </Space>
-            }
-            extra={
-              <Space>
-                <Select
-                  value={osTypeFilter}
-                  onChange={setOsTypeFilter}
-                  style={{ width: 120 }}
-                  placeholder="系统类型"
-                >
-                  <Option value="all">全部系统</Option>
-                  <Option value="linux">
-                    <Space>
-                      <LinuxOutlined />
-                      Linux
-                    </Space>
-                  </Option>
-                  <Option value="windows">
-                    <Space>
-                      <WindowsOutlined />
-                      Windows
-                    </Space>
-                  </Option>
-                </Select>
-                
-                <Select
-                  value={connectionStatusFilter}
-                  onChange={setConnectionStatusFilter}
-                  style={{ width: 120 }}
-                  placeholder="连接状态"
-                >
-                  <Option value="all">全部状态</Option>
-                  <Option value="connected">已连接</Option>
-                  <Option value="disconnected">未连接</Option>
-                </Select>
-                
-                <Search
-                  placeholder="搜索主机名或IP"
-                  value={searchText}
-                  onChange={e => setSearchText(e.target.value)}
-                  style={{ width: 200 }}
-                  allowClear
-                />
-                
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={loadAssets}
-                  loading={loading}
-                >
-                  刷新
-                </Button>
-              </Space>
-            }
-            style={{ height: '100%' }}
-            styles={{ body: { height: 'calc(100% - 56px)', overflow: 'auto' } }}
-          >
-            <Table
-              columns={columns}
-              dataSource={filteredAssets}
-              rowKey="id"
-              loading={loading}
-              pagination={{
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total) => `共 ${total} 条记录`,
-              }}
-              size="small"
-              scroll={{ x: 900 }}
+        </div>
+        <div 
+          style={{ 
+            flex: 1,
+            height: '100%', 
+            display: 'flex', 
+            flexDirection: 'column',
+            minWidth: 0
+          }}
+        >
+          <div style={{ 
+            marginBottom: 8, 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center'
+          }}>
+            <SearchSelect
+              searchType={searchType}
+              onSearchTypeChange={setSearchType}
+              onSearch={setSearchText}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="请输入关键字搜索"
+              searchOptions={[
+                { value: 'name', label: '主机名称' },
+                { value: 'address', label: '主机地址' },
+                { value: 'all', label: '全部' },
+              ]}
+              style={{ width: 300 }}
             />
+            <Space>
+              <Select
+                value={osTypeFilter}
+                onChange={setOsTypeFilter}
+                style={{ width: 140 }}
+                placeholder="系统类型"
+              >
+                <Option value="all">全部系统</Option>
+                <Option value="linux">
+                  <Space>
+                    <LinuxOutlined />
+                    Linux
+                  </Space>
+                </Option>
+                <Option value="windows">
+                  <Space>
+                    <WindowsOutlined />
+                    Windows
+                  </Space>
+                </Option>
+              </Select>
+              
+              <Select
+                value={connectionStatusFilter}
+                onChange={setConnectionStatusFilter}
+                style={{ width: 140 }}
+                placeholder="连接状态"
+              >
+                <Option value="all">全部状态</Option>
+                <Option value="connected">已连接</Option>
+                <Option value="disconnected">未连接</Option>
+              </Select>
+              
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={loadAssets}
+                loading={loading}
+                title="刷新数据"
+              >
+                刷新
+              </Button>
+            </Space>
+          </div>
+          <Card 
+            style={{ flex: 1, overflow: 'hidden' }}
+            styles={{ body: { height: '100%', overflow: 'auto', padding: 0 } }}
+          >
+            <div style={{ padding: '12px 16px' }}>
+              <Table
+                columns={columns}
+                dataSource={filteredAssets}
+                rowKey="id"
+                loading={loading}
+                pagination={{
+                  showSizeChanger: true,
+                  showQuickJumper: true,
+                  showTotal: (total) => `共 ${total} 条记录`,
+                }}
+                size="small"
+                scroll={{ x: 900 }}
+              />
+            </div>
           </Card>
-        </Col>
-      </Row>
+        </div>
+      </div>
 
       {/* 凭证选择对话框 */}
       <CredentialSelector
@@ -423,7 +501,7 @@ const HostSessionsPage: React.FC = () => {
         onSelect={handleCredentialSelect}
         onCancel={() => setCredentialModalVisible(false)}
       />
-    </div>
+    </>
   );
 };
 

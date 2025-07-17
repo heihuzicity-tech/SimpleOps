@@ -590,6 +590,7 @@ const AssetsPage: React.FC = () => {
             resourceType={getCurrentResourceType()}
             onSelect={handleTreeSelect}
             selectedKeys={[selectedCategory]}
+            totalCount={total}
           />
         </div>
         <div 

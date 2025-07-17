@@ -19,13 +19,15 @@ interface ResourceTreeProps {
   resourceType: 'host' | 'database';
   selectedKeys?: React.Key[];
   treeData?: DataNode[];
+  totalCount?: number; // 新增：总数量统计
 }
 
 const ResourceTree: React.FC<ResourceTreeProps> = ({ 
   onSelect, 
   resourceType, 
   selectedKeys: externalSelectedKeys = [], 
-  treeData: externalTreeData 
+  treeData: externalTreeData,
+  totalCount = 0 // 新增：总数量参数
 }) => {
   const [treeData, setTreeData] = useState<DataNode[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
@@ -74,7 +76,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
 
         return [
           {
-            title: '全部主机',
+            title: `全部主机${totalCount > 0 ? `(${totalCount})` : ''}`,
             key: 'all',
             icon: <FolderOutlined />,
             children: groupItems,
@@ -84,7 +86,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
         // 数据库类型，暂时保持简单结构
         return [
           {
-            title: '全部数据库',
+            title: `全部数据库${totalCount > 0 ? `(${totalCount})` : ''}`,
             key: 'all',
             icon: <FolderOutlined />,
             children: [
@@ -117,7 +119,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
     const data = generateTreeData();
     setTreeData(data);
     setExpandedKeys(['all']);
-  }, [resourceType, groups, externalTreeData]);
+  }, [resourceType, groups, externalTreeData, totalCount]);
 
   const onExpand = (newExpandedKeys: React.Key[]) => {
     setExpandedKeys(newExpandedKeys as string[]);

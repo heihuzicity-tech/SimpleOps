@@ -186,6 +186,7 @@ const DatabaseSessionsPage: React.FC = () => {
           <ResourceTree 
             resourceType="database"
             onSelect={handleTreeSelect}
+            totalCount={filteredAssets.length}
           />
         </Col>
         <Col span={20} style={{ height: '100%' }}>

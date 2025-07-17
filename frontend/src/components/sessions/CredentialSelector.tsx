@@ -42,18 +42,26 @@ export const CredentialSelector: React.FC<CredentialSelectorProps> = ({
   // 如果没有关联凭证，显示所有凭证
   const availableCredentials = assetCredentials.length > 0 ? assetCredentials : credentials;
   
+  // 如果没有可用凭证，不渲染 Form
+  const shouldRenderForm = availableCredentials.length > 0;
+  
   useEffect(() => {
     if (!visible) {
-      form.resetFields();
+      if (shouldRenderForm) {
+        form.resetFields();
+      }
       setSelectedCredential(null);
     } else if (availableCredentials.length === 1) {
       // 如果只有一个凭证，自动选中
       form.setFieldsValue({ credentialId: availableCredentials[0].id });
       setSelectedCredential(availableCredentials[0]);
     }
-  }, [visible, availableCredentials, form]);
+  }, [visible, availableCredentials, form, shouldRenderForm]);
   
   const handleOk = async () => {
+    if (!shouldRenderForm) {
+      return;
+    }
     try {
       const values = await form.validateFields();
       onSelect(values.credentialId);
@@ -105,7 +113,7 @@ export const CredentialSelector: React.FC<CredentialSelectorProps> = ({
       width={500}
     >
       <Spin spinning={loading}>
-        {availableCredentials.length === 0 ? (
+        {!shouldRenderForm ? (
           <Empty 
             description="暂无可用凭证"
             style={{ margin: '20px 0' }}
