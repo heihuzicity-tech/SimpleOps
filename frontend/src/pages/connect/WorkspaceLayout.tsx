@@ -8,6 +8,7 @@ import { WorkspaceState, TabInfo } from '../../types/workspace';
 import SidePanel from '../../components/workspace/SidePanel';
 import { Asset } from '../../types';
 import { addTestConnectionHistory } from '../../utils/testData';
+import { runWorkspaceTests, quickTest } from '../../utils/testWorkspace';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Paragraph } = Typography;
@@ -165,8 +166,32 @@ const WorkspaceLayout: React.FC = () => {
               addTestConnectionHistory();
               message.success('测试数据已添加');
             }}
+            style={{ color: '#1890ff' }}
           >
             添加测试数据
+          </Button>
+          <Button 
+            type="text"
+            onClick={() => quickTest()}
+            style={{ color: '#52c41a' }}
+          >
+            快速测试
+          </Button>
+          <Button 
+            type="text"
+            onClick={async () => {
+              message.loading('正在运行完整测试...', 0);
+              try {
+                await runWorkspaceTests();
+                message.destroy();
+              } catch (error) {
+                message.destroy();
+                message.error('测试运行失败');
+              }
+            }}
+            style={{ color: '#722ed1' }}
+          >
+            完整测试
           </Button>
           <Button 
             type="text" 
