@@ -31,8 +31,8 @@ export const CredentialSelector: React.FC<CredentialSelectorProps> = ({
   onSelect,
   onCancel
 }) => {
-  const [form] = Form.useForm();
   const [selectedCredential, setSelectedCredential] = useState<Credential | null>(null);
+  const [form] = Form.useForm();
   
   // 获取与资产关联的凭证
   const assetCredentials = credentials.filter(cred => 
@@ -47,11 +47,11 @@ export const CredentialSelector: React.FC<CredentialSelectorProps> = ({
   
   useEffect(() => {
     if (!visible) {
-      if (shouldRenderForm) {
+      if (shouldRenderForm && form) {
         form.resetFields();
       }
       setSelectedCredential(null);
-    } else if (availableCredentials.length === 1) {
+    } else if (availableCredentials.length === 1 && form) {
       // 如果只有一个凭证，自动选中
       form.setFieldsValue({ credentialId: availableCredentials[0].id });
       setSelectedCredential(availableCredentials[0]);

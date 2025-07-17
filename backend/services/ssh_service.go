@@ -133,16 +133,47 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 
 	// 建立SSH连接
 	address := fmt.Sprintf("%s:%d", asset.Address, asset.Port)
+	log.Printf("Attempting to connect to SSH server at %s", address)
 	clientConn, err := ssh.Dial("tcp", address, sshConfig)
 	if err != nil {
+		log.Printf("Failed to connect to SSH server at %s: %v", address, err)
 		return nil, fmt.Errorf("failed to connect to SSH server: %w", err)
 	}
+	log.Printf("Successfully connected to SSH server at %s", address)
 
 	// 创建会话
 	sessionConn, err := clientConn.NewSession()
 	if err != nil {
 		clientConn.Close()
 		return nil, fmt.Errorf("failed to create SSH session: %w", err)
+	}
+
+	// 生成会话ID
+	sessionID := s.generateSessionID()
+	
+	// 设置终端模式 - 必须在获取管道之前设置
+	width := request.Width
+	height := request.Height
+	if width <= 0 {
+		width = 80
+	}
+	if height <= 0 {
+		height = 24
+	}
+	
+	log.Printf("Requesting PTY for session %s with size %dx%d", sessionID, width, height)
+	if err := sessionConn.RequestPty("xterm-256color", height, width, ssh.TerminalModes{
+		ssh.ECHO:          1,     // 启用回显
+		ssh.TTY_OP_ISPEED: 14400, // 输入速度
+		ssh.TTY_OP_OSPEED: 14400, // 输出速度
+		ssh.ICRNL:         1,     // 将回车转换为换行
+		ssh.OPOST:         1,     // 启用输出处理
+		ssh.ONLCR:         1,     // 将换行转换为回车换行
+		ssh.IUTF8:         1,     // UTF-8 输入
+	}); err != nil {
+		sessionConn.Close()
+		clientConn.Close()
+		return nil, fmt.Errorf("failed to request pty: %w", err)
 	}
 
 	// 获取stdout和stdin管道
@@ -159,9 +190,6 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		clientConn.Close()
 		return nil, fmt.Errorf("failed to get stdin pipe: %w", err)
 	}
-
-	// 生成会话ID
-	sessionID := s.generateSessionID()
 
 	// 创建会话对象
 	session := &SSHSession{
@@ -180,23 +208,25 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		Commands:     make([]SSHCommand, 0),
 	}
 
-	// 设置终端模式
-	if request.Width > 0 && request.Height > 0 {
-		if err := sessionConn.RequestPty("xterm", request.Height, request.Width, ssh.TerminalModes{
-			ssh.ECHO:          1,
-			ssh.TTY_OP_ISPEED: 14400,
-			ssh.TTY_OP_OSPEED: 14400,
-		}); err != nil {
-			session.Close()
-			return nil, fmt.Errorf("failed to request pty: %w", err)
-		}
-	}
-
 	// 启动shell
+	log.Printf("Starting shell for session %s", sessionID)
 	if err := sessionConn.Shell(); err != nil {
 		session.Close()
 		return nil, fmt.Errorf("failed to start shell: %w", err)
 	}
+
+	// ✅ 修复：减少初始化命令，只发送一个回车符
+	go func() {
+		time.Sleep(300 * time.Millisecond) // 等待shell启动
+		log.Printf("Sending initial command to shell for session %s", sessionID)
+		
+		// 只发送一个换行符激活shell提示符
+		if _, err := stdin.Write([]byte("\n")); err != nil {
+			log.Printf("Failed to send initial newline to shell: %v", err)
+		} else {
+			log.Printf("Initial newline sent successfully to session %s", sessionID)
+		}
+	}()
 
 	// 保存会话到内存
 	s.sessionsMu.Lock()
@@ -512,7 +542,7 @@ func (s *SSHService) createSSHConfig(credential models.Credential) (*ssh.ClientC
 	config := &ssh.ClientConfig{
 		User:            credential.Username,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // 注意：生产环境需要验证主机密钥
-		Timeout:         time.Duration(config.GlobalConfig.SSH.Timeout) * time.Second,
+		Timeout:         30 * time.Second, // ✅ 修复：设置合理的连接超时时间
 	}
 
 	if credential.Type == "password" {
@@ -606,10 +636,15 @@ func (session *SSHSession) IsConnectionAlive() bool {
 		return false
 	}
 
+	// ✅ 修复：使用更轻量的方式检查连接状态
 	// 尝试发送一个简单的keepalive请求来检测连接状态
 	// 如果连接已断开，这会返回错误
-	_, _, err := session.ClientConn.SendRequest("keepalive@openssh.com", true, nil)
-	return err == nil
+	_, _, err := session.ClientConn.SendRequest("keepalive@openssh.com", false, nil)
+	if err != nil {
+		log.Printf("SSH connection check failed for session %s: %v", session.ID, err)
+		return false
+	}
+	return true
 }
 
 // UpdateActivity 更新活动时间
@@ -659,26 +694,21 @@ func (s *SSHService) CleanupInactiveSessions() {
 		shouldCleanup := false
 		cleanupReason := ""
 
-		// 检查超时
+		// 检查超时 - 增加容错时间
 		if session.LastActive.Before(cutoff) {
 			shouldCleanup = true
 			cleanupReason = "timeout"
 		}
 
-		// ✅ 增强：检查连接健康状态
-		if !shouldCleanup && !session.IsConnectionAlive() {
-			shouldCleanup = true
-			cleanupReason = "connection_lost"
-		}
-
-		if shouldCleanup {
+		// ✅ 修复：只有在会话真正超时时才检查连接状态，避免过度清理
+		if shouldCleanup && !session.IsConnectionAlive() {
 			log.Printf("Cleaning up session %s: reason=%s, last_active=%v", 
 				id, cleanupReason, session.LastActive)
 
 			// 更新数据库中的会话状态
 			now := time.Now()
 			updates := map[string]interface{}{
-				"status":     cleanupReason, // "timeout" 或 "connection_lost"
+				"status":     cleanupReason,
 				"end_time":   now,
 				"updated_at": now,
 			}
@@ -691,6 +721,9 @@ func (s *SSHService) CleanupInactiveSessions() {
 
 			session.Close()
 			delete(s.sessions, id)
+		} else if !shouldCleanup {
+			// 会话仍然活跃，更新活动时间
+			session.UpdateActivity()
 		}
 	}
 }

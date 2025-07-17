@@ -37,8 +37,11 @@ export const sshAPI = {
   getWebSocketURL(sessionId: string): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname;
-    const port = '8080'; // 后端WebSocket端口
+    // ✅ 修复：动态获取后端端口，开发环境用8080，生产环境用当前端口
+    const isDev = process.env.NODE_ENV === 'development';
+    const port = isDev ? '8080' : window.location.port || '80';
     const token = localStorage.getItem('token');
-    return `${protocol}//${host}:${port}/api/v1/ws/ssh/sessions/${sessionId}/ws?token=${token}`;
+    const hostWithPort = port === '80' || port === '443' ? host : `${host}:${port}`;
+    return `${protocol}//${hostWithPort}/api/v1/ws/ssh/sessions/${sessionId}/ws?token=${token}`;
   }
 };

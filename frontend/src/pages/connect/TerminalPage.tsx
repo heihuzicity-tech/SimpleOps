@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
 import { 
   Layout, 
   Space, 
@@ -22,7 +21,6 @@ import {
   ClockCircleOutlined
 } from '@ant-design/icons';
 import WebTerminal from '../../components/ssh/WebTerminal';
-import { AppDispatch, RootState } from '../../store';
 import { sshAPI } from '../../services/sshAPI';
 import { SSHSessionInfo } from '../../types/ssh';
 import dayjs from 'dayjs';
@@ -31,12 +29,11 @@ import duration from 'dayjs/plugin/duration';
 dayjs.extend(duration);
 
 const { Header, Content } = Layout;
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 const TerminalPage: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
-  const dispatch = useDispatch<AppDispatch>();
   const [sessionInfo, setSessionInfo] = useState<SSHSessionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -136,7 +133,9 @@ const TerminalPage: React.FC = () => {
         alignItems: 'center', 
         justifyContent: 'center' 
       }}>
-        <Spin size="large" tip="正在加载会话信息..." />
+        <Spin size="large" tip="正在加载会话信息...">
+          <div style={{ minHeight: '100px' }} />
+        </Spin>
       </div>
     );
   }
@@ -237,7 +236,9 @@ const TerminalPage: React.FC = () => {
           height: '100%',
           background: '#1e1e1e'
         }}>
+          {/* ✅ 修复：使用key属性确保组件只在sessionId变化时重新挂载 */}
           <WebTerminal
+            key={sessionId}
             sessionId={sessionId}
             onClose={handleBack}
             onError={(error) => {

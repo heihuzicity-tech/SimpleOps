@@ -49,6 +49,7 @@ const HostSessionsPage: React.FC = () => {
   const [searchType, setSearchType] = useState('name'); // 搜索类型：name, address
   const [osTypeFilter, setOsTypeFilter] = useState<string>('all');
   const [connectionStatusFilter, setConnectionStatusFilter] = useState<string>('all');
+  const [connecting, setConnecting] = useState<boolean>(false); // ✅ 添加连接中状态
 
   const loadAssets = useCallback(() => {
     dispatch(fetchAssets({
@@ -76,35 +77,49 @@ const HostSessionsPage: React.FC = () => {
   };
   
   const handleCredentialSelect = async (credentialId: number) => {
-    if (!selectedAsset) return;
+    if (!selectedAsset || connecting) return; // ✅ 防止并发连接
     
     setCredentialModalVisible(false);
+    setConnecting(true);
     
     try {
-      // 先进行连接测试
-      const testResult = await performConnectionTest(dispatch, selectedAsset, credentialId);
+      // ✅ 优化：显示统一的连接中状态
+      const hideLoading = message.loading('正在连接中...', 0);
       
-      if (!testResult.success) {
-        return;
+      try {
+        // 使用静默模式进行连接测试，减少弹窗
+        const testResult = await performConnectionTest(dispatch, selectedAsset, credentialId, true);
+        
+        if (!testResult.success) {
+          hideLoading();
+          message.error(testResult.message);
+          return;
+        }
+        
+        // 测试通过，创建会话
+        const response = await dispatch(createSession({
+          asset_id: selectedAsset.id,
+          credential_id: credentialId,
+          protocol: selectedAsset.protocol || 'ssh'
+        })).unwrap();
+        
+        // 更新活跃会话状态
+        setActiveSessions(prev => new Set(prev).add(selectedAsset.id));
+        
+        hideLoading();
+        // ✅ 修复：只显示最终的连接成功消息
+        message.success(`成功连接到 ${selectedAsset.name}`);
+        
+        // 跳转到终端页面
+        navigate(`/connect/terminal/${response.id}`);
+      } catch (error: any) {
+        hideLoading();
+        message.error(`连接失败: ${error.message}`);
       }
-      
-      // 测试通过，创建会话
-      const response = await dispatch(createSession({
-        asset_id: selectedAsset.id,
-        credential_id: credentialId,
-        protocol: selectedAsset.protocol || 'ssh'
-      })).unwrap();
-      
-      // 更新活跃会话状态
-      setActiveSessions(prev => new Set(prev).add(selectedAsset.id));
-      
-      
-      message.success(`成功连接到 ${selectedAsset.name}`);
-      
-      // 跳转到终端页面
-      navigate(`/connect/terminal/${response.id}`);
     } catch (error: any) {
       message.error(`连接失败: ${error.message}`);
+    } finally {
+      setConnecting(false);
     }
   };
 

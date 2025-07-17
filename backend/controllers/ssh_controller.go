@@ -95,13 +95,16 @@ func (sc *SSHController) CreateSession(c *gin.Context) {
 	user := userInterface.(*models.User)
 
 	// 创建SSH会话
+	log.Printf("Creating SSH session for user %d to asset %d", user.ID, request.AssetID)
 	sessionResp, err := sc.sshService.CreateSession(user.ID, &request)
 	if err != nil {
+		log.Printf("Failed to create SSH session: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to create SSH session: " + err.Error(),
 		})
 		return
 	}
+	log.Printf("SSH session created successfully: %s", sessionResp.ID)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
@@ -214,7 +217,10 @@ func (sc *SSHController) CloseSession(c *gin.Context) {
 // HandleWebSocket 处理WebSocket连接
 func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 	sessionID := c.Param("id")
+	log.Printf("WebSocket connection request for session: %s", sessionID)
+	
 	if sessionID == "" {
+		log.Printf("WebSocket connection failed: Session ID is required")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Session ID is required",
 		})
@@ -224,6 +230,7 @@ func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 	// 获取当前用户
 	userInterface, exists := c.Get("user")
 	if !exists {
+		log.Printf("WebSocket connection failed: User not found for session %s", sessionID)
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "User not found",
 		})
@@ -231,10 +238,12 @@ func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 	}
 
 	user := userInterface.(*models.User)
+	log.Printf("WebSocket connection for session %s by user %s", sessionID, user.Username)
 
 	// 验证会话是否存在和属于当前用户
 	session, err := sc.sshService.GetSession(sessionID)
 	if err != nil {
+		log.Printf("WebSocket connection failed: Session %s not found: %v", sessionID, err)
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Session not found",
 		})
@@ -242,18 +251,24 @@ func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 	}
 
 	if session.UserID != user.ID {
+		log.Printf("WebSocket connection failed: Access denied for session %s, user %d vs %d", sessionID, session.UserID, user.ID)
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": "Access denied",
 		})
 		return
 	}
 
+	log.Printf("WebSocket session validation passed for session %s", sessionID)
+
 	// 升级HTTP连接到WebSocket
+	log.Printf("Attempting to upgrade WebSocket connection for session %s", sessionID)
 	wsConn, err := sc.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("Failed to upgrade WebSocket: %v", err)
+		log.Printf("Failed to upgrade WebSocket for session %s: %v", sessionID, err)
 		return
 	}
+	
+	log.Printf("WebSocket upgraded successfully for session %s", sessionID)
 
 	// 创建WebSocket连接包装
 	wsWrapper := &WebSocketConnection{
@@ -270,11 +285,27 @@ func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 func (sc *SSHController) handleWebSocketConnection(wsConn *WebSocketConnection) {
 	defer func() {
 		wsConn.conn.Close()
-		// ✅ 修复：WebSocket断开时立即清理SSH会话
-		log.Printf("WebSocket disconnected for session %s, cleaning up SSH session", wsConn.sessionID)
-		if err := sc.sshService.CloseSession(wsConn.sessionID); err != nil {
-			log.Printf("Failed to cleanup SSH session %s: %v", wsConn.sessionID, err)
-		}
+		// ✅ 修复：WebSocket断开时优雅清理SSH会话，添加延迟避免过快清理
+		log.Printf("WebSocket disconnected for session %s, scheduling SSH session cleanup", wsConn.sessionID)
+		
+		// 延迟清理，给客户端重连的机会
+		go func() {
+			time.Sleep(3 * time.Second) // 3秒后清理
+			
+			// 检查会话是否仍然活跃（可能已经重新连接）
+			session, err := sc.sshService.GetSession(wsConn.sessionID)
+			if err == nil && session.IsActive() {
+				log.Printf("Session %s is still active, checking connection health", wsConn.sessionID)
+				if !session.IsConnectionAlive() {
+					log.Printf("Session %s connection is dead, cleaning up", wsConn.sessionID)
+					if err := sc.sshService.CloseSession(wsConn.sessionID); err != nil {
+						log.Printf("Failed to cleanup SSH session %s: %v", wsConn.sessionID, err)
+					}
+				} else {
+					log.Printf("Session %s connection is healthy, keeping alive", wsConn.sessionID)
+				}
+			}
+		}()
 	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -299,39 +330,83 @@ func (sc *SSHController) handleSSHOutput(ctx context.Context, wsConn *WebSocketC
 	// 获取SSH会话的输出流
 	reader, err := sc.sshService.ReadFromSession(wsConn.sessionID)
 	if err != nil {
-		log.Printf("Failed to get SSH output reader: %v", err)
+		log.Printf("Failed to get SSH output reader for session %s: %v", wsConn.sessionID, err)
 		return
 	}
 
+	log.Printf("SSH output handler started for session %s", wsConn.sessionID)
 	buffer := make([]byte, 1024)
+	
+	// 使用goroutine进行异步读取
+	dataChan := make(chan []byte, 10)
+	errorChan := make(chan error, 1)
+	
+	go func() {
+		defer close(dataChan)
+		defer close(errorChan)
+		
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				n, err := reader.Read(buffer)
+				if err != nil {
+					if err != io.EOF {
+						errorChan <- err
+					}
+					return
+				}
+				
+				if n > 0 {
+					// 创建数据副本
+					data := make([]byte, n)
+					copy(data, buffer[:n])
+					
+					select {
+					case dataChan <- data:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}
+	}()
+	
 	for {
 		select {
 		case <-ctx.Done():
+			log.Printf("SSH output handler stopped for session %s", wsConn.sessionID)
 			return
-		default:
-			n, err := reader.Read(buffer)
-			if err != nil {
-				if err != io.EOF {
-					log.Printf("Failed to read SSH output: %v", err)
-				}
+			
+		case data, ok := <-dataChan:
+			if !ok {
+				log.Printf("SSH output channel closed for session %s", wsConn.sessionID)
 				return
 			}
-
-			if n > 0 {
-				message := TerminalMessage{
-					Type: "output",
-					Data: string(buffer[:n]),
-				}
-
-				wsConn.mu.Lock()
-				err = wsConn.conn.WriteJSON(message)
-				wsConn.mu.Unlock()
-
-				if err != nil {
-					log.Printf("Failed to write to WebSocket: %v", err)
-					return
-				}
+			
+			outputData := string(data)
+			log.Printf("SSH output received for session %s: %d bytes, content: %q", wsConn.sessionID, len(data), outputData)
+			
+			message := TerminalMessage{
+				Type: "output",
+				Data: outputData,
 			}
+
+			wsConn.mu.Lock()
+			err := wsConn.conn.WriteJSON(message)
+			wsConn.mu.Unlock()
+
+			if err != nil {
+				log.Printf("Failed to write to WebSocket for session %s: %v", wsConn.sessionID, err)
+				return
+			}
+			
+			log.Printf("SSH output sent to WebSocket for session %s", wsConn.sessionID)
+			
+		case err := <-errorChan:
+			log.Printf("Failed to read SSH output for session %s: %v", wsConn.sessionID, err)
+			return
 		}
 	}
 }

@@ -2,8 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { Card, Button, Space, message, Typography, Tag } from 'antd';
-import { CloseOutlined, FullscreenOutlined, FullscreenExitOutlined } from '@ant-design/icons';
+import { message, Tag } from 'antd';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../../store';
 import { setConnectionStatus, updateSessionStatus } from '../../store/sshSessionSlice';
@@ -11,7 +10,7 @@ import { sshAPI } from '../../services/sshAPI';
 import { WSMessage, ConnectionStatus } from '../../types/ssh';
 import '@xterm/xterm/css/xterm.css';
 
-const { Text } = Typography;
+// const { Text } = Typography; // 暂时未使用
 
 interface WebTerminalProps {
   sessionId: string;
@@ -33,9 +32,10 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
   const dispatch = useDispatch<AppDispatch>();
   
   const [connectionStatus, setLocalConnectionStatus] = useState<ConnectionStatus>('disconnected');
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // const [isFullscreen, setIsFullscreen] = useState(false); // 暂时未使用
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const maxReconnectAttempts = 5;
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // 更新连接状态
   const updateConnectionStatus = useCallback((status: ConnectionStatus) => {
@@ -120,10 +120,22 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
     }
   };
 
-  // 连接WebSocket - 移除useCallback避免依赖问题
-  const connectWebSocket = () => {
+  // 连接WebSocket
+  const connectWebSocket = useCallback(() => {
     if (!terminal.current) {
       console.error('Terminal not initialized, cannot connect WebSocket');
+      return;
+    }
+
+    // 如果正在连接，不要重复连接
+    if (isConnecting) {
+      console.log('WebSocket connection already in progress, skipping...');
+      return;
+    }
+
+    // 如果已有连接且处于连接状态，不要重复连接
+    if (websocket.current && websocket.current.readyState === WebSocket.OPEN) {
+      console.log('WebSocket already connected, skipping...');
       return;
     }
 
@@ -133,6 +145,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
       websocket.current = null;
     }
 
+    setIsConnecting(true);
     updateConnectionStatus('connecting');
     
     try {
@@ -143,9 +156,11 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
 
       websocket.current.onopen = () => {
         console.log('WebSocket connected successfully');
+        setIsConnecting(false);
         updateConnectionStatus('connected');
         setReconnectAttempts(0);
-        message.success('SSH连接已建立');
+        // ✅ 修复：移除WebSocket连接成功的消息，由页面统一处理
+        // message.success('SSH连接已建立', 2);
         
         // 发送初始终端大小
         if (terminal.current && fitAddon.current) {
@@ -161,11 +176,15 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
                 };
                 websocket.current?.send(JSON.stringify(resizeMessage));
                 console.log(`Terminal size sent: ${cols}x${rows}`);
+                
+                // ✅ 修复：不发送初始化命令，让后端处理
+                // 不需要前端发送初始化命令，后端会处理
+                console.log('WebSocket connected, terminal ready');
               } catch (error) {
                 console.error('Failed to send terminal size:', error);
               }
             }
-          }, 100);
+          }, 50); // 减少延迟从100ms到50ms
         }
       };
 
@@ -195,23 +214,38 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
       };
 
       websocket.current.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason);
+        setIsConnecting(false);
         updateConnectionStatus('disconnected');
-        dispatch(updateSessionStatus({ sessionId, status: 'closed' }));
         
-        if (event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
-          // 非正常关闭，尝试重连
+        // ✅ 修复：检查关闭原因，避免组件卸载时的重连
+        const isNormalClose = event.code === 1000 || event.code === 1001;
+        const isComponentUnmounting = event.reason === 'Component unmounting';
+        
+        if (isNormalClose || isComponentUnmounting) {
+          // 正常关闭或组件卸载，不要重连
+          console.log('WebSocket closed normally, not reconnecting');
+          dispatch(updateSessionStatus({ sessionId, status: 'closed' }));
+          return;
+        }
+        
+        // 只有在非正常关闭且重连次数未超限时才重连
+        if (reconnectAttempts < maxReconnectAttempts) {
+          console.log(`WebSocket will reconnect in ${Math.pow(2, reconnectAttempts) * 1000}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
           setTimeout(() => {
             setReconnectAttempts(prev => prev + 1);
             updateConnectionStatus('reconnecting');
             connectWebSocket();
           }, Math.pow(2, reconnectAttempts) * 1000); // 指数退避
-        } else if (reconnectAttempts >= maxReconnectAttempts) {
+        } else {
           message.error('连接已断开，重连次数超限');
+          dispatch(updateSessionStatus({ sessionId, status: 'closed' }));
         }
       };
 
       websocket.current.onerror = (error) => {
         console.error('WebSocket error:', error);
+        setIsConnecting(false);
         updateConnectionStatus('error');
         message.error('WebSocket连接失败');
         onError?.(new Error('WebSocket连接错误'));
@@ -219,10 +253,11 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
 
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
+      setIsConnecting(false);
       updateConnectionStatus('error');
       onError?.(error as Error);
     }
-  };
+  }, [sessionId, updateConnectionStatus, onError, isConnecting]);
 
   // 窗口大小变化时重新调整终端大小
   const handleResize = useCallback(() => {
@@ -233,32 +268,32 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
     }
   }, []);
 
-  // 切换全屏模式
-  const toggleFullscreen = useCallback(() => {
-    setIsFullscreen(prev => !prev);
-    setTimeout(() => {
-      handleResize();
-    }, 100);
-  }, [handleResize]);
+  // 切换全屏模式 - 暂时未使用
+  // const toggleFullscreen = useCallback(() => {
+  //   setIsFullscreen(prev => !prev);
+  //   setTimeout(() => {
+  //     handleResize();
+  //   }, 100);
+  // }, [handleResize]);
 
-  // 关闭终端
-  const handleClose = useCallback(async () => {
-    try {
-      // 关闭WebSocket连接
-      if (websocket.current) {
-        websocket.current.close(1000);
-        websocket.current = null;
-      }
+  // 关闭终端 - 暂时未使用
+  // const handleClose = useCallback(async () => {
+  //   try {
+  //     // 关闭WebSocket连接
+  //     if (websocket.current) {
+  //       websocket.current.close(1000);
+  //       websocket.current = null;
+  //     }
 
-      // 关闭会话
-      await sshAPI.closeSession(sessionId);
+  //     // 关闭会话
+  //     await sshAPI.closeSession(sessionId);
       
-      onClose();
-    } catch (error) {
-      console.error('Failed to close session:', error);
-      onClose(); // 即使关闭失败也要清理UI
-    }
-  }, [sessionId, onClose]);
+  //     onClose();
+  //   } catch (error) {
+  //     console.error('Failed to close session:', error);
+  //     onClose(); // 即使关闭失败也要清理UI
+  //   }
+  // }, [sessionId, onClose]);
 
   // 发送心跳
   useEffect(() => {
@@ -281,9 +316,16 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
   // 组件挂载时初始化
   useEffect(() => {
     let isComponentMounted = true;
+    let initializationComplete = false;
     
     // 确保DOM已经渲染
     const initializeTerminal = async () => {
+      // 防止重复初始化
+      if (initializationComplete) {
+        console.log('Terminal already initialized, skipping...');
+        return;
+      }
+      
       // 等待DOM元素可用
       await new Promise(resolve => setTimeout(resolve, 50));
       
@@ -292,9 +334,11 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
       const term = initTerminal();
       if (term && isComponentMounted) {
         console.log('Terminal initialized, waiting before WebSocket connection...');
+        initializationComplete = true;
+        
         // 等待终端完全渲染后再建立WebSocket连接
         setTimeout(() => {
-          if (isComponentMounted) {
+          if (isComponentMounted && !websocket.current && !isConnecting) {
             connectWebSocket();
           }
         }, 200);
@@ -310,10 +354,12 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
 
     return () => {
       isComponentMounted = false;
+      initializationComplete = false;
       console.log('Cleaning up WebTerminal component...');
+      
       // 清理资源
       if (websocket.current) {
-        websocket.current.close(1000);
+        websocket.current.close(1000, 'Component unmounting');
         websocket.current = null;
       }
       if (terminal.current) {
@@ -324,7 +370,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
         fitAddon.current = null;
       }
     };
-  }, [sessionId]); // 只依赖sessionId
+  }, [sessionId]); // ✅ 修复：移除函数依赖，只依赖sessionId
 
   const getStatusColor = (status: ConnectionStatus) => {
     switch (status) {

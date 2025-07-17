@@ -16,11 +16,12 @@ export interface ConnectionTestResult {
 export const performConnectionTest = async (
   dispatch: AppDispatch,
   asset: any,
-  credentialId: number
+  credentialId: number,
+  silent: boolean = false // ✅ 添加静默模式参数
 ): Promise<ConnectionTestResult> => {
   try {
     // 第一层：主机连通性测试
-    message.info('正在测试主机连通性...');
+    if (!silent) message.info('正在测试主机连通性...');
     const pingResult = await dispatch(testConnection({
       asset_id: asset.id,
       credential_id: credentialId,
@@ -29,7 +30,7 @@ export const performConnectionTest = async (
     
     if (!pingResult.result.success) {
       const errorMsg = `主机不可达: ${asset.address}`;
-      message.error(errorMsg, 4);
+      if (!silent) message.error(errorMsg, 4);
       return {
         success: false,
         message: errorMsg
@@ -46,7 +47,7 @@ export const performConnectionTest = async (
     }
     
     if (serviceTestType !== 'ping') {
-      message.info(`正在测试${serviceTestType.toUpperCase()}服务...`);
+      if (!silent) message.info(`正在测试${serviceTestType.toUpperCase()}服务...`);
       const serviceResult = await dispatch(testConnection({
         asset_id: asset.id,
         credential_id: credentialId,
@@ -55,7 +56,7 @@ export const performConnectionTest = async (
       
       if (serviceResult.result.success) {
         const successMsg = `${serviceTestType.toUpperCase()}服务正常 (延迟: ${serviceResult.result.latency}ms)`;
-        message.success(successMsg, 3);
+        if (!silent) message.success(successMsg, 2); // ✅ 减少显示时间
         return {
           success: true,
           latency: serviceResult.result.latency,
@@ -63,7 +64,7 @@ export const performConnectionTest = async (
         };
       } else {
         const errorMsg = `${serviceTestType.toUpperCase()}服务异常: ${serviceResult.result.message}`;
-        message.error(errorMsg, 4);
+        if (!silent) message.error(errorMsg, 4);
         return {
           success: false,
           message: errorMsg
@@ -71,7 +72,7 @@ export const performConnectionTest = async (
       }
     } else {
       const successMsg = `主机连通正常 (延迟: ${pingResult.result.latency}ms)`;
-      message.success(successMsg, 3);
+      if (!silent) message.success(successMsg, 2); // ✅ 减少显示时间
       return {
         success: true,
         latency: pingResult.result.latency,
@@ -80,7 +81,7 @@ export const performConnectionTest = async (
     }
   } catch (error: any) {
     const errorMsg = `连接测试异常: ${error.message}`;
-    message.error(errorMsg, 4);
+    if (!silent) message.error(errorMsg, 4);
     return {
       success: false,
       message: errorMsg

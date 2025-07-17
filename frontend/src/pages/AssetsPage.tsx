@@ -22,15 +22,20 @@ import {
   ReloadOutlined,
   ApiOutlined,
   DownOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AppDispatch, RootState } from '../store';
 import { fetchAssets, createAsset, updateAsset, deleteAsset, batchDeleteAssets, testConnection } from '../store/assetSlice';
+import { createSession } from '../store/sshSessionSlice';
 import { fetchCredentials } from '../store/credentialSlice';
 import { getAssetGroups, AssetGroup } from '../services/assetAPI';
 import ResourceTree from '../components/sessions/ResourceTree';
 import SearchSelect from '../components/common/SearchSelect';
+import CredentialSelector from '../components/sessions/CredentialSelector';
+import { performConnectionTest } from '../services/connectionTest';
+import type { Asset } from '../types';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -38,6 +43,7 @@ const { Option } = Select;
 const AssetsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const location = useLocation();
+  const navigate = useNavigate();
   const { assets, total, loading } = useSelector((state: RootState) => state.asset);
   const { credentials } = useSelector((state: RootState) => state.credential);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -54,6 +60,9 @@ const AssetsPage: React.FC = () => {
   const [groupTreeData, setGroupTreeData] = useState<any[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [batchDeleting, setBatchDeleting] = useState(false);
+  const [credentialModalVisible, setCredentialModalVisible] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [activeSessions, setActiveSessions] = useState<Set<number>>(new Set());
 
   // 根据路径确定当前资产类型
   const getCurrentAssetType = () => {
@@ -240,6 +249,51 @@ const AssetsPage: React.FC = () => {
       console.error('连接测试失败:', error);
     } finally {
       setTestingConnection(null);
+    }
+  };
+
+  // 处理连接请求
+  const handleConnect = async (asset: Asset) => {
+    if (credentials.length === 0) {
+      message.warning('没有可用的凭证，请先创建凭证');
+      return;
+    }
+    
+    // 显示凭证选择对话框
+    setSelectedAsset(asset);
+    setCredentialModalVisible(true);
+  };
+  
+  // 处理凭证选择
+  const handleCredentialSelect = async (credentialId: number) => {
+    if (!selectedAsset) return;
+    
+    setCredentialModalVisible(false);
+    
+    try {
+      // 先进行连接测试
+      const testResult = await performConnectionTest(dispatch, selectedAsset, credentialId);
+      
+      if (!testResult.success) {
+        return;
+      }
+      
+      // 测试通过，创建会话
+      const response = await dispatch(createSession({
+        asset_id: selectedAsset.id,
+        credential_id: credentialId,
+        protocol: selectedAsset.protocol || 'ssh'
+      })).unwrap();
+      
+      // 更新活跃会话状态
+      setActiveSessions(prev => new Set(prev).add(selectedAsset.id));
+      
+      message.success(`成功连接到 ${selectedAsset.name}`);
+      
+      // 跳转到终端页面
+      navigate(`/connect/terminal/${response.id}`);
+    } catch (error: any) {
+      message.error(`连接失败: ${error.message}`);
     }
   };
 
@@ -505,7 +559,7 @@ const AssetsPage: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 280,
       align: 'center' as const,
       fixed: 'right' as const,
       render: (text: any, record: any) => (
@@ -519,6 +573,20 @@ const AssetsPage: React.FC = () => {
               danger={testResults[record.id] && !testResults[record.id].success}
             >
               测试
+            </Button>
+          </Tooltip>
+          <Tooltip title="连接到主机">
+            <Button
+              type="primary"
+              icon={<LinkOutlined />}
+              onClick={() => handleConnect(record)}
+              disabled={activeSessions.has(record.id)}
+              style={{ 
+                backgroundColor: activeSessions.has(record.id) ? '#52c41a' : undefined,
+                borderColor: activeSessions.has(record.id) ? '#52c41a' : undefined
+              }}
+            >
+              {activeSessions.has(record.id) ? '已连接' : '连接'}
             </Button>
           </Tooltip>
           <Tooltip title="编辑">
@@ -888,6 +956,15 @@ const AssetsPage: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 凭证选择模态框 */}
+      <CredentialSelector
+        visible={credentialModalVisible}
+        onCancel={() => setCredentialModalVisible(false)}
+        onSelect={handleCredentialSelect}
+        asset={selectedAsset}
+        credentials={credentials}
+      />
     </>
   );
 };
