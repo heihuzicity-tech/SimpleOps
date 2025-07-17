@@ -107,7 +107,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             {
               key: '/credentials/ssh-key',
               icon: <KeyOutlined />,
-              label: 'SSH密钥凭证',
+              label: '密钥管理',
             },
           ],
         },

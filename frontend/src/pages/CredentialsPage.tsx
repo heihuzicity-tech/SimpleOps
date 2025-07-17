@@ -11,6 +11,7 @@ import {
   Tag,
   Popconfirm,
   Popover,
+  Tooltip,
   message,
   Alert,
 } from 'antd';
@@ -218,14 +219,14 @@ const CredentialsPage: React.FC = () => {
         title: '密码凭证管理',
         type: 'password',
         itemName: '密码凭证',
-        searchLabel: '密码名称'
+        searchLabel: '凭证名称'
       };
     } else if (location.pathname.includes('/credentials/ssh-key')) {
       return {
         title: '密钥凭证管理', 
         type: 'key',
         itemName: '密钥凭证',
-        searchLabel: '密钥名称'
+        searchLabel: '凭证名称'
       };
     }
     return {
@@ -323,22 +324,28 @@ const CredentialsPage: React.FC = () => {
       align: 'center' as const,
       fixed: 'right' as const,
       render: (text: any, record: any) => (
-        <Space size="middle">
-          <Button
-            type="text"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
-          <Popconfirm
-            title="确定要删除这个凭证吗？"
-            onConfirm={() => handleDelete(record.id)}
-          >
-            <Button type="text" danger icon={<DeleteOutlined />}>
-              删除
+        <Space size="small">
+          <Tooltip title="编辑">
+            <Button 
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+            >
+              编辑
             </Button>
-          </Popconfirm>
+          </Tooltip>
+          <Tooltip title="删除">
+            <Popconfirm
+              title="确定要删除这个凭证吗？"
+              onConfirm={() => handleDelete(record.id)}
+            >
+              <Button 
+                danger
+                icon={<DeleteOutlined />}
+              >
+                删除
+              </Button>
+            </Popconfirm>
+          </Tooltip>
         </Space>
       ),
     },
