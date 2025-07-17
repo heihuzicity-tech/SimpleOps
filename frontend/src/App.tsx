@@ -20,7 +20,7 @@ import OperationAuditPage from './pages/audit/OperationAuditPage';
 import AuditOverviewPage from './pages/audit/AuditOverviewPage';
 import GroupManagePage from './pages/GroupManagePage';
 import TerminalPage from './pages/connect/TerminalPage';
-import WorkspaceLayout from './pages/connect/WorkspaceLayout';
+import WorkspaceStandalone from './pages/connect/WorkspaceStandalone';
 
 const { Content } = Layout;
 
@@ -39,6 +39,17 @@ const App: React.FC = () => {
     <div className="App">
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* 独立的工作台页面 - 对所有已登录用户开放 */}
+        <Route 
+          path="/connect/workspace" 
+          element={
+            token ? (
+              <WorkspaceStandalone />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          } 
+        />
         <Route
           path="/*"
           element={
@@ -140,14 +151,6 @@ const App: React.FC = () => {
                     element={
                       <PermissionGuard requiredRole={['admin', 'operator']}>
                         <TerminalPage />
-                      </PermissionGuard>
-                    } 
-                  />
-                  <Route 
-                    path="/connect/workspace" 
-                    element={
-                      <PermissionGuard requiredRole={['admin', 'operator', 'user']}>
-                        <WorkspaceLayout />
                       </PermissionGuard>
                     } 
                   />

@@ -214,6 +214,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     if (currentPath.startsWith('/credentials/')) {
       openKeys = ['/credentials'];
     }
+    
+    // 如果是远程连接子页面，需要展开远程连接菜单
+    if (currentPath.startsWith('/connect/')) {
+      openKeys = ['/connect'];
+    }
 
     return { selectedKeys, openKeys };
   };
@@ -270,7 +275,25 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           }}
         >
           <div />
-          <Space size="small">
+          <Space size="middle">
+            <Space 
+              size="small" 
+              style={{ 
+                cursor: 'pointer',
+                padding: '4px 12px',
+                borderRadius: '6px',
+                transition: 'all 0.2s',
+                border: '1px solid #d9d9d9',
+                background: '#fafafa'
+              }}
+              onClick={() => {
+                // 在新标签页中打开工作台
+                window.open('/connect/workspace', '_blank', 'noopener,noreferrer');
+              }}
+            >
+              <CodeOutlined style={{ color: '#1890ff' }} />
+              <Text style={{ fontSize: '14px', color: '#1890ff' }}>控制台</Text>
+            </Space>
             <Text type="secondary" style={{ fontSize: '14px' }}>欢迎，</Text>
             <Dropdown
               menu={{ items: userMenuItems }}

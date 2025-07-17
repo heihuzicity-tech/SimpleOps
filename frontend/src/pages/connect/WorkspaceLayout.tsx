@@ -6,9 +6,11 @@ import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store';
 import { WorkspaceState, TabInfo } from '../../types/workspace';
 import SidePanel from '../../components/workspace/SidePanel';
+import TabContainer from '../../components/workspace/TabContainer';
 import { Asset } from '../../types';
 import { addTestConnectionHistory } from '../../utils/testData';
 import { runWorkspaceTests, quickTest } from '../../utils/testWorkspace';
+import { nanoid } from 'nanoid';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Paragraph } = Typography;
@@ -24,13 +26,8 @@ const WorkspaceLayout: React.FC = () => {
     sidebarWidth: 280,
     sidebarCollapsed: false,
     layout: 'horizontal',
-    preferences: {
-      autoReconnect: true,
-      maxTabs: 10,
-      defaultTerminalSize: { width: 80, height: 24 },
-      theme: 'light',
-      fontSize: 14
-    }
+    loading: false,
+    error: null
   });
 
   // 侧边栏折叠状态
@@ -52,68 +49,140 @@ const WorkspaceLayout: React.FC = () => {
 
   // 新建连接
   const handleNewConnection = useCallback(() => {
-    message.info('新建连接功能将在后续版本中实现');
+    // 创建一个示例标签页用于测试
+    const newTab: TabInfo = {
+      id: nanoid(),
+      title: `测试连接-${Date.now().toString().slice(-4)}`,
+      type: 'ssh',
+      assetInfo: {
+        id: Math.floor(Math.random() * 1000),
+        name: `test-server-${Date.now().toString().slice(-4)}`,
+        address: '192.168.1.100',
+        port: 22,
+        protocol: 'ssh',
+        os_type: 'linux'
+      },
+      credentialInfo: {
+        id: 1,
+        username: 'root',
+        type: 'password',
+        name: '测试凭证'
+      },
+      closable: true,
+      modified: false,
+      connectionStatus: 'idle',
+      createdAt: new Date(),
+      lastActivity: new Date()
+    };
+
+    setWorkspaceState(prev => ({
+      ...prev,
+      tabs: [...prev.tabs, newTab],
+      activeTabId: newTab.id
+    }));
+
+    message.success(`已创建新标签页: ${newTab.title}`);
   }, []);
 
   // 资产选择处理
   const handleAssetSelect = useCallback((asset: Asset) => {
     console.log('选中资产:', asset);
-    message.info(`选中了资产: ${asset.name}`);
     
-    // 后续会在这里触发凭证选择和连接创建
-    // 暂时先显示选择结果
+    // 创建基于真实资产的连接标签页
+    const newTab: TabInfo = {
+      id: nanoid(),
+      title: `${asset.name}`,
+      type: 'ssh',
+      assetInfo: {
+        id: asset.id,
+        name: asset.name,
+        address: asset.address,
+        port: asset.port || 22,
+        protocol: asset.protocol || 'ssh',
+        os_type: asset.os_type
+      },
+      credentialInfo: {
+        id: 1,
+        username: 'root',
+        type: 'password',
+        name: '默认凭证'
+      },
+      closable: true,
+      modified: false,
+      connectionStatus: 'connecting',
+      createdAt: new Date(),
+      lastActivity: new Date()
+    };
+
+    setWorkspaceState(prev => ({
+      ...prev,
+      tabs: [...prev.tabs, newTab],
+      activeTabId: newTab.id
+    }));
+
+    // 模拟连接过程
+    setTimeout(() => {
+      setWorkspaceState(prev => ({
+        ...prev,
+        tabs: prev.tabs.map(tab => 
+          tab.id === newTab.id 
+            ? { ...tab, connectionStatus: 'connected' as const, sessionId: `session_${nanoid()}` }
+            : tab
+        )
+      }));
+      message.success(`成功连接到 ${asset.name}`);
+    }, 2000);
+    
+    message.info(`正在连接到 ${asset.name}...`);
   }, []);
 
-  // 移除了renderSidebarContent函数，现在使用SidePanel组件
+  // 标签页切换处理
+  const handleTabChange = useCallback((tabId: string) => {
+    setWorkspaceState(prev => ({
+      ...prev,
+      activeTabId: tabId
+    }));
+  }, []);
+
+  // 标签页关闭处理
+  const handleTabClose = useCallback((tabId: string) => {
+    setWorkspaceState(prev => {
+      const tabIndex = prev.tabs.findIndex(tab => tab.id === tabId);
+      if (tabIndex === -1) return prev;
+
+      const newTabs = prev.tabs.filter(tab => tab.id !== tabId);
+      let newActiveTabId = prev.activeTabId;
+
+      // 如果关闭的是当前活跃标签页，切换到其他标签页
+      if (prev.activeTabId === tabId) {
+        if (newTabs.length > 0) {
+          const newActiveIndex = Math.max(0, tabIndex - 1);
+          newActiveTabId = newTabs[newActiveIndex]?.id || '';
+        } else {
+          newActiveTabId = '';
+        }
+      }
+
+      return {
+        ...prev,
+        tabs: newTabs,
+        activeTabId: newActiveTabId
+      };
+    });
+
+    message.info('标签页已关闭');
+  }, []);
 
   // 渲染主内容区域
   const renderMainContent = () => {
-    if (workspaceState.tabs.length === 0) {
-      return (
-        <div style={{ 
-          height: '100%', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          backgroundColor: '#fafafa'
-        }}>
-          <Empty
-            description={
-              <div style={{ textAlign: 'center' }}>
-                <Title level={3} style={{ color: '#666' }}>
-                  欢迎使用连接工作台
-                </Title>
-                <Paragraph style={{ fontSize: 16, color: '#999', marginBottom: 24 }}>
-                  从左侧选择主机资源开始连接，或点击下方按钮创建新的连接
-                </Paragraph>
-                <Button 
-                  type="primary" 
-                  size="large"
-                  icon={<PlusOutlined />} 
-                  onClick={handleNewConnection}
-                >
-                  新建连接
-                </Button>
-              </div>
-            }
-          />
-        </div>
-      );
-    }
-
     return (
-      <div style={{ 
-        height: '100%', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        backgroundColor: '#fafafa'
-      }}>
-        <div style={{ textAlign: 'center', color: '#999' }}>
-          <Paragraph>标签页容器</Paragraph>
-          <Paragraph>将在Day 3实现</Paragraph>
-        </div>
-      </div>
+      <TabContainer
+        tabs={workspaceState.tabs}
+        activeTabId={workspaceState.activeTabId}
+        onTabChange={handleTabChange}
+        onTabClose={handleTabClose}
+        onNewTab={handleNewConnection}
+      />
     );
   };
 
@@ -218,8 +287,9 @@ const WorkspaceLayout: React.FC = () => {
         
         <Content style={{ 
           height: '100%', 
-          backgroundColor: '#fff',
-          position: 'relative'
+          backgroundColor: '#f5f5f5',
+          position: 'relative',
+          padding: '8px'
         }}>
           {renderMainContent()}
         </Content>

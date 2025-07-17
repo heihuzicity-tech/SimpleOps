@@ -1,4 +1,4 @@
-import { ConnectionHistoryItem } from '../../types/workspace';
+import { ConnectionHistory } from '../../types/workspace';
 
 const STORAGE_KEY = 'bastion_connection_history';
 const MAX_HISTORY_ITEMS = 50;
@@ -32,7 +32,7 @@ export class ConnectionHistoryService {
         recentRecord.status = connectionInfo.status;
       } else {
         // 添加新记录
-        const newRecord: ConnectionHistoryItem = {
+        const newRecord: ConnectionHistory = {
           id: `${Date.now()}-${connectionInfo.assetId}-${connectionInfo.credentialId}`,
           assetId: connectionInfo.assetId,
           assetName: connectionInfo.assetName,
@@ -60,7 +60,7 @@ export class ConnectionHistoryService {
   }
 
   // 获取连接历史记录
-  static getConnectionHistory(): ConnectionHistoryItem[] {
+  static getConnectionHistory(): ConnectionHistory[] {
     try {
       const historyData = localStorage.getItem(STORAGE_KEY);
       if (!historyData) return [];
@@ -86,19 +86,19 @@ export class ConnectionHistoryService {
   }
 
   // 获取最近的连接记录
-  static getRecentConnections(limit: number = 10): ConnectionHistoryItem[] {
+  static getRecentConnections(limit: number = 10): ConnectionHistory[] {
     const history = this.getConnectionHistory();
     return history.slice(0, limit);
   }
 
   // 获取特定资产的历史记录
-  static getAssetHistory(assetId: number): ConnectionHistoryItem[] {
+  static getAssetHistory(assetId: number): ConnectionHistory[] {
     const history = this.getConnectionHistory();
     return history.filter(item => item.assetId === assetId);
   }
 
   // 获取特定用户的历史记录
-  static getUserHistory(username: string): ConnectionHistoryItem[] {
+  static getUserHistory(username: string): ConnectionHistory[] {
     const history = this.getConnectionHistory();
     return history.filter(item => item.username === username);
   }
@@ -158,9 +158,9 @@ export class ConnectionHistoryService {
     };
 
     // 计算平均连接时长
-    const successfulConnections = history.filter(item => item.status === 'success' && item.duration > 0);
+    const successfulConnections = history.filter(item => item.status === 'success' && item.duration && item.duration > 0);
     if (successfulConnections.length > 0) {
-      stats.averageDuration = successfulConnections.reduce((sum, item) => sum + item.duration, 0) / successfulConnections.length;
+      stats.averageDuration = successfulConnections.reduce((sum, item) => sum + (item.duration || 0), 0) / successfulConnections.length;
     }
 
     // 统计最常用的资产

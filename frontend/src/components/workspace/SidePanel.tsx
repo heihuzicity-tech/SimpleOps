@@ -14,8 +14,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { fetchAssets } from '../../store/assetSlice';
 import { fetchCredentials } from '../../store/credentialSlice';
-import ResourceTree from '../sessions/ResourceTree';
-import { ConnectionHistoryItem } from '../../types/workspace';
+import WorkspaceResourceTree from './WorkspaceResourceTree';
+import { ConnectionHistory } from '../../types/workspace';
 import { Asset } from '../../types';
 import ConnectionHistoryService from '../../services/workspace/connectionHistory';
 
@@ -43,8 +43,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
   
   const [activeTab, setActiveTab] = useState('resources');
   const [searchValue, setSearchValue] = useState('');
-  const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([]);
-  const [connectionHistory, setConnectionHistory] = useState<ConnectionHistoryItem[]>([]);
+  const [connectionHistory, setConnectionHistory] = useState<ConnectionHistory[]>([]);
 
   // 加载连接历史记录
   const loadConnectionHistory = useCallback(() => {
@@ -68,29 +67,14 @@ const SidePanel: React.FC<SidePanelProps> = ({
   }, [loadConnectionHistory]);
 
   // 处理资源树选择
-  const handleResourceSelect = useCallback((selectedKeys: React.Key[], info: any) => {
-    console.log('资源树选择:', selectedKeys, info);
-    setSelectedKeys(selectedKeys);
-    
-    if (selectedKeys.length > 0 && info.selected) {
-      const selectedKey = selectedKeys[0];
-      
-      // 如果选择的是具体资产
-      if (selectedKey !== 'all' && !isNaN(Number(selectedKey))) {
-        const asset = assets.find(a => a.id === Number(selectedKey));
-        if (asset) {
-          onAssetSelect(asset);
-          message.success(`选择了主机: ${asset.name}`);
-        }
-      } else {
-        // 选择的是分组，显示该分组下的资产
-        message.info(`选择了分组: ${info.node.title}`);
-      }
-    }
-  }, [assets, onAssetSelect]);
+  const handleResourceSelect = useCallback((asset: Asset) => {
+    console.log('资源树选择:', asset);
+    onAssetSelect(asset);
+    message.success(`选择了主机: ${asset.name}`);
+  }, [onAssetSelect]);
 
   // 处理历史记录点击
-  const handleHistoryClick = useCallback((item: ConnectionHistoryItem) => {
+  const handleHistoryClick = useCallback((item: ConnectionHistory) => {
     const asset = assets.find(a => a.id === item.assetId);
     if (asset) {
       onAssetSelect(asset);
@@ -144,35 +128,11 @@ const SidePanel: React.FC<SidePanelProps> = ({
 
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ marginBottom: 8 }}>
-          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-            <Search
-              placeholder="搜索资源"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              style={{ flex: 1 }}
-              size="small"
-              prefix={<SearchOutlined />}
-            />
-            <Tooltip title="刷新资源列表">
-              <Button
-                type="text"
-                icon={<ReloadOutlined />}
-                onClick={() => dispatch(fetchAssets({ page: 1, page_size: 100 }))}
-                loading={loading}
-                size="small"
-              />
-            </Tooltip>
-          </Space>
-        </div>
-        
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          <ResourceTree
-            onSelect={handleResourceSelect}
-            resourceType="host"
-            selectedKeys={selectedKeys}
-            totalCount={total}
+          <WorkspaceResourceTree
+            onAssetSelect={handleResourceSelect}
             searchValue={searchValue}
+            onSearchChange={setSearchValue}
           />
         </div>
       </div>
