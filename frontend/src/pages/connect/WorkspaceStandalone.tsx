@@ -103,46 +103,37 @@ const WorkspaceStandalone: React.FC = () => {
     setConnecting(true);
 
     try {
-      const hideLoading = message.loading('正在连接中...', 0);
+      // 使用静默模式进行连接测试
+      const testResult = await performConnectionTest(dispatch, selectedAsset, credentialId, true);
 
-      try {
-        // 使用静默模式进行连接测试
-        const testResult = await performConnectionTest(dispatch, selectedAsset, credentialId, true);
-
-        if (!testResult.success) {
-          hideLoading();
-          message.error(testResult.message);
-          return;
-        }
-
-        // 测试通过，创建会话
-        const response = await dispatch(createSession({
-          asset_id: selectedAsset.id,
-          credential_id: credentialId,
-          protocol: selectedAsset.protocol || 'ssh'
-        })).unwrap();
-
-        // 创建新标签页，使用时间戳确保唯一性
-        const credential = credentials.find(c => c.id === credentialId);
-        const timestamp = Date.now();
-        const newTab: TabInfo = {
-          id: `${response.id}-${timestamp}`,
-          title: `${selectedAsset.name}@${credential?.username}`,
-          sessionId: response.id,
-          assetInfo: selectedAsset,
-          credentialInfo: credential,
-          closable: true
-        };
-
-        setTabs(prev => [...prev, newTab]);
-        setActiveTabId(newTab.id);
-
-        hideLoading();
-        message.success(`成功连接到 ${selectedAsset.name}`);
-      } catch (error: any) {
-        hideLoading();
-        message.error(`连接失败: ${error.message}`);
+      if (!testResult.success) {
+        message.error(testResult.message);
+        return;
       }
+
+      // 测试通过，创建会话
+      const response = await dispatch(createSession({
+        asset_id: selectedAsset.id,
+        credential_id: credentialId,
+        protocol: selectedAsset.protocol || 'ssh'
+      })).unwrap();
+
+      // 创建新标签页，使用时间戳确保唯一性
+      const credential = credentials.find(c => c.id === credentialId);
+      const timestamp = Date.now();
+      const newTab: TabInfo = {
+        id: `${response.id}-${timestamp}`,
+        title: `${selectedAsset.name}@${credential?.username}`,
+        sessionId: response.id,
+        assetInfo: selectedAsset,
+        credentialInfo: credential,
+        closable: true
+      };
+
+      setTabs(prev => [...prev, newTab]);
+      setActiveTabId(newTab.id);
+
+      // 连接成功，但不显示提示消息
     } catch (error: any) {
       message.error(`连接失败: ${error.message}`);
     } finally {
