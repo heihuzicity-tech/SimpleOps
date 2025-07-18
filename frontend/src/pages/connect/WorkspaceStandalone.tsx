@@ -47,6 +47,7 @@ const WorkspaceStandalone: React.FC = () => {
   const [tabs, setTabs] = useState<TabInfo[]>([]);
   const [activeTabId, setActiveTabId] = useState<string>('');
   const [connecting, setConnecting] = useState(false);
+  const [autoConnectProcessed, setAutoConnectProcessed] = useState(false);
 
   // 侧边栏折叠状态
   const handleSidebarToggle = useCallback(() => {
@@ -214,7 +215,8 @@ const WorkspaceStandalone: React.FC = () => {
 
   // 处理URL参数自动连接
   useEffect(() => {
-    if (!token || !user || assets.length === 0 || credentials.length === 0) {
+    // 如果已经处理过或数据还未加载完成，则返回
+    if (autoConnectProcessed || !token || !user || assets.length === 0 || credentials.length === 0) {
       return;
     }
 
@@ -222,6 +224,14 @@ const WorkspaceStandalone: React.FC = () => {
     const assetId = searchParams.get('assetId');
     const assetName = searchParams.get('name');
     const assetAddress = searchParams.get('address');
+    
+    // 只有当有相关参数时才处理
+    if (!assetId && !assetName && !assetAddress) {
+      return;
+    }
+
+    // 标记为已处理，防止重复执行
+    setAutoConnectProcessed(true);
     
     if (assetId) {
       // 根据资产ID查找资产
@@ -259,7 +269,7 @@ const WorkspaceStandalone: React.FC = () => {
         message.error(`未找到主机: ${assetName || assetAddress}`);
       }
     }
-  }, [token, user, assets, credentials, location.search]);
+  }, [token, user, assets, credentials, location.search, autoConnectProcessed]);
 
   // 设置页面标题
   useEffect(() => {
