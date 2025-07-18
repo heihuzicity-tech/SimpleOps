@@ -7,28 +7,22 @@ import {
   Space, 
   message,
   Tooltip,
-  Badge,
   Select,
   Popover,
 } from 'antd';
 import { 
-  LinkOutlined, 
   ReloadOutlined,
   CloudServerOutlined,
   ApiOutlined,
   WindowsOutlined,
   LinuxOutlined
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
 import ResourceTree from '../../components/sessions/ResourceTree';
-import CredentialSelector from '../../components/sessions/CredentialSelector';
 import SearchSelect from '../../components/common/SearchSelect';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
 import { fetchAssets, testConnection } from '../../store/assetSlice';
 import { fetchCredentials } from '../../store/credentialSlice';
-import { createSession } from '../../store/sshSessionSlice';
-import { performConnectionTest } from '../../services/connectionTest';
 import type { ColumnsType } from 'antd/es/table';
 import type { Asset } from '../../types';
 
@@ -36,20 +30,14 @@ const { Option } = Select;
 
 const HostSessionsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const navigate = useNavigate();
   const { assets, loading } = useSelector((state: RootState) => state.asset);
   const { credentials } = useSelector((state: RootState) => state.credential);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [activeSessions, setActiveSessions] = useState<Set<number>>(new Set());
   const [testingConnection, setTestingConnection] = useState<number | null>(null);
   const [testResults, setTestResults] = useState<Record<number, { success: boolean; message: string }>>({});
-  const [credentialModalVisible, setCredentialModalVisible] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [searchText, setSearchText] = useState('');
   const [searchType, setSearchType] = useState('name'); // 搜索类型：name, address
   const [osTypeFilter, setOsTypeFilter] = useState<string>('all');
-  const [connectionStatusFilter, setConnectionStatusFilter] = useState<string>('all');
-  const [connecting, setConnecting] = useState<boolean>(false); // ✅ 添加连接中状态
 
   const loadAssets = useCallback(() => {
     dispatch(fetchAssets({
@@ -64,64 +52,6 @@ const HostSessionsPage: React.FC = () => {
     loadAssets();
     }, [loadAssets]);
 
-  const handleConnect = async (asset: Asset) => {
-      
-    if (credentials.length === 0) {
-      message.warning('没有可用的凭证，请先创建凭证');
-      return;
-    }
-    
-    // 显示凭证选择对话框
-    setSelectedAsset(asset);
-    setCredentialModalVisible(true);
-  };
-  
-  const handleCredentialSelect = async (credentialId: number) => {
-    if (!selectedAsset || connecting) return; // ✅ 防止并发连接
-    
-    setCredentialModalVisible(false);
-    setConnecting(true);
-    
-    try {
-      // ✅ 优化：显示统一的连接中状态
-      const hideLoading = message.loading('正在连接中...', 0);
-      
-      try {
-        // 使用静默模式进行连接测试，减少弹窗
-        const testResult = await performConnectionTest(dispatch, selectedAsset, credentialId, true);
-        
-        if (!testResult.success) {
-          hideLoading();
-          message.error(testResult.message);
-          return;
-        }
-        
-        // 测试通过，创建会话
-        const response = await dispatch(createSession({
-          asset_id: selectedAsset.id,
-          credential_id: credentialId,
-          protocol: selectedAsset.protocol || 'ssh'
-        })).unwrap();
-        
-        // 更新活跃会话状态
-        setActiveSessions(prev => new Set(prev).add(selectedAsset.id));
-        
-        hideLoading();
-        // ✅ 修复：只显示最终的连接成功消息
-        message.success(`成功连接到 ${selectedAsset.name}`);
-        
-        // 跳转到终端页面
-        navigate(`/connect/terminal/${response.id}`);
-      } catch (error: any) {
-        hideLoading();
-        message.error(`连接失败: ${error.message}`);
-      }
-    } catch (error: any) {
-      message.error(`连接失败: ${error.message}`);
-    } finally {
-      setConnecting(false);
-    }
-  };
 
   const handleTest = async (asset: Asset) => {
     // 获取该资产的凭据列表
@@ -220,9 +150,6 @@ const HostSessionsPage: React.FC = () => {
         <Space size="small">
           <CloudServerOutlined style={{ color: record.os_type === 'linux' ? '#52c41a' : '#1890ff' }} />
           <span>{text}</span>
-          {activeSessions.has(record.id) && (
-            <Badge status="processing" text="已连接" />
-          )}
         </Space>
       ),
     },
@@ -338,19 +265,6 @@ const HostSessionsPage: React.FC = () => {
               测试
             </Button>
           </Tooltip>
-          <Button
-            type="primary"
-            size="small"
-            icon={<LinkOutlined />}
-            onClick={() => handleConnect(record)}
-            disabled={activeSessions.has(record.id)}
-            style={{ 
-              backgroundColor: activeSessions.has(record.id) ? '#52c41a' : undefined,
-              borderColor: activeSessions.has(record.id) ? '#52c41a' : undefined
-            }}
-          >
-            {activeSessions.has(record.id) ? '已连接' : '连接'}
-          </Button>
         </Space>
       ),
     },
@@ -381,13 +295,6 @@ const HostSessionsPage: React.FC = () => {
       return false;
     }
     
-    // 连接状态筛选
-    if (connectionStatusFilter === 'connected' && !activeSessions.has(asset.id)) {
-      return false;
-    }
-    if (connectionStatusFilter === 'disconnected' && activeSessions.has(asset.id)) {
-      return false;
-    }
     
     // 分类筛选
     if (selectedCategory === 'all') return true;
@@ -464,16 +371,6 @@ const HostSessionsPage: React.FC = () => {
                 </Option>
               </Select>
               
-              <Select
-                value={connectionStatusFilter}
-                onChange={setConnectionStatusFilter}
-                style={{ width: 140 }}
-                placeholder="连接状态"
-              >
-                <Option value="all">全部状态</Option>
-                <Option value="connected">已连接</Option>
-                <Option value="disconnected">未连接</Option>
-              </Select>
               
               <Button
                 icon={<ReloadOutlined />}
@@ -508,14 +405,6 @@ const HostSessionsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 凭证选择对话框 */}
-      <CredentialSelector
-        visible={credentialModalVisible}
-        asset={selectedAsset}
-        credentials={credentials}
-        onSelect={handleCredentialSelect}
-        onCancel={() => setCredentialModalVisible(false)}
-      />
     </>
   );
 };

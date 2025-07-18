@@ -22,28 +22,21 @@ import {
   ReloadOutlined,
   ApiOutlined,
   DownOutlined,
-  LinkOutlined,
 } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { AppDispatch, RootState } from '../store';
 import { fetchAssets, createAsset, updateAsset, deleteAsset, batchDeleteAssets, testConnection } from '../store/assetSlice';
-import { createSession } from '../store/sshSessionSlice';
 import { fetchCredentials } from '../store/credentialSlice';
 import { getAssetGroups, AssetGroup } from '../services/assetAPI';
 import ResourceTree from '../components/sessions/ResourceTree';
 import SearchSelect from '../components/common/SearchSelect';
-import CredentialSelector from '../components/sessions/CredentialSelector';
-import { performConnectionTest } from '../services/connectionTest';
-import type { Asset } from '../types';
 
-const { Search } = Input;
 const { Option } = Select;
 
 const AssetsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const location = useLocation();
-  const navigate = useNavigate();
   const { assets, total, loading } = useSelector((state: RootState) => state.asset);
   const { credentials } = useSelector((state: RootState) => state.credential);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -51,18 +44,13 @@ const AssetsPage: React.FC = () => {
   const [form] = Form.useForm();
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchType, setSearchType] = useState('name'); // 搜索类型：name, address, os_type
-  const [typeFilter, setTypeFilter] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   const [testingConnection, setTestingConnection] = useState<number | null>(null);
   const [testResults, setTestResults] = useState<Record<number, { success: boolean; message: string }>>({});
   const [assetGroups, setAssetGroups] = useState<AssetGroup[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [groupTreeData, setGroupTreeData] = useState<any[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [batchDeleting, setBatchDeleting] = useState(false);
-  const [credentialModalVisible, setCredentialModalVisible] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-  const [activeSessions, setActiveSessions] = useState<Set<number>>(new Set());
 
   // 根据路径确定当前资产类型
   const getCurrentAssetType = () => {
@@ -71,11 +59,6 @@ const AssetsPage: React.FC = () => {
     return 'server'; // 默认
   };
 
-  const getCurrentPageTitle = () => {
-    if (location.pathname.includes('/assets/hosts')) return '主机资源';
-    if (location.pathname.includes('/assets/databases')) return '数据库';
-    return '主机资源'; // 默认
-  };
 
   const getCurrentResourceType = (): 'host' | 'database' => {
     if (location.pathname.includes('/assets/databases')) return 'database';
@@ -99,18 +82,6 @@ const AssetsPage: React.FC = () => {
       const groups = response.data.data || [];
       setAssetGroups(groups);
       
-      // 构建分组树数据
-      const treeData = [
-        {
-          title: '全部主机',
-          key: 'all',
-          children: groups.map((group: AssetGroup) => ({
-            title: `${group.name} (${group.asset_count || 0})`,
-            key: group.id.toString(),
-          }))
-        }
-      ];
-      setGroupTreeData(treeData);
     } catch (error) {
       console.error('加载资产分组失败:', error);
     }
@@ -252,50 +223,6 @@ const AssetsPage: React.FC = () => {
     }
   };
 
-  // 处理连接请求
-  const handleConnect = async (asset: Asset) => {
-    if (credentials.length === 0) {
-      message.warning('没有可用的凭证，请先创建凭证');
-      return;
-    }
-    
-    // 显示凭证选择对话框
-    setSelectedAsset(asset);
-    setCredentialModalVisible(true);
-  };
-  
-  // 处理凭证选择
-  const handleCredentialSelect = async (credentialId: number) => {
-    if (!selectedAsset) return;
-    
-    setCredentialModalVisible(false);
-    
-    try {
-      // 先进行连接测试
-      const testResult = await performConnectionTest(dispatch, selectedAsset, credentialId);
-      
-      if (!testResult.success) {
-        return;
-      }
-      
-      // 测试通过，创建会话
-      const response = await dispatch(createSession({
-        asset_id: selectedAsset.id,
-        credential_id: credentialId,
-        protocol: selectedAsset.protocol || 'ssh'
-      })).unwrap();
-      
-      // 更新活跃会话状态
-      setActiveSessions(prev => new Set(prev).add(selectedAsset.id));
-      
-      message.success(`成功连接到 ${selectedAsset.name}`);
-      
-      // 跳转到终端页面
-      navigate(`/connect/terminal/${response.id}`);
-    } catch (error: any) {
-      message.error(`连接失败: ${error.message}`);
-    }
-  };
 
   // 分层连接测试
   const performLayeredConnectionTest = async (asset: any, credentialId: number) => {
@@ -367,16 +294,6 @@ const AssetsPage: React.FC = () => {
     }
   };
 
-  const handleTypeFilter = (value: string) => {
-    setTypeFilter(value);
-    setPagination({ ...pagination, current: 1 });
-    dispatch(fetchAssets({
-      page: 1,
-      page_size: pagination.pageSize,
-      keyword: searchKeyword,
-      type: value,
-    }));
-  };
 
 
   const handleTreeSelect = (selectedKeys: React.Key[]) => {
@@ -435,27 +352,6 @@ const AssetsPage: React.FC = () => {
     }
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'server':
-        return 'blue';
-      case 'database':
-        return 'green';
-      default:
-        return 'default';
-    }
-  };
-
-  const getTypeText = (type: string) => {
-    switch (type) {
-      case 'server':
-        return '服务器';
-      case 'database':
-        return '数据库';
-      default:
-        return type;
-    }
-  };
 
   const columns = [
     {
@@ -573,20 +469,6 @@ const AssetsPage: React.FC = () => {
               danger={testResults[record.id] && !testResults[record.id].success}
             >
               测试
-            </Button>
-          </Tooltip>
-          <Tooltip title="连接到主机">
-            <Button
-              type="primary"
-              icon={<LinkOutlined />}
-              onClick={() => handleConnect(record)}
-              disabled={activeSessions.has(record.id)}
-              style={{ 
-                backgroundColor: activeSessions.has(record.id) ? '#52c41a' : undefined,
-                borderColor: activeSessions.has(record.id) ? '#52c41a' : undefined
-              }}
-            >
-              {activeSessions.has(record.id) ? '已连接' : '连接'}
             </Button>
           </Tooltip>
           <Tooltip title="编辑">
@@ -957,14 +839,6 @@ const AssetsPage: React.FC = () => {
         </Form>
       </Modal>
 
-      {/* 凭证选择模态框 */}
-      <CredentialSelector
-        visible={credentialModalVisible}
-        onCancel={() => setCredentialModalVisible(false)}
-        onSelect={handleCredentialSelect}
-        asset={selectedAsset}
-        credentials={credentials}
-      />
     </>
   );
 };
