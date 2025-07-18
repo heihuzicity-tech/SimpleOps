@@ -195,7 +195,6 @@ const DatabaseSessionsPage: React.FC = () => {
               <Space>
                 <DatabaseOutlined />
                 <span>数据库资源</span>
-                <Badge count={filteredAssets.length} showZero />
               </Space>
             }
             extra={

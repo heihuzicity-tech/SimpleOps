@@ -33,7 +33,7 @@ const { Option } = Select;
 const HostSessionsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const { assets, loading } = useSelector((state: RootState) => state.asset);
+  const { assets, loading, total } = useSelector((state: RootState) => state.asset);
   const { credentials } = useSelector((state: RootState) => state.credential);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [testingConnection, setTestingConnection] = useState<number | null>(null);
@@ -41,6 +41,7 @@ const HostSessionsPage: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [searchType, setSearchType] = useState('name'); // 搜索类型：name, address
   const [osTypeFilter, setOsTypeFilter] = useState<string>('all');
+  const [totalHostCount, setTotalHostCount] = useState<number>(0);
 
   const loadAssets = useCallback(() => {
     dispatch(fetchAssets({
@@ -51,9 +52,43 @@ const HostSessionsPage: React.FC = () => {
     dispatch(fetchCredentials({ page: 1, page_size: 100 }));
   }, [dispatch]);
 
+  const loadTotalHostCount = useCallback(() => {
+    dispatch(fetchAssets({
+      page: 1,
+      page_size: 100,
+      type: 'server'
+    }));
+  }, [dispatch]);
+
+  const loadAssetsByGroup = useCallback((groupKey: string) => {
+    if (groupKey === 'all') {
+      // 加载所有主机资产
+      dispatch(fetchAssets({
+        page: 1,
+        page_size: 100,
+        type: 'server'
+      }));
+    } else {
+      // 根据分组ID过滤资产
+      dispatch(fetchAssets({
+        page: 1,
+        page_size: 100,
+        type: 'server',
+        group_id: parseInt(groupKey)
+      }));
+    }
+  }, [dispatch]);
+
   useEffect(() => {
     loadAssets();
-    }, [loadAssets]);
+  }, [loadAssets]);
+
+  // 当 assets 数据变化时，如果当前选择的是 'all'，更新总数
+  useEffect(() => {
+    if (selectedCategory === 'all') {
+      setTotalHostCount(assets.filter(asset => asset.type === 'server').length);
+    }
+  }, [assets, selectedCategory]);
 
   // 处理连接 - 跳转到控制台并自动连接
   const handleConnect = async (asset: Asset) => {
@@ -147,7 +182,14 @@ const HostSessionsPage: React.FC = () => {
 
   const handleTreeSelect = (selectedKeys: React.Key[]) => {
     if (selectedKeys.length > 0) {
-      setSelectedCategory(selectedKeys[0] as string);
+      const categoryKey = selectedKeys[0] as string;
+      setSelectedCategory(categoryKey);
+      // 根据选中的分组重新加载资产数据
+      loadAssetsByGroup(categoryKey);
+    } else {
+      // 如果没有选中任何分组，默认选择'all'
+      setSelectedCategory('all');
+      loadAssetsByGroup('all');
     }
   };
   
@@ -315,9 +357,7 @@ const HostSessionsPage: React.FC = () => {
     }
     
     
-    // 分类筛选
-    if (selectedCategory === 'all') return true;
-    // 这里可以根据实际的分类逻辑过滤
+    // 分类筛选现在在后端处理，这里不需要额外过滤
     return true;
   });
 
@@ -336,7 +376,7 @@ const HostSessionsPage: React.FC = () => {
           <ResourceTree 
             resourceType="host"
             onSelect={handleTreeSelect}
-            totalCount={filteredAssets.length}
+            totalCount={totalHostCount}
           />
         </div>
         <div 

@@ -5,6 +5,8 @@
   "description": "运维堡垒机系统前端界面",
   "dependencies": {
     "@reduxjs/toolkit": "^1.9.7",
+    "@stagewise-plugins/react": "^0.6.1",
+    "@stagewise/toolbar-react": "^0.6.1",
     "@types/node": "^16.18.0",
     "@types/react": "^18.2.33",
     "@types/react-dom": "^18.2.14",

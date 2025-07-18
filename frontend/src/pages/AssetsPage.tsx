@@ -51,6 +51,7 @@ const AssetsPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [batchDeleting, setBatchDeleting] = useState(false);
+  const [totalAssetCount, setTotalAssetCount] = useState<number>(0);
 
   // 根据路径确定当前资产类型
   const getCurrentAssetType = () => {
@@ -71,6 +72,14 @@ const AssetsPage: React.FC = () => {
     // 初始化时加载全部资产
     loadAssetsByGroup('all');
   }, []);
+
+  // 当资产数据变化时，如果当前选择的是 'all'，更新总数
+  useEffect(() => {
+    if (selectedCategory === 'all') {
+      const currentType = getCurrentAssetType();
+      setTotalAssetCount(assets.filter(asset => asset.type === currentType).length);
+    }
+  }, [assets, selectedCategory]);
 
   const loadCredentials = () => {
     dispatch(fetchCredentials({ page: 1, page_size: 100 }));
@@ -535,7 +544,7 @@ const AssetsPage: React.FC = () => {
             resourceType={getCurrentResourceType()}
             onSelect={handleTreeSelect}
             selectedKeys={[selectedCategory]}
-            totalCount={total}
+            totalCount={totalAssetCount}
           />
         </div>
         <div 
