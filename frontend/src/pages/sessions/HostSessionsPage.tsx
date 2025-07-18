@@ -11,6 +11,7 @@ import {
   Popover,
 } from 'antd';
 import { 
+  LinkOutlined,
   ReloadOutlined,
   CloudServerOutlined,
   ApiOutlined,
@@ -19,6 +20,7 @@ import {
 } from '@ant-design/icons';
 import ResourceTree from '../../components/sessions/ResourceTree';
 import SearchSelect from '../../components/common/SearchSelect';
+import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
 import { fetchAssets, testConnection } from '../../store/assetSlice';
@@ -30,6 +32,7 @@ const { Option } = Select;
 
 const HostSessionsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const navigate = useNavigate();
   const { assets, loading } = useSelector((state: RootState) => state.asset);
   const { credentials } = useSelector((state: RootState) => state.credential);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -51,6 +54,15 @@ const HostSessionsPage: React.FC = () => {
   useEffect(() => {
     loadAssets();
     }, [loadAssets]);
+
+  // 处理连接 - 跳转到控制台并自动连接
+  const handleConnect = async (asset: Asset) => {
+    // 构建控制台URL，传递主机信息用于自动连接
+    const workspaceUrl = `/connect/workspace?assetId=${asset.id}&name=${encodeURIComponent(asset.name)}&address=${asset.address}`;
+    
+    // 在新标签页中打开控制台
+    window.open(workspaceUrl, '_blank', 'noopener,noreferrer');
+  };
 
 
   const handleTest = async (asset: Asset) => {
@@ -265,6 +277,14 @@ const HostSessionsPage: React.FC = () => {
               测试
             </Button>
           </Tooltip>
+          <Button
+            type="primary"
+            size="small"
+            icon={<LinkOutlined />}
+            onClick={() => handleConnect(record)}
+          >
+            连接
+          </Button>
         </Space>
       ),
     },

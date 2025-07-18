@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Layout, Button, Typography, message, Modal, Tabs } from 'antd';
-import { PlusOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
+import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import { useSelector, useDispatch } from 'react-redux';
-// import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store';
 import CredentialSelector from '../../components/sessions/CredentialSelector';
 import WebTerminal from '../../components/ssh/WebTerminal';
@@ -28,7 +28,7 @@ interface TabInfo {
 
 const WorkspaceStandalone: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  // const location = useLocation();
+  const location = useLocation();
   const { assets } = useSelector((state: RootState) => state.asset);
   const { credentials } = useSelector((state: RootState) => state.credential);
   const { user, token, loading } = useSelector((state: RootState) => state.auth);
@@ -211,6 +211,55 @@ const WorkspaceStandalone: React.FC = () => {
       }
     }
   }, [dispatch, token, user, assets.length, credentials.length]);
+
+  // 处理URL参数自动连接
+  useEffect(() => {
+    if (!token || !user || assets.length === 0 || credentials.length === 0) {
+      return;
+    }
+
+    const searchParams = new URLSearchParams(location.search);
+    const assetId = searchParams.get('assetId');
+    const assetName = searchParams.get('name');
+    const assetAddress = searchParams.get('address');
+    
+    if (assetId) {
+      // 根据资产ID查找资产
+      const targetAsset = assets.find(asset => asset.id === parseInt(assetId));
+      if (targetAsset) {
+        console.log('自动连接主机:', targetAsset);
+        message.info(`正在自动连接主机: ${targetAsset.name}`);
+        
+        // 自动选择资产并打开凭证选择对话框
+        setSelectedAsset(targetAsset);
+        setCredentialSelectorVisible(true);
+        
+        // 清除URL参数以避免重复处理
+        const newUrl = window.location.pathname;
+        window.history.replaceState(null, '', newUrl);
+      } else {
+        message.error(`未找到ID为 ${assetId} 的主机资源`);
+      }
+    } else if (assetName && assetAddress) {
+      // 根据主机名或地址查找资产
+      const targetAsset = assets.find(asset => 
+        asset.name === assetName || asset.address === assetAddress
+      );
+      if (targetAsset) {
+        console.log('自动连接主机:', targetAsset);
+        message.info(`正在自动连接主机: ${targetAsset.name}`);
+        
+        setSelectedAsset(targetAsset);
+        setCredentialSelectorVisible(true);
+        
+        // 清除URL参数
+        const newUrl = window.location.pathname;
+        window.history.replaceState(null, '', newUrl);
+      } else {
+        message.error(`未找到主机: ${assetName || assetAddress}`);
+      }
+    }
+  }, [token, user, assets, credentials, location.search]);
 
   // 设置页面标题
   useEffect(() => {
