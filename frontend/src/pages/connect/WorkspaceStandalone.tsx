@@ -164,7 +164,7 @@ const WorkspaceStandalone: React.FC = () => {
       return newTabs;
     });
     
-    message.info('连接已关闭');
+    // 连接已关闭，但不显示提示消息
   }, [activeTabId]);
 
 
