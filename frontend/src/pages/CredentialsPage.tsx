@@ -325,27 +325,23 @@ const CredentialsPage: React.FC = () => {
       fixed: 'right' as const,
       render: (text: any, record: any) => (
         <Space size="small">
-          <Tooltip title="编辑">
+          <Button 
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+          >
+            编辑
+          </Button>
+          <Popconfirm
+            title="确定要删除这个凭证吗？"
+            onConfirm={() => handleDelete(record.id)}
+          >
             <Button 
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
+              danger
+              icon={<DeleteOutlined />}
             >
-              编辑
+              删除
             </Button>
-          </Tooltip>
-          <Tooltip title="删除">
-            <Popconfirm
-              title="确定要删除这个凭证吗？"
-              onConfirm={() => handleDelete(record.id)}
-            >
-              <Button 
-                danger
-                icon={<DeleteOutlined />}
-              >
-                删除
-              </Button>
-            </Popconfirm>
-          </Tooltip>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -378,7 +374,6 @@ const CredentialsPage: React.FC = () => {
             <Button
               icon={<ReloadOutlined />}
               onClick={loadCredentials}
-              title="刷新数据"
             >
               刷新
             </Button>

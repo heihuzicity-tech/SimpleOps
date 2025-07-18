@@ -460,38 +460,33 @@ const AssetsPage: React.FC = () => {
       fixed: 'right' as const,
       render: (text: any, record: any) => (
         <Space size="small">
-          <Tooltip title={testResults[record.id] ? testResults[record.id].message : "测试连接"}>
+          <Button 
+            icon={<ApiOutlined />}
+            loading={testingConnection === record.id}
+            onClick={() => handleTestConnection(record)}
+            type={testResults[record.id] && testResults[record.id].success ? 'primary' : 'default'}
+            danger={testResults[record.id] && !testResults[record.id].success}
+            title={testResults[record.id] ? testResults[record.id].message : undefined}
+          >
+            测试
+          </Button>
+          <Button 
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+          >
+            编辑
+          </Button>
+          <Popconfirm
+            title="确定要删除这个资产吗？"
+            onConfirm={() => handleDelete(record.id)}
+          >
             <Button 
-              icon={<ApiOutlined />}
-              loading={testingConnection === record.id}
-              onClick={() => handleTestConnection(record)}
-              type={testResults[record.id] && testResults[record.id].success ? 'primary' : 'default'}
-              danger={testResults[record.id] && !testResults[record.id].success}
+              danger
+              icon={<DeleteOutlined />}
             >
-              测试
+              删除
             </Button>
-          </Tooltip>
-          <Tooltip title="编辑">
-            <Button 
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-            >
-              编辑
-            </Button>
-          </Tooltip>
-          <Tooltip title="删除">
-            <Popconfirm
-              title="确定要删除这个资产吗？"
-              onConfirm={() => handleDelete(record.id)}
-            >
-              <Button 
-                danger
-                icon={<DeleteOutlined />}
-              >
-                删除
-              </Button>
-            </Popconfirm>
-          </Tooltip>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -576,7 +571,6 @@ const AssetsPage: React.FC = () => {
               <Button
                 icon={<ReloadOutlined />}
                 onClick={handleRefresh}
-                title="刷新数据"
               >
                 刷新
               </Button>

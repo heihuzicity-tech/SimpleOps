@@ -261,15 +261,13 @@ const GroupManagePage: React.FC = () => {
       width: 200,
       render: (_: any, record: AssetGroup) => (
         <Space>
-          <Tooltip title="管理资产">
-            <Button
-              type="link"
-              icon={<UsergroupAddOutlined />}
-              onClick={() => handleManageAssets(record)}
-            >
-              管理资产
-            </Button>
-          </Tooltip>
+          <Button
+            type="link"
+            icon={<UsergroupAddOutlined />}
+            onClick={() => handleManageAssets(record)}
+          >
+            管理资产
+          </Button>
           <Tooltip title="编辑">
             <Button
               type="link"

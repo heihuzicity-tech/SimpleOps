@@ -401,14 +401,12 @@ export const ResourceTable = <T extends Record<string, any>>({
           )}
           
           {config.exportable && (
-            <Tooltip title="导出数据">
-              <Button 
-                icon={<ExportOutlined />} 
-                onClick={() => onExport && onExport(data)}
-              >
-                导出
-              </Button>
-            </Tooltip>
+            <Button 
+              icon={<ExportOutlined />} 
+              onClick={() => onExport && onExport(data)}
+            >
+              导出
+            </Button>
           )}
           
           {config.columnConfigurable && (

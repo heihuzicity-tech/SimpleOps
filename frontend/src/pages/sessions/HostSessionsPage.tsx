@@ -265,18 +265,17 @@ const HostSessionsPage: React.FC = () => {
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Tooltip title={testResults[record.id] ? testResults[record.id].message : "测试连接"}>
-            <Button
-              size="small"
-              icon={<ApiOutlined />}
-              onClick={() => handleTest(record)}
-              loading={testingConnection === record.id}
-              type={testResults[record.id] && testResults[record.id].success ? 'primary' : 'default'}
-              danger={testResults[record.id] && !testResults[record.id].success}
-            >
-              测试
-            </Button>
-          </Tooltip>
+          <Button
+            size="small"
+            icon={<ApiOutlined />}
+            onClick={() => handleTest(record)}
+            loading={testingConnection === record.id}
+            type={testResults[record.id] && testResults[record.id].success ? 'primary' : 'default'}
+            danger={testResults[record.id] && !testResults[record.id].success}
+            title={testResults[record.id] ? testResults[record.id].message : undefined}
+          >
+            测试
+          </Button>
           <Button
             type="primary"
             size="small"
@@ -396,7 +395,6 @@ const HostSessionsPage: React.FC = () => {
                 icon={<ReloadOutlined />}
                 onClick={loadAssets}
                 loading={loading}
-                title="刷新数据"
               >
                 刷新
               </Button>
