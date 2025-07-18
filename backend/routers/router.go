@@ -124,6 +124,7 @@ func SetupRouter() *gin.Engine {
 			{
 				assetGroups.POST("/", middleware.RequirePermission("asset:create"), assetController.CreateAssetGroup)
 				assetGroups.GET("/", assetController.GetAssetGroups)
+				assetGroups.GET("/with-hosts", assetController.GetAssetGroupsWithHosts) // 新增：获取包含主机详情的分组列表
 				assetGroups.GET("/:id", assetController.GetAssetGroup)
 				assetGroups.PUT("/:id", middleware.RequirePermission("asset:update"), assetController.UpdateAssetGroup)
 				assetGroups.DELETE("/:id", middleware.RequirePermission("asset:delete"), assetController.DeleteAssetGroup)

@@ -822,3 +822,45 @@ func (ac *AssetController) BatchMoveAssets(c *gin.Context) {
 		},
 	})
 }
+
+// GetAssetGroupsWithHosts 获取包含主机详情的资产分组列表（用于控制台树形菜单）
+// @Summary      获取包含主机详情的资产分组列表
+// @Description  获取资产分组列表，包含每个分组下的主机详细信息，用于控制台树形菜单显示
+// @Tags         资产管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        type    query     string  false  "资产类型过滤" Enums(server, database)
+// @Success      200  {object}  map[string]interface{}  "获取成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Failure      403  {object}  map[string]interface{}  "权限不足"
+// @Failure      500  {object}  map[string]interface{}  "服务器错误"
+// @Router       /asset-groups/with-hosts [get]
+func (ac *AssetController) GetAssetGroupsWithHosts(c *gin.Context) {
+	// 获取资产类型过滤参数
+	assetType := c.Query("type")
+	
+	// 验证资产类型
+	if assetType != "" && assetType != "server" && assetType != "database" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid asset type. Must be 'server' or 'database'",
+		})
+		return
+	}
+
+	// 调用资产服务
+	groups, err := ac.assetService.GetAssetGroupsWithHosts(assetType)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "获取资产分组列表失败",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    groups,
+	})
+}

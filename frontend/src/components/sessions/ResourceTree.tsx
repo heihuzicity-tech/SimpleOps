@@ -10,7 +10,7 @@ import {
   HddOutlined
 } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
-import { getAssetGroups, AssetGroup } from '../../services/assetAPI';
+import { getAssetGroups, AssetGroup, getAssetGroupsWithHosts, AssetGroupWithHosts } from '../../services/assetAPI';
 
 const { Search } = Input;
 
@@ -22,6 +22,7 @@ interface ResourceTreeProps {
   totalCount?: number; // 新增：总数量统计
   searchValue?: string; // 新增：外部搜索值
   hideSearch?: boolean; // 新增：是否隐藏搜索框
+  showHostDetails?: boolean; // 新增：是否显示主机详情（仅控制台页面使用）
 }
 
 const ResourceTree: React.FC<ResourceTreeProps> = ({ 
@@ -31,16 +32,34 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
   treeData: externalTreeData,
   totalCount = 0, // 新增：总数量参数
   searchValue: externalSearchValue = '', // 新增：外部搜索值
-  hideSearch = false // 新增：是否隐藏搜索框
+  hideSearch = false, // 新增：是否隐藏搜索框
+  showHostDetails = false // 新增：是否显示主机详情
 }) => {
   const [treeData, setTreeData] = useState<DataNode[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [searchValue, setSearchValue] = useState(externalSearchValue);
   const [autoExpandParent, setAutoExpandParent] = useState(true);
   const [groups, setGroups] = useState<AssetGroup[]>([]);
+  const [groupsWithHosts, setGroupsWithHosts] = useState<AssetGroupWithHosts[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 加载资产分组数据
+  // 加载资产分组数据（包含主机详情）
+  const loadAssetGroupsWithHosts = async () => {
+    try {
+      setLoading(true);
+      const assetType = resourceType === 'host' ? 'server' : 'database';
+      const response = await getAssetGroupsWithHosts({ type: assetType });
+      const groupsData = response.data.data || [];
+      setGroupsWithHosts(groupsData);
+    } catch (error) {
+      console.error('加载资产分组失败:', error);
+      message.error('加载资产分组失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 加载资产分组数据（兼容旧版本）
   const loadAssetGroups = async () => {
     try {
       setLoading(true);
@@ -56,8 +75,14 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
   };
 
   useEffect(() => {
-    loadAssetGroups();
-  }, []);
+    if (showHostDetails) {
+      // 仅当需要显示主机详情时才加载新数据
+      loadAssetGroupsWithHosts();
+    } else {
+      // 默认情况下加载传统的分组数据
+      loadAssetGroups();
+    }
+  }, [resourceType, showHostDetails]);
 
   // 同步外部搜索值
   useEffect(() => {
@@ -99,22 +124,55 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
     // 根据真实API数据生成树形数据
     const generateTreeData = (): DataNode[] => {
       if (resourceType === 'host') {
-        // 将分组数据转换为树形结构
-        const groupItems = groups.map(group => ({
-          title: `${group.name} (${group.asset_count})`,
-          key: group.id.toString(),
-          icon: <FolderOutlined />,
-          isLeaf: true,
-        }));
-
-        return [
-          {
-            title: `全部主机${totalCount > 0 ? `(${totalCount})` : ''}`,
-            key: 'all',
+        if (showHostDetails && groupsWithHosts.length > 0) {
+          // 使用包含主机详情的数据生成树形结构（仅控制台页面）
+          const groupItems = groupsWithHosts.map(group => ({
+            title: `${group.name} (${group.asset_count})`,
+            key: group.id.toString(),
             icon: <FolderOutlined />,
-            children: groupItems,
-          },
-        ];
+            children: group.assets.map(asset => ({
+              title: asset.name,
+              key: `asset-${asset.id}`,
+              icon: <DesktopOutlined />,
+              isLeaf: true,
+              // 存储额外信息用于后续处理
+              data: {
+                type: 'asset',
+                asset: asset,
+                groupId: group.id,
+              },
+            })),
+          }));
+
+          // 计算总主机数量
+          const totalHosts = groupsWithHosts.reduce((sum, group) => sum + group.asset_count, 0);
+
+          return [
+            {
+              title: `全部主机${totalHosts > 0 ? `(${totalHosts})` : ''}`,
+              key: 'all',
+              icon: <FolderOutlined />,
+              children: groupItems,
+            },
+          ];
+        } else {
+          // 使用传统的分组数据结构（其他页面）
+          const groupItems = groups.map(group => ({
+            title: `${group.name} (${group.asset_count})`,
+            key: group.id.toString(),
+            icon: <FolderOutlined />,
+            isLeaf: true,
+          }));
+
+          return [
+            {
+              title: `全部主机${totalCount > 0 ? `(${totalCount})` : ''}`,
+              key: 'all',
+              icon: <FolderOutlined />,
+              children: groupItems,
+            },
+          ];
+        }
       } else {
         // 数据库类型，暂时保持简单结构
         return [
@@ -152,7 +210,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
     const data = generateTreeData();
     setTreeData(data);
     setExpandedKeys(['all']);
-  }, [resourceType, groups, externalTreeData, totalCount]);
+  }, [resourceType, groups, groupsWithHosts, externalTreeData, totalCount, showHostDetails]);
 
   const onExpand = (newExpandedKeys: React.Key[]) => {
     setExpandedKeys(newExpandedKeys as string[]);

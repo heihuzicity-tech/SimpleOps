@@ -1055,6 +1055,27 @@ type AssetGroupListRequest struct {
 	Keyword  string `form:"keyword" binding:"omitempty,max=50"`
 }
 
+// AssetGroupWithHostsResponse 包含主机详情的资产分组响应
+type AssetGroupWithHostsResponse struct {
+	ID          uint             `json:"id"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	AssetCount  int              `json:"asset_count"`
+	Assets      []AssetItemResponse `json:"assets"`
+	CreatedAt   time.Time        `json:"created_at"`
+	UpdatedAt   time.Time        `json:"updated_at"`
+}
+
+// AssetItemResponse 简化的资产响应（用于树形菜单）
+type AssetItemResponse struct {
+	ID      uint   `json:"id"`
+	Name    string `json:"name"`
+	Address string `json:"address"`
+	Status  int    `json:"status"`
+	OsType  string `json:"os_type"`
+	Protocol string `json:"protocol"`
+}
+
 // AssetGroupResponse 转换方法
 func (ag *AssetGroup) ToResponse() *AssetGroupResponse {
 	return &AssetGroupResponse{
@@ -1062,6 +1083,31 @@ func (ag *AssetGroup) ToResponse() *AssetGroupResponse {
 		Name:        ag.Name,
 		Description: ag.Description,
 		AssetCount:  len(ag.Assets),
+		CreatedAt:   ag.CreatedAt,
+		UpdatedAt:   ag.UpdatedAt,
+	}
+}
+
+// ToResponseWithHosts 转换为包含主机详情的响应格式
+func (ag *AssetGroup) ToResponseWithHosts() *AssetGroupWithHostsResponse {
+	assets := make([]AssetItemResponse, len(ag.Assets))
+	for i, asset := range ag.Assets {
+		assets[i] = AssetItemResponse{
+			ID:       asset.ID,
+			Name:     asset.Name,
+			Address:  asset.Address,
+			Status:   asset.Status,
+			OsType:   asset.OsType,
+			Protocol: asset.Protocol,
+		}
+	}
+	
+	return &AssetGroupWithHostsResponse{
+		ID:          ag.ID,
+		Name:        ag.Name,
+		Description: ag.Description,
+		AssetCount:  len(ag.Assets),
+		Assets:      assets,
 		CreatedAt:   ag.CreatedAt,
 		UpdatedAt:   ag.UpdatedAt,
 	}

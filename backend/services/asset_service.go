@@ -930,3 +930,30 @@ func (s *AssetService) BatchMoveAssetsToGroup(request *models.AssetBatchMoveRequ
 	
 	return nil
 }
+
+// GetAssetGroupsWithHosts 获取包含主机详细信息的资产分组列表（用于控制台树形菜单）
+func (s *AssetService) GetAssetGroupsWithHosts(assetType string) ([]*models.AssetGroupWithHostsResponse, error) {
+	var groups []models.AssetGroup
+	
+	// 查询所有分组，预加载指定类型的资产
+	query := s.db.Model(&models.AssetGroup{})
+	
+	// 预加载资产时过滤资产类型
+	if assetType != "" {
+		query = query.Preload("Assets", "type = ? AND deleted_at IS NULL", assetType)
+	} else {
+		query = query.Preload("Assets", "deleted_at IS NULL")
+	}
+	
+	if err := query.Find(&groups).Error; err != nil {
+		return nil, fmt.Errorf("failed to query asset groups with hosts: %w", err)
+	}
+	
+	// 转换为响应格式
+	responses := make([]*models.AssetGroupWithHostsResponse, len(groups))
+	for i, group := range groups {
+		responses[i] = group.ToResponseWithHosts()
+	}
+	
+	return responses, nil
+}

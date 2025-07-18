@@ -6,6 +6,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import CredentialSelector from '../../components/sessions/CredentialSelector';
 import WebTerminal from '../../components/ssh/WebTerminal';
+import ResourceTree from '../../components/sessions/ResourceTree';
 import { Asset } from '../../types';
 import { fetchAssets } from '../../store/assetSlice';
 import { fetchCredentials } from '../../store/credentialSlice';
@@ -71,6 +72,26 @@ const WorkspaceStandalone: React.FC = () => {
     setSelectedAsset(asset);
     setCredentialSelectorVisible(true);
   }, []);
+
+  // 处理树形菜单选择
+  const handleTreeSelect = useCallback((selectedKeys: React.Key[], info: any) => {
+    console.log('树形选择:', selectedKeys, info);
+    
+    // 检查是否选中了具体的主机资产
+    if (selectedKeys.length > 0) {
+      const selectedKey = selectedKeys[0] as string;
+      
+      // 检查是否是主机资产（以 asset- 开头）
+      if (selectedKey.startsWith('asset-')) {
+        const assetId = parseInt(selectedKey.replace('asset-', ''));
+        const asset = assets.find(a => a.id === assetId);
+        
+        if (asset) {
+          handleHostSelect(asset);
+        }
+      }
+    }
+  }, [assets, handleHostSelect]);
 
   // 处理凭证选择 - 使用现有的简单逻辑
   const handleCredentialSelect = useCallback(async (credentialId: number) => {
@@ -312,54 +333,14 @@ const WorkspaceStandalone: React.FC = () => {
             </div>
             
             {/* 侧边栏内容 */}
-            <div style={{ flex: 1, overflow: 'hidden', padding: '16px' }}>
-              <div style={{ marginBottom: '12px' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#262626' }}>
-                  主机列表 ({assets.filter(a => a.type === 'server').length})
-                </div>
-                <div style={{ maxHeight: '400px', overflow: 'auto' }}>
-                  {assets.filter(asset => asset.type === 'server').map(asset => (
-                    <div 
-                      key={asset.id}
-                      style={{
-                        padding: '8px 12px',
-                        margin: '4px 0',
-                        border: '1px solid #d9d9d9',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        backgroundColor: '#fafafa',
-                        transition: 'all 0.2s'
-                      }}
-                      onClick={() => handleHostSelect(asset)}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#e6f7ff';
-                        e.currentTarget.style.borderColor = '#1890ff';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = '#fafafa';
-                        e.currentTarget.style.borderColor = '#d9d9d9';
-                      }}
-                    >
-                      <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '2px' }}>
-                        {asset.name}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#666' }}>
-                        {asset.address}:{asset.port || 22}
-                      </div>
-                    </div>
-                  ))}
-                  {assets.filter(asset => asset.type === 'server').length === 0 && (
-                    <div style={{ 
-                      padding: '20px', 
-                      textAlign: 'center', 
-                      color: '#999',
-                      fontSize: '14px'
-                    }}>
-                      暂无可用主机资源
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div style={{ flex: 1, overflow: 'hidden', padding: '8px' }}>
+              <ResourceTree 
+                resourceType="host"
+                onSelect={handleTreeSelect}
+                totalCount={assets.filter(a => a.type === 'server').length}
+                hideSearch={true}
+                showHostDetails={true}
+              />
             </div>
           </div>
         )}

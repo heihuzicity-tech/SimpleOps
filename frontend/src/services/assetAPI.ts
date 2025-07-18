@@ -160,4 +160,40 @@ export const updateAssetGroup = async (id: number, data: AssetGroupUpdateRequest
 export const deleteAssetGroup = async (id: number) => {
   const response = await apiClient.delete(`/asset-groups/${id}`);
   return response;
+};
+
+// ======================== 新增：包含主机详情的分组管理 ========================
+
+export interface AssetItem {
+  id: number;
+  name: string;
+  address: string;
+  status: number;
+  os_type: string;
+  protocol: string;
+}
+
+export interface AssetGroupWithHosts {
+  id: number;
+  name: string;
+  description: string;
+  asset_count: number;
+  assets: AssetItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GetAssetGroupsWithHostsParams {
+  type?: 'server' | 'database';
+}
+
+export interface GetAssetGroupsWithHostsResponse {
+  success: boolean;
+  data: AssetGroupWithHosts[];
+}
+
+// 获取包含主机详情的资产分组列表（用于控制台树形菜单）
+export const getAssetGroupsWithHosts = async (params?: GetAssetGroupsWithHostsParams) => {
+  const response = await apiClient.get<GetAssetGroupsWithHostsResponse>('/asset-groups/with-hosts', { params });
+  return response;
 }; 
