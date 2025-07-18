@@ -73,9 +73,10 @@ const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
       },
       fontSize: 14,
       fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+      lineHeight: 1.4, // 增加行高，提升可读性
       cursorBlink: true,
       allowTransparency: true,
-      rows: 24,
+      rows: 20, // 减少到20行，为底部留出空间
       cols: 80
     });
 
@@ -355,14 +356,23 @@ const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
   return (
     <div style={{ height: '100%', width: '100%', position: 'relative' }}>
       <div
-        ref={terminalRef}
         style={{
           height: '100%',
           width: '100%',
           padding: '8px',
-          backgroundColor: '#1f1f1f'
+          backgroundColor: '#1f1f1f',
+          boxSizing: 'border-box'
         }}
-      />
+      >
+        <div
+          ref={terminalRef}
+          style={{
+            height: 'calc(100% - 40px)', // 减去40px为底部留空间
+            width: '100%',
+            backgroundColor: '#1f1f1f'
+          }}
+        />
+      </div>
     </div>
   );
 };

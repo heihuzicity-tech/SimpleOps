@@ -62,6 +62,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
         cursorBlink: true,
         fontSize: 14,
         fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+        lineHeight: 1.4, // 增加行高，提升可读性
         theme: {
           background: '#1e1e1e',
           foreground: '#d4d4d4',
@@ -71,7 +72,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
         scrollback: 1000,
         tabStopWidth: 4,
         cols: 80,
-        rows: 24,
+        rows: 20, // 减少到20行，为底部留出空间
       });
 
       // 添加插件
@@ -417,13 +418,23 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
       </div>
       
       <div
-        ref={terminalRef}
         style={{
           width: '100%',
           height: '100%',
           background: '#1e1e1e',
+          padding: '8px',
+          boxSizing: 'border-box',
         }}
-      />
+      >
+        <div
+          ref={terminalRef}
+          style={{
+            width: '100%',
+            height: 'calc(100% - 40px)', // 减去40px为底部留空间
+            background: '#1e1e1e',
+          }}
+        />
+      </div>
     </div>
   );
 };
