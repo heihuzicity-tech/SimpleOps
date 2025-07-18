@@ -1,36 +1,36 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Layout, Button, Typography, message, Modal } from 'antd';
-import { PlusOutlined, SettingOutlined, MinusOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
+import { Layout, Button, Typography, message, Modal, Tabs } from 'antd';
+import { PlusOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import { useSelector, useDispatch } from 'react-redux';
-import { useLocation } from 'react-router-dom';
+// import { useLocation } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store';
-import SidePanel from '../../components/workspace/SidePanel';
-import TabContainer from '../../components/workspace/TabContainer';
-import ConnectionCreator from '../../components/workspace/ConnectionCreator';
+import CredentialSelector from '../../components/sessions/CredentialSelector';
+import WebTerminal from '../../components/ssh/WebTerminal';
 import { Asset } from '../../types';
 import { fetchAssets } from '../../store/assetSlice';
 import { fetchCredentials } from '../../store/credentialSlice';
 import { getCurrentUser } from '../../store/authSlice';
-import { 
-  setActiveTab, 
-  closeTab, 
-  closeAllTabs, 
-  setSidebarCollapsed, 
-  createNewTab,
-  duplicateTab,
-  createSSHConnection
-} from '../../store/workspaceSlice';
+import { createSession } from '../../store/sshSessionSlice';
+import { performConnectionTest } from '../../services/connectionTest';
 
 const { Sider, Content } = Layout;
 const { Title } = Typography;
 
+interface TabInfo {
+  id: string;
+  title: string;
+  sessionId: string;
+  assetInfo: Asset;
+  credentialInfo: any;
+  closable: boolean;
+}
+
 const WorkspaceStandalone: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const location = useLocation();
+  // const location = useLocation();
   const { assets } = useSelector((state: RootState) => state.asset);
   const { credentials } = useSelector((state: RootState) => state.credential);
   const { user, token, loading } = useSelector((state: RootState) => state.auth);
-  const workspaceState = useSelector((state: RootState) => state.workspace);
 
   // 获取用户信息
   useEffect(() => {
@@ -40,13 +40,17 @@ const WorkspaceStandalone: React.FC = () => {
   }, [dispatch, token, user, loading]);
 
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
-  const [connectionCreatorVisible, setConnectionCreatorVisible] = useState(false);
+  const [credentialSelectorVisible, setCredentialSelectorVisible] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [tabs, setTabs] = useState<TabInfo[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string>('');
+  const [connecting, setConnecting] = useState(false);
 
   // 侧边栏折叠状态
   const handleSidebarToggle = useCallback(() => {
-    dispatch(setSidebarCollapsed(!workspaceState.sidebarCollapsed));
-  }, [dispatch, workspaceState.sidebarCollapsed]);
+    setSidebarCollapsed(!sidebarCollapsed);
+  }, [sidebarCollapsed]);
 
   // 新建连接
   const handleNewConnection = useCallback(() => {
@@ -55,99 +59,101 @@ const WorkspaceStandalone: React.FC = () => {
       return;
     }
     
-    // 选择第一个可用资产作为默认选择
-    const defaultAsset = assets[0];
-    setSelectedAsset(defaultAsset);
-    setConnectionCreatorVisible(true);
+    // 不设置默认资产，让用户从左侧选择
+    message.info('请从左侧主机资源列表中选择要连接的主机');
   }, [assets]);
 
-  // 资产选择处理
-  const handleAssetSelect = useCallback((asset: Asset) => {
-    console.log('选中资产:', asset);
+  // 主机选择处理 - 直接使用资产数据
+  const handleHostSelect = useCallback((asset: Asset) => {
+    console.log('选中主机:', asset);
     
-    // 检查是否已有相同资产的连接
-    const existingTab = workspaceState.tabs.find(tab => tab.assetInfo.id === asset.id);
-    if (existingTab) {
-      dispatch(setActiveTab(existingTab.id));
-      message.info(`切换到已有连接: ${asset.name}`);
-      return;
-    }
-
-    // 打开连接创建对话框
+    // 允许同一个主机打开多个标签页，直接打开凭证选择
     setSelectedAsset(asset);
-    setConnectionCreatorVisible(true);
-  }, [workspaceState.tabs, dispatch]);
+    setCredentialSelectorVisible(true);
+  }, []);
+
+  // 处理凭证选择 - 使用现有的简单逻辑
+  const handleCredentialSelect = useCallback(async (credentialId: number) => {
+    if (!selectedAsset || connecting) return;
+
+    setCredentialSelectorVisible(false);
+    setConnecting(true);
+
+    try {
+      const hideLoading = message.loading('正在连接中...', 0);
+
+      try {
+        // 使用静默模式进行连接测试
+        const testResult = await performConnectionTest(dispatch, selectedAsset, credentialId, true);
+
+        if (!testResult.success) {
+          hideLoading();
+          message.error(testResult.message);
+          return;
+        }
+
+        // 测试通过，创建会话
+        const response = await dispatch(createSession({
+          asset_id: selectedAsset.id,
+          credential_id: credentialId,
+          protocol: selectedAsset.protocol || 'ssh'
+        })).unwrap();
+
+        // 创建新标签页，使用时间戳确保唯一性
+        const credential = credentials.find(c => c.id === credentialId);
+        const timestamp = Date.now();
+        const newTab: TabInfo = {
+          id: `${response.id}-${timestamp}`,
+          title: `${selectedAsset.name}@${credential?.username}`,
+          sessionId: response.id,
+          assetInfo: selectedAsset,
+          credentialInfo: credential,
+          closable: true
+        };
+
+        setTabs(prev => [...prev, newTab]);
+        setActiveTabId(newTab.id);
+
+        hideLoading();
+        message.success(`成功连接到 ${selectedAsset.name}`);
+      } catch (error: any) {
+        hideLoading();
+        message.error(`连接失败: ${error.message}`);
+      }
+    } catch (error: any) {
+      message.error(`连接失败: ${error.message}`);
+    } finally {
+      setConnecting(false);
+      setSelectedAsset(null);
+    }
+  }, [selectedAsset, credentials, dispatch, connecting]);
 
   // 标签页切换处理
   const handleTabChange = useCallback((tabId: string) => {
-    dispatch(setActiveTab(tabId));
-  }, [dispatch]);
+    setActiveTabId(tabId);
+  }, []);
 
   // 标签页关闭处理
   const handleTabClose = useCallback((tabId: string) => {
-    dispatch(closeTab(tabId));
-    message.info('连接已关闭');
-  }, [dispatch]);
-
-  // 关闭所有连接
-  const handleCloseAll = useCallback(() => {
-    if (workspaceState.tabs.length === 0) return;
-    
-    Modal.confirm({
-      title: '确认关闭所有连接？',
-      content: `即将关闭 ${workspaceState.tabs.length} 个连接，未保存的数据将丢失。`,
-      okText: '确认关闭',
-      cancelText: '取消',
-      okType: 'danger',
-      onOk() {
-        dispatch(closeAllTabs());
-        message.success('已关闭所有连接');
-      }
-    });
-  }, [workspaceState.tabs.length, dispatch]);
-
-  // 复制标签页
-  const handleTabDuplicate = useCallback((tabId: string) => {
-    dispatch(duplicateTab(tabId));
-    message.success('标签页已复制');
-  }, [dispatch]);
-
-  // 重新连接
-  const handleTabReconnect = useCallback(async (tabId: string) => {
-    const tab = workspaceState.tabs.find(t => t.id === tabId);
-    if (!tab) return;
-
-    try {
-      // 重新创建SSH连接
-      await dispatch(createSSHConnection({
-        asset: {
-          id: tab.assetInfo.id,
-          name: tab.assetInfo.name,
-          address: tab.assetInfo.address,
-          port: tab.assetInfo.port,
-          protocol: tab.assetInfo.protocol,
-          type: 'server',
-          status: 1,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          os_type: tab.assetInfo.os_type
-        },
-        credential: {
-          id: tab.credentialInfo.id,
-          username: tab.credentialInfo.username,
-          type: tab.credentialInfo.type,
-          name: tab.credentialInfo.name,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        tabId: tab.id
-      })).unwrap();
+    setTabs(prev => {
+      const newTabs = prev.filter(tab => tab.id !== tabId);
       
-      message.success(`重连成功: ${tab.assetInfo.name}`);
-    } catch (error: any) {
-      message.error(`重连失败: ${error.message || '未知错误'}`);
-    }
-  }, [workspaceState.tabs, dispatch]);
+      // 如果关闭的是当前活跃标签页，切换到其他标签页
+      if (activeTabId === tabId) {
+        if (newTabs.length > 0) {
+          setActiveTabId(newTabs[newTabs.length - 1].id);
+        } else {
+          setActiveTabId('');
+        }
+      }
+      
+      return newTabs;
+    });
+    
+    message.info('连接已关闭');
+  }, [activeTabId]);
+
+
 
   // 监听键盘快捷键
   useEffect(() => {
@@ -163,60 +169,27 @@ const WorkspaceStandalone: React.FC = () => {
         handleSidebarToggle();
       }
       // Ctrl+W 关闭当前标签页
-      if (e.ctrlKey && e.key === 'w' && workspaceState.activeTabId) {
+      if (e.ctrlKey && e.key === 'w' && activeTabId) {
         e.preventDefault();
-        handleTabClose(workspaceState.activeTabId);
+        handleTabClose(activeTabId);
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleNewConnection, handleSidebarToggle, handleTabClose, workspaceState.activeTabId]);
+  }, [handleNewConnection, handleSidebarToggle, handleTabClose, activeTabId]);
 
-  // 处理 URL 参数，自动创建连接
+  // 加载资产和凭证数据 - 只有在用户已登录且有token时才加载
   useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const assetId = searchParams.get('asset');
-    const assetName = searchParams.get('name');
-    
-    if (assetId && assetName) {
-      // 确保资产数据已加载
+    if (token && user) {
       if (assets.length === 0) {
         dispatch(fetchAssets({ page: 1, page_size: 100, type: 'server' }));
-      } else {
-        // 查找对应的资产
-        const asset = assets.find(a => a.id === parseInt(assetId));
-        if (asset) {
-          handleAssetSelect(asset);
-        } else {
-          // 如果找不到资产，创建一个临时资产信息
-          const tempAsset: Asset = {
-            id: parseInt(assetId),
-            name: decodeURIComponent(assetName),
-            address: '127.0.0.1',
-            port: 22,
-            protocol: 'ssh',
-            type: 'server',
-            status: 1,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            os_type: 'linux'
-          };
-          handleAssetSelect(tempAsset);
-        }
+      }
+      if (credentials.length === 0) {
+        dispatch(fetchCredentials({ page: 1, page_size: 100 }));
       }
     }
-  }, [location.search, assets, dispatch]);
-
-  // 加载资产和凭证数据
-  useEffect(() => {
-    if (assets.length === 0) {
-      dispatch(fetchAssets({ page: 1, page_size: 100, type: 'server' }));
-    }
-    if (credentials.length === 0) {
-      dispatch(fetchCredentials({ page: 1, page_size: 100 }));
-    }
-  }, [dispatch, assets.length, credentials.length]);
+  }, [dispatch, token, user, assets.length, credentials.length]);
 
   // 设置页面标题
   useEffect(() => {
@@ -228,20 +201,95 @@ const WorkspaceStandalone: React.FC = () => {
     };
   }, []);
 
+  // 渲染空状态
+  const renderEmptyState = () => (
+    <div style={{ 
+      height: '100%', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      flexDirection: 'column',
+      gap: 16
+    }}>
+      <div style={{ textAlign: 'center' }}>
+        <h2>欢迎使用连接工作台</h2>
+        <p>从左侧选择主机资源开始连接</p>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+          {sidebarCollapsed && (
+            <Button icon={<MenuUnfoldOutlined />} onClick={handleSidebarToggle}>
+              展开侧边栏
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // 渲染标签页
+  const renderTabs = () => {
+    if (tabs.length === 0) {
+      return renderEmptyState();
+    }
+
+    const tabItems = tabs.map(tab => ({
+      key: tab.id,
+      label: tab.title,
+      closable: tab.closable,
+      children: (
+        <div style={{ height: 'calc(100vh - 40px)' }}>
+          <WebTerminal
+            sessionId={tab.sessionId}
+            onClose={() => handleTabClose(tab.id)}
+            onError={(error) => {
+              console.error(`Terminal error for tab ${tab.id}:`, error);
+              message.error(`连接错误: ${error.message}`);
+            }}
+          />
+        </div>
+      )
+    }));
+
+    return (
+      <Tabs
+        type="editable-card"
+        activeKey={activeTabId}
+        onChange={handleTabChange}
+        onEdit={(targetKey, action) => {
+          if (action === 'remove') {
+            handleTabClose(targetKey as string);
+          }
+        }}
+        hideAdd
+        size="small"
+        style={{ 
+          height: '100%',
+          margin: 0
+        }}
+        tabBarStyle={{
+          margin: 0,
+          marginBottom: 4,
+          paddingLeft: 4,
+          paddingRight: 4
+        }}
+        items={tabItems}
+      />
+    );
+  };
+
   return (
     <Layout style={{ height: '100vh', background: '#f0f2f5' }}>
       {/* 左侧面板 */}
       <Sider
-        width={workspaceState.sidebarCollapsed ? 0 : workspaceState.sidebarWidth}
+        width={sidebarCollapsed ? 0 : 280}
         collapsedWidth={0}
-        collapsed={workspaceState.sidebarCollapsed}
+        collapsed={sidebarCollapsed}
         style={{
           background: '#fff',
           borderRight: '1px solid #d9d9d9',
           transition: 'all 0.3s ease'
         }}
       >
-        {!workspaceState.sidebarCollapsed && (
+        {!sidebarCollapsed && (
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* 侧边栏标题 */}
             <div style={{
@@ -264,13 +312,54 @@ const WorkspaceStandalone: React.FC = () => {
             </div>
             
             {/* 侧边栏内容 */}
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <SidePanel
-                width={workspaceState.sidebarWidth}
-                collapsed={false}
-                onAssetSelect={handleAssetSelect}
-                onToggleCollapse={handleSidebarToggle}
-              />
+            <div style={{ flex: 1, overflow: 'hidden', padding: '16px' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#262626' }}>
+                  主机列表 ({assets.filter(a => a.type === 'server').length})
+                </div>
+                <div style={{ maxHeight: '400px', overflow: 'auto' }}>
+                  {assets.filter(asset => asset.type === 'server').map(asset => (
+                    <div 
+                      key={asset.id}
+                      style={{
+                        padding: '8px 12px',
+                        margin: '4px 0',
+                        border: '1px solid #d9d9d9',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        backgroundColor: '#fafafa',
+                        transition: 'all 0.2s'
+                      }}
+                      onClick={() => handleHostSelect(asset)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#e6f7ff';
+                        e.currentTarget.style.borderColor = '#1890ff';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fafafa';
+                        e.currentTarget.style.borderColor = '#d9d9d9';
+                      }}
+                    >
+                      <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '2px' }}>
+                        {asset.name}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>
+                        {asset.address}:{asset.port || 22}
+                      </div>
+                    </div>
+                  ))}
+                  {assets.filter(asset => asset.type === 'server').length === 0 && (
+                    <div style={{ 
+                      padding: '20px', 
+                      textAlign: 'center', 
+                      color: '#999',
+                      fontSize: '14px'
+                    }}>
+                      暂无可用主机资源
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -278,95 +367,25 @@ const WorkspaceStandalone: React.FC = () => {
 
       {/* 主内容区域 */}
       <Layout style={{ background: '#f0f2f5' }}>
-        {/* 顶部工具栏 */}
-        <div style={{
-          height: '48px',
-          background: '#fff',
-          borderBottom: '1px solid #d9d9d9',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 16px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {workspaceState.sidebarCollapsed && (
-              <Button
-                type="text"
-                icon={<MenuUnfoldOutlined />}
-                onClick={handleSidebarToggle}
-                title="展开侧边栏 (Ctrl+B)"
-              />
-            )}
-            <Title level={5} style={{ margin: 0, color: '#262626' }}>
-              连接工作台
-            </Title>
-            <span style={{ color: '#8c8c8c', fontSize: '12px' }}>
-              {workspaceState.tabs.length > 0 && `${workspaceState.tabs.length} 个连接`}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Button
-              type="text"
-              icon={<PlusOutlined />}
-              onClick={handleNewConnection}
-              title="新建连接 (Ctrl+T)"
-            >
-              新建
-            </Button>
-            
-            {workspaceState.tabs.length > 0 && (
-              <Button
-                type="text"
-                icon={<MinusOutlined />}
-                onClick={handleCloseAll}
-                danger
-                title="关闭所有连接"
-              >
-                关闭全部
-              </Button>
-            )}
-            
-            <Button
-              type="text"
-              icon={<SettingOutlined />}
-              onClick={() => setIsSettingsVisible(true)}
-              title="工作台设置"
-            />
-          </div>
-        </div>
-
-        {/* 标签页内容区域 */}
+        {/* 标签页内容区域 - 移除顶部工具栏，节省空间 */}
         <Content style={{
-          height: 'calc(100vh - 48px)',
-          padding: '8px',
+          height: '100vh',
+          padding: '4px',
           overflow: 'hidden'
         }}>
-          <TabContainer
-            tabs={workspaceState.tabs}
-            activeTabId={workspaceState.activeTabId}
-            onTabChange={handleTabChange}
-            onTabClose={handleTabClose}
-            onNewTab={handleNewConnection}
-            onTabDuplicate={handleTabDuplicate}
-            onTabReconnect={handleTabReconnect}
-          />
+          {renderTabs()}
         </Content>
       </Layout>
 
-      {/* 连接创建对话框 */}
-      <ConnectionCreator
-        visible={connectionCreatorVisible}
+      {/* 凭证选择对话框 */}
+      <CredentialSelector
+        visible={credentialSelectorVisible}
         asset={selectedAsset}
+        credentials={credentials}
+        onSelect={handleCredentialSelect}
         onCancel={() => {
-          setConnectionCreatorVisible(false);
+          setCredentialSelectorVisible(false);
           setSelectedAsset(null);
-        }}
-        onSuccess={(tabId) => {
-          dispatch(setActiveTab(tabId));
-          setConnectionCreatorVisible(false);
-          setSelectedAsset(null);
-          message.success('连接创建成功');
         }}
       />
 
