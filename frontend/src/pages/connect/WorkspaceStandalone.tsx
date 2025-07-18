@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Layout, Button, Typography, message, Modal, Tabs } from 'antd';
 import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import { useSelector, useDispatch } from 'react-redux';
@@ -47,7 +47,8 @@ const WorkspaceStandalone: React.FC = () => {
   const [tabs, setTabs] = useState<TabInfo[]>([]);
   const [activeTabId, setActiveTabId] = useState<string>('');
   const [connecting, setConnecting] = useState(false);
-  const [autoConnectProcessed, setAutoConnectProcessed] = useState(false);
+  const autoConnectProcessedRef = useRef(false);
+  const processedUrlRef = useRef('');
 
   // 侧边栏折叠状态
   const handleSidebarToggle = useCallback(() => {
@@ -215,61 +216,72 @@ const WorkspaceStandalone: React.FC = () => {
 
   // 处理URL参数自动连接
   useEffect(() => {
-    // 如果已经处理过或数据还未加载完成，则返回
-    if (autoConnectProcessed || !token || !user || assets.length === 0 || credentials.length === 0) {
+    // 检查数据是否完整加载
+    if (!token || !user || assets.length === 0 || credentials.length === 0) {
       return;
     }
 
-    const searchParams = new URLSearchParams(location.search);
+    const currentUrl = location.search;
+    const searchParams = new URLSearchParams(currentUrl);
     const assetId = searchParams.get('assetId');
     const assetName = searchParams.get('name');
     const assetAddress = searchParams.get('address');
     
-    // 只有当有相关参数时才处理
+    // 检查是否有相关参数
     if (!assetId && !assetName && !assetAddress) {
       return;
     }
 
-    // 标记为已处理，防止重复执行
-    setAutoConnectProcessed(true);
+    // 检查是否已经处理过相同URL
+    if (autoConnectProcessedRef.current || processedUrlRef.current === currentUrl) {
+      return;
+    }
+
+    // 标记为已处理
+    autoConnectProcessedRef.current = true;
+    processedUrlRef.current = currentUrl;
+    
+    // 立即清除URL参数，防止重复处理
+    const newUrl = window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+    
+    let targetAsset: Asset | undefined;
     
     if (assetId) {
       // 根据资产ID查找资产
-      const targetAsset = assets.find(asset => asset.id === parseInt(assetId));
-      if (targetAsset) {
-        console.log('自动连接主机:', targetAsset);
-        message.info(`正在自动连接主机: ${targetAsset.name}`);
-        
-        // 自动选择资产并打开凭证选择对话框
-        setSelectedAsset(targetAsset);
-        setCredentialSelectorVisible(true);
-        
-        // 清除URL参数以避免重复处理
-        const newUrl = window.location.pathname;
-        window.history.replaceState(null, '', newUrl);
-      } else {
+      targetAsset = assets.find(asset => asset.id === parseInt(assetId));
+      if (!targetAsset) {
         message.error(`未找到ID为 ${assetId} 的主机资源`);
+        return;
       }
     } else if (assetName && assetAddress) {
       // 根据主机名或地址查找资产
-      const targetAsset = assets.find(asset => 
+      targetAsset = assets.find(asset => 
         asset.name === assetName || asset.address === assetAddress
       );
-      if (targetAsset) {
-        console.log('自动连接主机:', targetAsset);
-        message.info(`正在自动连接主机: ${targetAsset.name}`);
-        
-        setSelectedAsset(targetAsset);
-        setCredentialSelectorVisible(true);
-        
-        // 清除URL参数
-        const newUrl = window.location.pathname;
-        window.history.replaceState(null, '', newUrl);
-      } else {
+      if (!targetAsset) {
         message.error(`未找到主机: ${assetName || assetAddress}`);
+        return;
       }
     }
-  }, [token, user, assets, credentials, location.search, autoConnectProcessed]);
+
+    if (targetAsset) {
+      console.log('自动连接主机:', targetAsset);
+      
+      // 只显示一次消息
+      message.info({
+        content: `正在自动连接主机: ${targetAsset.name}`,
+        key: 'auto-connect',
+        duration: 3,
+      });
+      
+      // 使用setTimeout延迟执行，确保只执行一次
+      setTimeout(() => {
+        setSelectedAsset(targetAsset!);
+        setCredentialSelectorVisible(true);
+      }, 100);
+    }
+  }, [token, user, assets, credentials, location.search]);
 
   // 设置页面标题
   useEffect(() => {
