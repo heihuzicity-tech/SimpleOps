@@ -236,11 +236,9 @@ const WorkspaceStandalone: React.FC = () => {
         <h2>欢迎使用连接工作台</h2>
         <p>从左侧选择主机资源开始连接</p>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-          {sidebarCollapsed && (
-            <Button icon={<MenuUnfoldOutlined />} onClick={handleSidebarToggle}>
-              展开侧边栏
-            </Button>
-          )}
+          <Button type="primary" onClick={handleNewConnection}>
+            选择主机连接
+          </Button>
         </div>
       </div>
     </div>
@@ -271,29 +269,56 @@ const WorkspaceStandalone: React.FC = () => {
     }));
 
     return (
-      <Tabs
-        type="editable-card"
-        activeKey={activeTabId}
-        onChange={handleTabChange}
-        onEdit={(targetKey, action) => {
-          if (action === 'remove') {
-            handleTabClose(targetKey as string);
-          }
-        }}
-        hideAdd
-        size="small"
-        style={{ 
-          height: '100%',
-          margin: 0
-        }}
-        tabBarStyle={{
-          margin: 0,
-          marginBottom: 4,
-          paddingLeft: 4,
-          paddingRight: 4
-        }}
-        items={tabItems}
-      />
+      <div style={{ position: 'relative', height: '100%' }}>
+        {/* 折叠状态下的绝对定位按钮 */}
+        {sidebarCollapsed && (
+          <Button
+            type="primary"
+            icon={<MenuUnfoldOutlined />}
+            onClick={handleSidebarToggle}
+            title="展开侧边栏 (Ctrl+B)"
+            size="small"
+            style={{
+              position: 'absolute',
+              top: '6px',
+              left: '6px',
+              zIndex: 1000,
+              borderRadius: '4px',
+              height: '28px',
+              width: '28px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px'
+            }}
+          />
+        )}
+        
+        <Tabs
+          type="editable-card"
+          activeKey={activeTabId}
+          onChange={handleTabChange}
+          onEdit={(targetKey, action) => {
+            if (action === 'remove') {
+              handleTabClose(targetKey as string);
+            }
+          }}
+          hideAdd
+          size="small"
+          style={{ 
+            height: '100%',
+            margin: 0
+          }}
+          tabBarStyle={{
+            margin: 0,
+            marginBottom: 4,
+            paddingLeft: sidebarCollapsed ? 40 : 4,
+            paddingRight: 4,
+            position: 'relative'
+          }}
+          items={tabItems}
+        />
+      </div>
     );
   };
 
@@ -351,7 +376,7 @@ const WorkspaceStandalone: React.FC = () => {
         {/* 标签页内容区域 - 移除顶部工具栏，节省空间 */}
         <Content style={{
           height: '100vh',
-          padding: '4px',
+          padding: sidebarCollapsed ? '4px 4px 4px 0' : '4px',
           overflow: 'hidden'
         }}>
           {renderTabs()}
