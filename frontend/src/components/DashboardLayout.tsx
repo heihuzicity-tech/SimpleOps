@@ -280,21 +280,26 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               size="small" 
               style={{ 
                 cursor: 'pointer',
-                padding: '4px 12px',
-                borderRadius: '6px',
+                padding: '6px 12px',
+                borderRadius: '4px',
                 transition: 'all 0.2s',
-                border: '1px solid #d9d9d9',
-                background: '#fafafa'
+                color: '#595959',
+                fontSize: '14px'
               }}
               onClick={() => {
                 // 在新标签页中打开工作台
                 window.open('/connect/workspace', '_blank', 'noopener,noreferrer');
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#f5f5f5';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
             >
               <CodeOutlined style={{ color: '#1890ff' }} />
-              <Text style={{ fontSize: '14px', color: '#1890ff' }}>控制台</Text>
+              <Text style={{ fontSize: '14px', color: '#595959' }}>控制台</Text>
             </Space>
-            <Text type="secondary" style={{ fontSize: '14px' }}>欢迎，</Text>
             <Dropdown
               menu={{ items: userMenuItems }}
               trigger={['click']}
