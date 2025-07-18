@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tree, Input, Card, message } from 'antd';
+import { Tree, Input, Card, message, Menu } from 'antd';
 import { 
   FolderOutlined, 
   FolderOpenOutlined,
@@ -10,7 +10,9 @@ import {
   HddOutlined
 } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
+import type { MenuProps } from 'antd';
 import { getAssetGroups, AssetGroup, getAssetGroupsWithHosts, AssetGroupWithHosts } from '../../services/assetAPI';
+import './ResourceTree.css';
 
 const { Search } = Input;
 
@@ -42,6 +44,8 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
   const [groups, setGroups] = useState<AssetGroup[]>([]);
   const [groupsWithHosts, setGroupsWithHosts] = useState<AssetGroupWithHosts[]>([]);
   const [loading, setLoading] = useState(false);
+  const [menuItems, setMenuItems] = useState<MenuProps['items']>([]);
+  const [selectedMenuKeys, setSelectedMenuKeys] = useState<string[]>([]);
 
   // 加载资产分组数据（包含主机详情）
   const loadAssetGroupsWithHosts = async () => {
@@ -210,7 +214,52 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
     const data = generateTreeData();
     setTreeData(data);
     setExpandedKeys(['all']);
+    
+    // 如果是控制台页面，同时生成Menu数据
+    if (showHostDetails) {
+      const menuData = generateMenuData();
+      setMenuItems(menuData);
+    }
   }, [resourceType, groups, groupsWithHosts, externalTreeData, totalCount, showHostDetails]);
+
+  // 生成Menu组件数据
+  const generateMenuData = (): MenuProps['items'] => {
+    if (resourceType === 'host' && showHostDetails && groupsWithHosts.length > 0) {
+      return groupsWithHosts.map(group => ({
+        key: group.id.toString(),
+        label: `${group.name} (${group.asset_count})`,
+        icon: <FolderOutlined />,
+        children: group.assets.map(asset => ({
+          key: `asset-${asset.id}`,
+          label: asset.name,
+          icon: <DesktopOutlined />,
+          data: {
+            type: 'asset',
+            asset: asset,
+            groupId: group.id,
+          },
+        }))
+      }));
+    }
+    return [];
+  };
+
+  // 处理Menu选择事件
+  const handleMenuSelect = ({ key }: { key: string }) => {
+    setSelectedMenuKeys([key]);
+    
+    // 如果是主机资产，触发onSelect回调
+    if (key.startsWith('asset-') && onSelect) {
+      // 构造与Tree组件兼容的回调参数
+      const mockInfo = {
+        node: {
+          key,
+          data: { type: 'asset' }
+        }
+      };
+      onSelect([key], mockInfo);
+    }
+  };
 
   const onExpand = (newExpandedKeys: React.Key[]) => {
     setExpandedKeys(newExpandedKeys as string[]);
@@ -293,17 +342,36 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
           size="small"
         />
       )}
-      <Tree
-        showIcon
-        onExpand={onExpand}
-        expandedKeys={expandedKeys}
-        autoExpandParent={autoExpandParent}
-        onSelect={onSelect}
-        selectedKeys={externalSelectedKeys}
-        treeData={renderTreeNodes(treeData)}
-        style={{ background: 'transparent' }}
-        height={hideSearch ? 432 : 400}
-      />
+      
+      {/* 根据是否为控制台页面选择不同的组件 */}
+      {showHostDetails && resourceType === 'host' ? (
+        <Menu
+          mode="inline"
+          inlineIndent={12}
+          selectedKeys={selectedMenuKeys}
+          items={menuItems}
+          onSelect={handleMenuSelect}
+          className="resource-tree-menu"
+          style={{ 
+            border: 'none', 
+            background: 'transparent',
+            height: hideSearch ? 432 : 400,
+            overflow: 'auto'
+          }}
+        />
+      ) : (
+        <Tree
+          showIcon
+          onExpand={onExpand}
+          expandedKeys={expandedKeys}
+          autoExpandParent={autoExpandParent}
+          onSelect={onSelect}
+          selectedKeys={externalSelectedKeys}
+          treeData={renderTreeNodes(treeData)}
+          style={{ background: 'transparent' }}
+          height={hideSearch ? 432 : 400}
+        />
+      )}
     </Card>
   );
 };

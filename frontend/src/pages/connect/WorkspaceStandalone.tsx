@@ -301,7 +301,7 @@ const WorkspaceStandalone: React.FC = () => {
     <Layout style={{ height: '100vh', background: '#f0f2f5' }}>
       {/* 左侧面板 */}
       <Sider
-        width={sidebarCollapsed ? 0 : 280}
+        width={sidebarCollapsed ? 0 : 240}
         collapsedWidth={0}
         collapsed={sidebarCollapsed}
         style={{

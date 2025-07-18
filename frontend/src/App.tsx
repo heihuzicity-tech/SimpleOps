@@ -21,6 +21,7 @@ import AuditOverviewPage from './pages/audit/AuditOverviewPage';
 import GroupManagePage from './pages/GroupManagePage';
 import TerminalPage from './pages/connect/TerminalPage';
 import WorkspaceStandalone from './pages/connect/WorkspaceStandalone';
+import CompactHostListTest from './pages/test/CompactHostListTest';
 
 const { Content } = Layout;
 
@@ -168,6 +169,7 @@ const App: React.FC = () => {
                   <Route path="/audit/session-audit" element={<SessionAuditPage />} />
                   <Route path="/audit/command-audit" element={<CommandAuditPage />} />
                   <Route path="/audit/operation-audit" element={<OperationAuditPage />} />
+                  <Route path="/test/compact-host-list" element={<CompactHostListTest />} />
                 </Routes>
               </DashboardLayout>
             ) : (

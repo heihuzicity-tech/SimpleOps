@@ -1,0 +1,27 @@
+/* 简单的Menu组件样式 */
+.resource-tree-menu .ant-menu-inline .ant-menu-item {
+  height: 32px !important;
+  line-height: 32px !important;
+  margin: 0 !important;
+}
+
+.resource-tree-menu .ant-menu-inline .ant-menu-submenu-title {
+  height: 32px !important;
+  line-height: 32px !important;
+  margin: 0 !important;
+}
+
+.resource-tree-menu .ant-menu-inline .ant-menu-item-icon {
+  font-size: 14px !important;
+}
+
+.resource-tree-menu .ant-menu-inline {
+  border-right: none !important;
+}
+
+.resource-tree-menu .ant-menu-inline .ant-menu-sub .ant-menu-item {
+  padding-left: 28px !important;
+  height: 26px !important;
+  line-height: 26px !important;
+  font-size: 13px !important;
+}
