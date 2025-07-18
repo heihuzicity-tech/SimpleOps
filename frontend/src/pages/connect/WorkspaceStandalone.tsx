@@ -268,14 +268,7 @@ const WorkspaceStandalone: React.FC = () => {
     if (targetAsset) {
       console.log('自动连接主机:', targetAsset);
       
-      // 只显示一次消息
-      message.info({
-        content: `正在自动连接主机: ${targetAsset.name}`,
-        key: 'auto-connect',
-        duration: 3,
-      });
-      
-      // 使用setTimeout延迟执行，确保只执行一次
+      // 直接打开凭证选择对话框，不显示额外提示
       setTimeout(() => {
         setSelectedAsset(targetAsset!);
         setCredentialSelectorVisible(true);
