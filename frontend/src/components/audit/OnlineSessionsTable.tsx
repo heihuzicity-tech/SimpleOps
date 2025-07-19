@@ -19,6 +19,8 @@ import {
 import {
   ReloadOutlined,
   SearchOutlined,
+  EyeOutlined,
+  PoweroffOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -42,6 +44,10 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
   const [terminateVisible, setTerminateVisible] = useState(false);
   const [selectedSession, setSelectedSession] = useState<ActiveSession | null>(null);
   const [terminateForm] = Form.useForm();
+
+  // 终端镜像功能
+  const [mirrorVisible, setMirrorVisible] = useState(false);
+  const [mirrorSession, setMirrorSession] = useState<ActiveSession | null>(null);
 
   // WebSocket客户端
   const wsClient = getWebSocketClient();
@@ -328,20 +334,34 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
     {
       title: '操作',
       key: 'actions',
-      width: 100,
+      width: 160,
       fixed: 'right',
       render: (_, record) => (
-        <Button
-          type="link"
-          danger
-          size="small"
-          onClick={() => {
-            setSelectedSession(record);
-            setTerminateVisible(true);
-          }}
-        >
-          强制下线
-        </Button>
+        <Space size="small">
+          <Button
+            type="link"
+            icon={<EyeOutlined />}
+            size="small"
+            onClick={() => {
+              setMirrorSession(record);
+              setMirrorVisible(true);
+            }}
+          >
+            监控
+          </Button>
+          <Button
+            type="link"
+            icon={<PoweroffOutlined />}
+            danger
+            size="small"
+            onClick={() => {
+              setSelectedSession(record);
+              setTerminateVisible(true);
+            }}
+          >
+            下线
+          </Button>
+        </Space>
       ),
     },
   ];
@@ -454,6 +474,85 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
             <TextArea rows={3} placeholder="请输入强制下线的原因..." />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* 终端镜像模态框 */}
+      <Modal
+        title={`实时监控 - ${mirrorSession?.username}@${mirrorSession?.asset_name}`}
+        open={mirrorVisible}
+        onCancel={() => setMirrorVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setMirrorVisible(false)}>
+            关闭
+          </Button>
+        ]}
+        width="80%"
+        style={{ top: 20 }}
+        bodyStyle={{ 
+          padding: 0, 
+          backgroundColor: '#000',
+          minHeight: '600px',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        <div style={{ 
+          padding: '12px 16px', 
+          backgroundColor: '#f0f0f0', 
+          borderBottom: '1px solid #d9d9d9',
+          fontSize: '12px',
+          color: '#666'
+        }}>
+          <Space split={<span>|</span>}>
+            <span>会话ID: {mirrorSession?.session_id}</span>
+            <span>开始时间: {mirrorSession?.start_time ? dayjs(mirrorSession.start_time).format('YYYY-MM-DD HH:mm:ss') : ''}</span>
+            <span>状态: 只读监控</span>
+          </Space>
+        </div>
+        
+        <div style={{ 
+          flex: 1, 
+          backgroundColor: '#000', 
+          color: '#fff', 
+          padding: '16px',
+          fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+          fontSize: '14px',
+          lineHeight: '1.4',
+          overflow: 'auto'
+        }}>
+          {mirrorSession ? (
+            <div>
+              <div style={{ marginBottom: '16px', color: '#00ff00' }}>
+                📺 正在实时监控会话...
+              </div>
+              <div style={{ color: '#888' }}>
+                • 用户: {mirrorSession.username}<br/>
+                • 主机: {mirrorSession.asset_name} ({mirrorSession.asset_address})<br/>
+                • 协议: {mirrorSession.protocol?.toUpperCase()}<br/>
+                • 系统用户: {'root'}<br/>
+              </div>
+              <div style={{ 
+                marginTop: '24px', 
+                padding: '16px',
+                border: '1px solid #333',
+                borderRadius: '4px',
+                backgroundColor: '#111'
+              }}>
+                <div style={{ color: '#00ff00', marginBottom: '8px' }}>
+                  [终端实时输出]
+                </div>
+                <div style={{ color: '#ccc', fontSize: '12px' }}>
+                  此功能将显示会话的实时终端输出...<br/>
+                  (需要连接到会话的WebSocket流)
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', color: '#666' }}>
+              请选择要监控的会话
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );
