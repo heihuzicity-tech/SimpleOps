@@ -3,8 +3,10 @@ package controllers
 import (
 	"bastion/models"
 	"bastion/services"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -365,4 +367,42 @@ func (mc *MonitorController) HandleWebSocketMonitor(c *gin.Context) {
 			"error": "WebSocket service is not available",
 		})
 	}
+}
+
+// CleanupStaleSessionRecords 清理陈旧的会话记录（临时调试API）
+// @Summary      清理陈旧会话记录
+// @Description  清理数据库中的陈旧会话记录
+// @Tags         实时监控
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]interface{}  "清理成功"
+// @Failure      500  {object}  map[string]interface{}  "服务器错误"
+// @Router       /audit/cleanup-stale-sessions [post]
+func (mc *MonitorController) CleanupStaleSessionRecords(c *gin.Context) {
+	// 获取当前时间
+	now := time.Now()
+	
+	// 更新数据库中的陈旧会话状态 - 立即清理所有状态为active但实际已结束的会话
+	result := mc.monitorService.GetDB().Model(&models.SessionRecord{}).
+		Where("status = ?", "active").
+		Updates(map[string]interface{}{
+			"status":     "closed",
+			"end_time":   now,
+			"updated_at": now,
+		})
+	
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to cleanup stale sessions",
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("Cleaned up %d stale session records", result.RowsAffected),
+		"cleaned_count": result.RowsAffected,
+	})
 }

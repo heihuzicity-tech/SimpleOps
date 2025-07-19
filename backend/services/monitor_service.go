@@ -132,10 +132,11 @@ func (m *MonitorService) validateSessionsWithDB(redisSessions []*models.ActiveSe
 		return redisSessions
 	}
 
-	// 从数据库获取所有活跃会话的 session_id
+	// 从数据库获取真正活跃的会话 session_id
 	var dbSessionIDs []string
+	cutoffTime := time.Now().Add(-2 * time.Minute) // 只认为最近2分钟内的会话可能活跃
 	if err := m.db.Model(&models.SessionRecord{}).
-		Where("status = ? AND (is_terminated IS NULL OR is_terminated = ?)", "active", false).
+		Where("status = ? AND (is_terminated IS NULL OR is_terminated = ?) AND start_time >= ? AND end_time IS NULL", "active", false, cutoffTime).
 		Pluck("session_id", &dbSessionIDs).Error; err != nil {
 		logrus.WithError(err).Error("Failed to validate sessions with database")
 		return redisSessions
@@ -188,8 +189,14 @@ func (m *MonitorService) getActiveSessionsFromDB(req *models.ActiveSessionListRe
 	var sessions []models.SessionRecord
 	var total int64
 
-	// 构建查询条件 - 修复正确的活跃会话查询条件
-	query := m.db.Model(&models.SessionRecord{}).Where("status = ? AND (is_terminated IS NULL OR is_terminated = ?)", "active", false)
+	// ✅ 修复：严格过滤条件 - 只返回真正活跃的会话
+	// 1. 最近2分钟内开始的会话
+	// 2. end_time 为 NULL（未结束）
+	cutoffTime := time.Now().Add(-2 * time.Minute) // 缩短时间窗口到2分钟
+	query := m.db.Model(&models.SessionRecord{}).Where(
+		"status = ? AND (is_terminated IS NULL OR is_terminated = ?) AND start_time >= ? AND end_time IS NULL", 
+		"active", false, cutoffTime,
+	)
 
 	// 添加过滤条件
 	if req.Username != "" {
@@ -253,6 +260,11 @@ func (m *MonitorService) getUnreadWarningsCount(sessionID string, userID uint) i
 	var count int64
 	m.db.Model(&models.SessionWarning{}).Where("session_id = ? AND receiver_user_id = ? AND is_read = ?", sessionID, userID, false).Count(&count)
 	return int(count)
+}
+
+// GetDB 获取数据库连接（用于临时修复API）
+func (m *MonitorService) GetDB() *gorm.DB {
+	return m.db
 }
 
 // isSessionBeingMonitored 检查会话是否正在被监控
@@ -613,9 +625,41 @@ func (m *MonitorService) inactiveSessionDetectionTask() {
 
 // updateSessionStatus 更新会话状态
 func (m *MonitorService) updateSessionStatus() {
-	// 获取所有活跃会话 - 修复查询条件
+	// 首先清理所有陈旧的"active"状态记录
+	now := time.Now()
+	cutoffTime := now.Add(-2 * time.Minute) // 缩短到2分钟，更及时地清理已结束的会话
+	
+	// 🔥 立即清理所有明显过期的会话（更激进的清理策略）
+	// 清理超过30秒无活动且没有正确end_time的会话
+	immediateCleanupTime := now.Add(-30 * time.Second)
+	immediateResult := m.db.Model(&models.SessionRecord{}).
+		Where("status = ? AND updated_at < ? AND end_time IS NULL", "active", immediateCleanupTime).
+		Updates(map[string]interface{}{
+			"status":     "closed",
+			"end_time":   now,
+			"updated_at": now,
+		})
+	
+	if immediateResult.RowsAffected > 0 {
+		logrus.WithField("cleaned_count", immediateResult.RowsAffected).Info("立即清理了无活动的会话记录")
+	}
+	
+	// 清理超过2分钟的"active"会话
+	result := m.db.Model(&models.SessionRecord{}).
+		Where("status = ? AND start_time < ?", "active", cutoffTime).
+		Updates(map[string]interface{}{
+			"status":     "closed",
+			"end_time":   now,
+			"updated_at": now,
+		})
+	
+	if result.RowsAffected > 0 {
+		logrus.WithField("cleaned_count", result.RowsAffected).Info("清理了陈旧的active会话记录")
+	}
+	
+	// 获取真正活跃的会话 - 添加时间限制
 	var sessions []models.SessionRecord
-	if err := m.db.Where("status = ? AND (is_terminated IS NULL OR is_terminated = ?)", "active", false).Find(&sessions).Error; err != nil {
+	if err := m.db.Where("status = ? AND (is_terminated IS NULL OR is_terminated = ?) AND start_time >= ? AND end_time IS NULL", "active", false, cutoffTime).Find(&sessions).Error; err != nil {
 		logrus.WithError(err).Error("获取活跃会话失败")
 		return
 	}

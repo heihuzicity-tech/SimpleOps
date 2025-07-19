@@ -288,24 +288,31 @@ func (sc *SSHController) handleWebSocketConnection(wsConn *WebSocketConnection) 
 		// ✅ 修复：WebSocket断开时优雅清理SSH会话，添加延迟避免过快清理
 		log.Printf("WebSocket disconnected for session %s, scheduling SSH session cleanup", wsConn.sessionID)
 		
-		// 延迟清理，给客户端重连的机会
-		go func() {
-			time.Sleep(3 * time.Second) // 3秒后清理
+		// 🚀 立即同步清理所有数据源中的会话状态
+		log.Printf("WebSocket disconnected for session %s, synchronizing cleanup across all data sources", wsConn.sessionID)
+		
+		// 同步处理，确保立即生效
+		if err := sc.sshService.CloseSessionWithReason(wsConn.sessionID, "用户关闭标签页"); err != nil {
+			log.Printf("Failed to cleanup SSH session %s: %v", wsConn.sessionID, err)
 			
-			// 检查会话是否仍然活跃（可能已经重新连接）
-			session, err := sc.sshService.GetSession(wsConn.sessionID)
-			if err == nil && session.IsActive() {
-				log.Printf("Session %s is still active, checking connection health", wsConn.sessionID)
-				if !session.IsConnectionAlive() {
-					log.Printf("Session %s connection is dead, cleaning up", wsConn.sessionID)
-					if err := sc.sshService.CloseSession(wsConn.sessionID); err != nil {
-						log.Printf("Failed to cleanup SSH session %s: %v", wsConn.sessionID, err)
-					}
-				} else {
-					log.Printf("Session %s connection is healthy, keeping alive", wsConn.sessionID)
-				}
+			// 如果CloseSessionWithReason失败，则强制同步数据库状态
+			sc.sshService.SyncSessionStatusToDB(wsConn.sessionID, "closed", "用户关闭标签页(强制清理)")
+		} else {
+			log.Printf("Successfully cleaned up SSH session %s on WebSocket disconnect", wsConn.sessionID)
+		}
+		
+		// 🔥 额外保障：立即发送WebSocket广播，确保前端实时更新
+		if services.GlobalWebSocketService != nil {
+			// 创建假的SessionRecord用于广播
+			fakeSession := &models.SessionRecord{
+				SessionID: wsConn.sessionID,
+				Status:    "closed",
+				EndTime:   &[]time.Time{time.Now()}[0],
 			}
-		}()
+			
+			services.GlobalWebSocketService.BroadcastSessionUpdate(fakeSession, services.SessionEnd)
+			log.Printf("Immediately broadcasted session end event for %s on WebSocket disconnect", wsConn.sessionID)
+		}
 	}()
 
 	ctx, cancel := context.WithCancel(context.Background())

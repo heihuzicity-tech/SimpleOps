@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -228,6 +229,24 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		}
 	}()
 
+	// 启动会话监控goroutine，检测SSH会话自然结束
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("SSH session monitor panic for %s: %v", sessionID, r)
+			}
+		}()
+		
+		// 等待SSH会话结束
+		if err := sessionConn.Wait(); err != nil {
+			log.Printf("SSH session %s ended with error: %v", sessionID, err)
+			s.CloseSessionWithReason(sessionID, "SSH会话异常结束")
+		} else {
+			log.Printf("SSH session %s ended normally (user exit/logout)", sessionID)
+			s.CloseSessionWithReason(sessionID, "用户正常退出")
+		}
+	}()
+
 	// 保存会话到内存
 	s.sessionsMu.Lock()
 	s.sessions[sessionID] = session
@@ -371,6 +390,11 @@ func (s *SSHService) GetSessions(userID uint) ([]*SSHSessionResponse, error) {
 
 // CloseSession 关闭SSH会话
 func (s *SSHService) CloseSession(sessionID string) error {
+	return s.CloseSessionWithReason(sessionID, "API调用关闭")
+}
+
+// CloseSessionWithReason 带原因的关闭SSH会话
+func (s *SSHService) CloseSessionWithReason(sessionID string, reason string) error {
 	s.sessionsMu.Lock()
 	defer s.sessionsMu.Unlock()
 
@@ -388,8 +412,8 @@ func (s *SSHService) CloseSession(sessionID string) error {
 	// 获取用户信息
 	var user models.User
 	if err := s.db.Where("id = ?", session.UserID).First(&user).Error; err == nil {
-		// 记录会话结束到审计日志
-		go s.auditService.RecordSessionEnd(sessionID, "closed")
+		// 记录会话结束到审计日志，包含关闭原因
+		go s.auditService.RecordSessionEnd(sessionID, reason)
 
 		// 记录操作日志
 		go s.auditService.RecordOperationLog(
@@ -438,6 +462,26 @@ func (s *SSHService) cleanupSessionFromAllSources(sessionID string) {
 		logrus.WithError(err).WithField("session_id", sessionID).Error("Failed to update session status in database")
 	} else {
 		logrus.WithField("session_id", sessionID).Info("成功在数据库中更新会话状态")
+		
+		// 🚀 立即触发监控更新，确保前端实时看到会话关闭
+		if GlobalWebSocketService != nil {
+			// 发送会话结束广播
+			endMsg := WSMessage{
+				Type:      SessionEnd,
+				Data:      map[string]interface{}{
+					"session_id": sessionID,
+					"status":     "closed",
+					"end_time":   now,
+				},
+				Timestamp: now,
+				SessionID: sessionID,
+			}
+			
+			data, _ := json.Marshal(endMsg)
+			GlobalWebSocketService.manager.broadcast <- data
+			
+			logrus.WithField("session_id", sessionID).Info("已广播会话结束事件")
+		}
 	}
 }
 
@@ -729,22 +773,11 @@ func (s *SSHService) CleanupInactiveSessions() {
 }
 
 // StartSessionCleanup 启动会话清理任务
+// 注意：此功能已禁用，统一由 UnifiedSessionService 处理
 func (s *SSHService) StartSessionCleanup(ctx context.Context) {
-	// ✅ 优化：缩短清理间隔，提高清理效率
-	ticker := time.NewTicker(2 * time.Minute) // 每2分钟清理一次（原来5分钟太长）
-	defer ticker.Stop()
-
-	log.Printf("SSH session cleanup service started (interval: 2 minutes)")
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("SSH session cleanup service stopped")
-			return
-		case <-ticker.C:
-			s.CleanupInactiveSessions()
-		}
-	}
+	log.Printf("SSH session cleanup 已禁用，统一由 UnifiedSessionService 处理")
+	// 不再启动独立的清理任务，避免竞态条件
+	<-ctx.Done()
 }
 
 // HealthCheckSessions 立即健康检查所有会话
@@ -769,6 +802,42 @@ func (s *SSHService) HealthCheckSessions() int {
 	}
 
 	return activeCount
+}
+
+// SyncSessionStatusToDB 强制同步会话状态到数据库
+func (s *SSHService) SyncSessionStatusToDB(sessionID, status, reason string) {
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status":     status,
+		"end_time":   now,
+		"updated_at": now,
+	}
+	
+	if err := s.db.Model(&models.SessionRecord{}).Where("session_id = ?", sessionID).Updates(updates).Error; err != nil {
+		log.Printf("Failed to sync session %s status to database: %v", sessionID, err)
+	} else {
+		log.Printf("Successfully synced session %s status '%s' to database", sessionID, status)
+		
+		// 🚀 立即广播状态变更，确保监控界面实时更新
+		if GlobalWebSocketService != nil && status == "closed" {
+			endMsg := WSMessage{
+				Type:      SessionEnd,
+				Data:      map[string]interface{}{
+					"session_id": sessionID,
+					"status":     status,
+					"end_time":   now,
+					"reason":     reason,
+				},
+				Timestamp: now,
+				SessionID: sessionID,
+			}
+			
+			data, _ := json.Marshal(endMsg)
+			GlobalWebSocketService.manager.broadcast <- data
+			
+			log.Printf("Broadcasted session end event for %s", sessionID)
+		}
+	}
 }
 
 // ForceCleanupAllSessions 强制清理所有会话和数据库状态

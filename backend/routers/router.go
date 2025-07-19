@@ -179,6 +179,9 @@ func SetupRouter() *gin.Engine {
 
 				// 日志清理（需要管理员权限）
 				audit.POST("/cleanup", middleware.RequireAdmin(), auditController.CleanupAuditLogs)
+				
+				// 会话记录清理（临时修复API，需要管理员权限）
+				audit.POST("/cleanup-stale-sessions", middleware.RequireAdmin(), monitorController.CleanupStaleSessionRecords)
 
 				// ======================== 实时监控路由 ========================
 				// 活跃会话监控（需要监控权限）

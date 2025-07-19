@@ -113,8 +113,25 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
   }, [fetchActiveSessions]);
 
   // 处理会话结束消息
-  const handleSessionEnd = useCallback(() => {
-    fetchActiveSessions();
+  const handleSessionEnd = useCallback((message: WSMessage) => {
+    const sessionId = message.data?.session_id || message.session_id;
+    if (sessionId) {
+      // 🚀 立即从本地状态中移除会话，无需等待API
+      // 使用幂等操作，避免重复处理同一个会话
+      setData(prevData => {
+        const exists = prevData.some(session => session.session_id === sessionId);
+        if (exists) {
+          console.log(`会话 ${sessionId} 已立即从列表中移除 (${message.data?.reason || '用户操作'})`);
+          return prevData.filter(session => session.session_id !== sessionId);
+        } else {
+          console.log(`会话 ${sessionId} 已不在列表中，跳过移除操作`);
+          return prevData;
+        }
+      });
+    } else {
+      // 如果没有session_id，则刷新整个列表
+      fetchActiveSessions();
+    }
   }, [fetchActiveSessions]);
 
   // 初始加载

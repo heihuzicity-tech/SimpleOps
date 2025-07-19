@@ -63,7 +63,7 @@ func NewUnifiedSessionService(redisClient *redis.Client, db *gorm.DB) *UnifiedSe
 		redisClient:       redisClient,
 		db:                db,
 		sessionTimeout:    30 * time.Minute, // 默认30分钟超时
-		cleanupInterval:   5 * time.Minute,  // 默认5分钟清理一次
+		cleanupInterval:   3 * time.Minute,  // 默认3分钟清理一次（提高响应性）
 		maxSessions:       10,               // 默认单用户最大10个会话
 		enablePersistence: true,
 	}

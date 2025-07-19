@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -324,20 +323,8 @@ func (r *RedisSessionService) Close() error {
 }
 
 // StartSessionCleanupTask 启动会话清理任务
+// 注意：此功能已禁用，统一由 UnifiedSessionService 处理
 func (r *RedisSessionService) StartSessionCleanupTask() {
-	go func() {
-		ticker := time.NewTicker(2 * time.Minute) // 每2分钟清理一次
-		defer ticker.Stop()
-
-		log.Printf("Redis session cleanup task started (interval: 2 minutes)")
-
-		for range ticker.C {
-			cleaned, err := r.CleanupExpiredSessions()
-			if err != nil {
-				logrus.WithError(err).Error("Failed to cleanup expired sessions")
-			} else if cleaned > 0 {
-				logrus.WithField("cleaned", cleaned).Info("Cleanup task completed")
-			}
-		}
-	}()
+	logrus.Info("Redis session cleanup 已禁用，统一由 UnifiedSessionService 处理")
+	// 不再启动独立的清理任务，避免竞态条件
 }
