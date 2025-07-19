@@ -37,11 +37,15 @@ export interface SSHSessionInfo {
 
 // WebSocket消息类型
 export interface WSMessage {
-  type: 'input' | 'output' | 'resize' | 'ping' | 'pong' | 'error' | 'close';
-  data?: string;
+  type: 'input' | 'output' | 'resize' | 'ping' | 'pong' | 'error' | 'close' | 'force_terminate' | 'warning' | 'alert';
+  data?: any;
   rows?: number;
   cols?: number;
   error?: string;
+  command?: string;
+  session_id?: string;   // 添加session_id字段
+  user_id?: number;      // 添加user_id字段
+  timestamp?: string;    // 添加timestamp字段
 }
 
 // 终端配置

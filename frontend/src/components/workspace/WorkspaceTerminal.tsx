@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { message, Spin, Alert, Button, Space } from 'antd';
+import { message as antMessage, Spin, Alert, Button, Space, Modal } from 'antd';
 import { ReloadOutlined, DisconnectOutlined } from '@ant-design/icons';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../../store';
@@ -146,6 +146,57 @@ const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
               console.error('SSH错误:', message.data);
               setLastError(message.data || '连接出现错误');
               updateStatus('error', message.data);
+              break;
+            
+            case 'force_terminate':
+              {
+                // 🔧 修复：只有当前会话ID匹配时才处理强制终止消息
+                const messageSessionId = message.data?.session_id || message.session_id;
+                console.log('🔧 工作台收到force_terminate消息:', {
+                  messageSessionId,
+                  currentSessionId: tab.sessionId,
+                  message: message
+                });
+                
+                if (messageSessionId && messageSessionId === tab.sessionId) {
+                  const reason = message.data?.reason || '无具体原因';
+                  const admin_user = message.data?.admin_user || '未知管理员';
+                  
+                  console.log(`工作台终端 ${tab.sessionId} 收到强制终止消息，执行关闭`);
+                  
+                  Modal.warning({
+                    title: '会话已被强制终止',
+                    content: (
+                      <div>
+                        <p><strong>会话ID:</strong> {messageSessionId}</p>
+                        <p><strong>操作管理员:</strong> {admin_user}</p>
+                        <p><strong>终止原因:</strong> {reason}</p>
+                        <p>您的连接已被管理员强制关闭。</p>
+                      </div>
+                    ),
+                    onOk: () => {
+                      onDisconnect?.();
+                    },
+                    okText: '确认',
+                    maskClosable: false,
+                  });
+                } else {
+                  console.log(`工作台终端 ${tab.sessionId} 收到其他会话 ${messageSessionId} 的强制终止消息，忽略处理`);
+                }
+              }
+              break;
+              
+            case 'warning':
+              {
+                const warning_message = message.data || '管理员警告';
+                antMessage.warning(warning_message, 5);
+              }
+              break;
+            case 'alert':
+              {
+                const alert_message = message.data || '系统通知';
+                antMessage.info(alert_message, 5);
+              }
               break;
             
             case 'close':

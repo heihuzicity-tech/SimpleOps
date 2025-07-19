@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 // MonitorController 实时监控控制器
@@ -123,6 +124,15 @@ func (mc *MonitorController) TerminateSession(c *gin.Context) {
 	user := userInterface.(*models.User)
 
 	// 终止会话
+	// 🔧 调试：添加日志追踪强制终止请求
+	logrus.WithFields(logrus.Fields{
+		"session_id":  sessionID,
+		"admin_user":  user.Username,
+		"admin_id":    user.ID,
+		"reason":      req.Reason,
+		"force":       req.Force,
+	}).Info("收到强制终止会话请求")
+
 	if err := mc.monitorService.TerminateSession(sessionID, user.ID, &req); err != nil {
 		if err.Error() == "会话不存在或已结束" {
 			c.JSON(http.StatusNotFound, gin.H{

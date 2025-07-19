@@ -94,42 +94,72 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
     }
   }, []);
 
-  // 处理监控更新消息
-  const handleMonitoringUpdate = useCallback((message: WSMessage) => {
-    const { active_sessions } = message.data;
-    if (active_sessions) {
-      // 去重处理：基于session_id去除重复项
-      const uniqueSessions = active_sessions.filter((session: any, index: number, self: any[]) => 
-        index === self.findIndex((s: any) => s.session_id === session.session_id)
-      );
-      
-      setData(uniqueSessions);
-    }
+  // 统一的会话去重处理函数
+  const deduplicateSessions = useCallback((sessions: any[]) => {
+    const uniqueSessions = new Map();
+    sessions.forEach(session => {
+      const sessionId = session.session_id;
+      if (sessionId && !uniqueSessions.has(sessionId)) {
+        uniqueSessions.set(sessionId, session);
+      }
+    });
+    return Array.from(uniqueSessions.values());
   }, []);
 
-  // 处理会话开始消息
-  const handleSessionStart = useCallback(() => {
-    fetchActiveSessions();
-  }, [fetchActiveSessions]);
+  // 处理监控更新消息 - 使用增量更新策略
+  const handleMonitoringUpdate = useCallback((message: WSMessage) => {
+    const { active_sessions } = message.data;
+    if (active_sessions && Array.isArray(active_sessions)) {
+      setData(prevData => {
+        // 合并新数据和现有数据，然后去重
+        const allSessions = [...prevData, ...active_sessions];
+        const uniqueSessions = deduplicateSessions(allSessions);
+        
+        // 只有数据确实发生变化时才更新状态
+        if (JSON.stringify(uniqueSessions) !== JSON.stringify(prevData)) {
+          console.log(`监控更新：接收到 ${active_sessions.length} 个会话，合并后共 ${uniqueSessions.length} 个唯一会话`);
+          return uniqueSessions;
+        }
+        return prevData;
+      });
+    }
+  }, [deduplicateSessions]);
 
-  // 处理会话结束消息
+  // 处理会话开始消息 - 使用增量添加策略
+  const handleSessionStart = useCallback((message: WSMessage) => {
+    const newSession = message.data;
+    if (newSession && newSession.session_id) {
+      setData(prevData => {
+        // 检查会话是否已存在
+        const exists = prevData.some(session => session.session_id === newSession.session_id);
+        if (!exists) {
+          console.log(`新会话开始：${newSession.session_id}`);
+          return deduplicateSessions([...prevData, newSession]);
+        }
+        return prevData;
+      });
+    } else {
+      // 如果消息格式不正确，回退到API刷新
+      fetchActiveSessions();
+    }
+  }, [deduplicateSessions, fetchActiveSessions]);
+
+  // 处理会话结束消息 - 立即移除策略
   const handleSessionEnd = useCallback((message: WSMessage) => {
     const sessionId = message.data?.session_id || message.session_id;
     if (sessionId) {
-      // 🚀 立即从本地状态中移除会话，无需等待API
-      // 使用幂等操作，避免重复处理同一个会话
       setData(prevData => {
         const exists = prevData.some(session => session.session_id === sessionId);
         if (exists) {
-          console.log(`会话 ${sessionId} 已立即从列表中移除 (${message.data?.reason || '用户操作'})`);
+          console.log(`会话结束：${sessionId} (${message.data?.reason || '正常结束'})`);
           return prevData.filter(session => session.session_id !== sessionId);
-        } else {
-          console.log(`会话 ${sessionId} 已不在列表中，跳过移除操作`);
-          return prevData;
         }
+        console.log(`会话 ${sessionId} 已不在列表中，跳过移除操作`);
+        return prevData;
       });
     } else {
       // 如果没有session_id，则刷新整个列表
+      console.warn('收到会话结束消息但无session_id，执行全量刷新');
       fetchActiveSessions();
     }
   }, [fetchActiveSessions]);
@@ -139,15 +169,26 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
     fetchActiveSessions();
   }, []);
 
-  // WebSocket连接管理
+  // WebSocket连接管理和重连后状态同步
   useEffect(() => {
-    if (data.length > 0 && !wsConnected) {
+    if (!wsConnected) {
+      // 总是尝试连接WebSocket，不依赖data.length
       initWebSocket();
-    } else if (data.length === 0 && wsConnected) {
-      wsClient.disconnect();
-      setWsConnected(false);
     }
-  }, [data.length, wsConnected]);
+  }, [wsConnected]);
+
+  // WebSocket重连后同步状态
+  useEffect(() => {
+    if (wsConnected) {
+      // WebSocket连接成功后，刷新会话列表确保状态一致
+      const timer = setTimeout(() => {
+        console.log('WebSocket重连成功，执行状态同步');
+        fetchActiveSessions();
+      }, 1000); // 延迟1秒确保连接完全建立
+
+      return () => clearTimeout(timer);
+    }
+  }, [wsConnected, fetchActiveSessions]);
 
   // 终止会话
   const handleTerminateSession = async () => {

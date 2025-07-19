@@ -5,6 +5,7 @@ import (
 	"bastion/models"
 	"bastion/utils"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -229,12 +230,27 @@ func (a *AuditService) RecordSessionStart(sessionID string, userID uint, usernam
 		return nil
 	}
 
-	// 检查会话是否已存在，避免重复记录
+	// 检查是否存在活跃的会话记录，避免重复记录
 	var existingRecord models.SessionRecord
-	if err := a.db.Where("session_id = ?", sessionID).First(&existingRecord).Error; err == nil {
-		logrus.WithField("session_id", sessionID).Warn("Session record already exists, skipping duplicate creation")
+	err := a.db.Where("session_id = ? AND status = ? AND (is_terminated IS NULL OR is_terminated = ?)", 
+		sessionID, "active", false).First(&existingRecord).Error
+	
+	if err == nil {
+		// 存在活跃会话，跳过创建
+		logrus.WithField("session_id", sessionID).Warn("Active session record already exists, skipping duplicate creation")
 		return nil
+	} else if err != gorm.ErrRecordNotFound {
+		// 查询错误
+		logrus.WithError(err).Error("Failed to check existing session")
+		return fmt.Errorf("failed to check existing session: %v", err)
 	}
+
+	// 不存在活跃会话，创建新记录（即使存在已终止的记录）
+	logrus.WithFields(logrus.Fields{
+		"session_id": sessionID,
+		"user_id":    userID,
+		"asset_id":   assetID,
+	}).Info("Creating new session record")
 
 	sessionRecord := &models.SessionRecord{
 		SessionID:    sessionID,

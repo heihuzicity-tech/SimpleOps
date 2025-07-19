@@ -249,13 +249,29 @@ const ConnectionCreator: React.FC<ConnectionCreatorProps> = ({
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             {renderAssetInfo()}
             {renderCredentialInfo()}
-            <Alert
-              message="连接创建成功"
-              description="SSH连接已成功建立，即将跳转到工作台。"
-              type="success"
-              showIcon
-              icon={<CheckCircleOutlined />}
-            />
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <CheckCircleOutlined 
+                style={{ 
+                  color: '#52c41a', 
+                  fontSize: 48, 
+                  marginBottom: 16 
+                }} 
+              />
+              <div style={{ 
+                fontSize: 16, 
+                fontWeight: 500, 
+                color: '#262626',
+                marginBottom: 8 
+              }}>
+                连接建立中...
+              </div>
+              <div style={{ 
+                fontSize: 14, 
+                color: '#8c8c8c' 
+              }}>
+                正在跳转到工作台
+              </div>
+            </div>
           </div>
         );
 

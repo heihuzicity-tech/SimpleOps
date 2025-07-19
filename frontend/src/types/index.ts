@@ -233,6 +233,8 @@ export interface WebSocketMessage {
   type: string;
   data: any;
   timestamp: string;
+  session_id?: string;  // 添加session_id字段
+  user_id?: number;     // 添加user_id字段
 }
 
 // 通知类型

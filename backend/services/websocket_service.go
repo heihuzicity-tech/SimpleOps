@@ -185,13 +185,13 @@ func (cm *ConnectionManager) registerClient(client *Client) {
 		"total_clients": len(cm.clients),
 	}).Info("客户端已注册")
 
-	// 发送欢迎消息
-	welcomeMsg := WSMessage{
-		Type:      SystemAlert,
-		Data:      map[string]string{"message": "连接成功，开始监控"},
-		Timestamp: time.Now(),
-	}
-	client.SendMessage(welcomeMsg)
+	// 🔧 修复：移除冗余的欢迎消息，避免重复提示
+	// welcomeMsg := WSMessage{
+	// 	Type:      SystemAlert,
+	// 	Data:      map[string]string{"message": "连接成功，开始监控"},
+	// 	Timestamp: time.Now(),
+	// }
+	// client.SendMessage(welcomeMsg)
 
 	// 发送当前活跃会话信息
 	go cm.sendActiveSessionsToClient(client)
@@ -272,7 +272,12 @@ func (cm *ConnectionManager) sendActiveSessionsToClient(client *Client) {
 	db := utils.GetDB()
 	var sessions []models.SessionRecord
 	
-	err := db.Where("status = ?", "active").Find(&sessions).Error
+	// 使用与MonitorService一致的查询条件
+	cutoffTime := time.Now().Add(-2 * time.Minute)
+	err := db.Where(
+		"status = ? AND (is_terminated IS NULL OR is_terminated = ?) AND end_time IS NULL AND start_time >= ?",
+		"active", false, cutoffTime,
+	).Find(&sessions).Error
 	if err != nil {
 		logrus.WithError(err).Error("获取活跃会话失败")
 		return
@@ -384,8 +389,21 @@ func (c *Client) handleMessage(message []byte) {
 	}
 }
 
-// BroadcastSessionUpdate 广播会话更新
+// BroadcastSessionUpdate 广播会话更新 - 已废弃，避免全局广播误杀
+// Deprecated: 使用SendSessionUpdateToUser或SendSessionUpdateToAdmins代替
 func (ws *WebSocketService) BroadcastSessionUpdate(sessionRecord *models.SessionRecord, updateType MessageType) {
+	logrus.WithFields(logrus.Fields{
+		"session_id": sessionRecord.SessionID,
+		"user_id":    sessionRecord.UserID,
+		"update_type": updateType,
+	}).Warn("BroadcastSessionUpdate已废弃，改为精确通知避免误杀")
+	
+	// 改为精确通知会话所属用户
+	ws.SendSessionUpdateToUser(sessionRecord, updateType)
+}
+
+// SendSessionUpdateToUser 向会话所属用户发送更新
+func (ws *WebSocketService) SendSessionUpdateToUser(sessionRecord *models.SessionRecord, updateType MessageType) {
 	message := WSMessage{
 		Type:      updateType,
 		Data:      sessionRecord.ToResponse(),
@@ -393,13 +411,14 @@ func (ws *WebSocketService) BroadcastSessionUpdate(sessionRecord *models.Session
 		SessionID: sessionRecord.SessionID,
 	}
 
-	data, err := json.Marshal(message)
-	if err != nil {
-		logrus.WithError(err).Error("消息序列化失败")
-		return
-	}
-
-	ws.manager.broadcast <- data
+	// 精确发送给会话所属用户
+	ws.SendMessageToUser(sessionRecord.UserID, message)
+	
+	logrus.WithFields(logrus.Fields{
+		"session_id": sessionRecord.SessionID,
+		"user_id":    sessionRecord.UserID,
+		"update_type": updateType,
+	}).Info("已向会话用户发送精确更新")
 }
 
 // SendMessageToUser 发送消息给指定用户
@@ -433,6 +452,31 @@ func (ws *WebSocketService) GetConnectedClients() int {
 
 // 全局WebSocket服务实例
 var GlobalWebSocketService *WebSocketService
+
+// RegisterSSHClient 注册SSH客户端到WebSocket服务
+func (ws *WebSocketService) RegisterSSHClient(client *Client) {
+	if ws.manager != nil {
+		client.Manager = ws.manager
+		ws.manager.register <- client
+		logrus.WithFields(logrus.Fields{
+			"client_id": client.ID,
+			"user_id":   client.UserID,
+			"role":      client.Role,
+		}).Info("SSH客户端已注册到WebSocket服务")
+	}
+}
+
+// UnregisterSSHClient 从WebSocket服务注销SSH客户端
+func (ws *WebSocketService) UnregisterSSHClient(client *Client) {
+	if ws.manager != nil {
+		ws.manager.unregister <- client
+		logrus.WithFields(logrus.Fields{
+			"client_id": client.ID,
+			"user_id":   client.UserID,
+			"role":      client.Role,
+		}).Info("SSH客户端已从WebSocket服务注销")
+	}
+}
 
 // InitWebSocketService 初始化WebSocket服务
 func InitWebSocketService() {

@@ -463,24 +463,32 @@ func (s *SSHService) cleanupSessionFromAllSources(sessionID string) {
 	} else {
 		logrus.WithField("session_id", sessionID).Info("成功在数据库中更新会话状态")
 		
-		// 🚀 立即触发监控更新，确保前端实时看到会话关闭
-		if GlobalWebSocketService != nil {
-			// 发送会话结束广播
-			endMsg := WSMessage{
-				Type:      SessionEnd,
-				Data:      map[string]interface{}{
+		// 🔧 修复：移除全局广播，改为精确通知相关用户
+		// 获取会话的用户信息来进行精确通知
+		var sessionRecord models.SessionRecord
+		if err := s.db.Where("session_id = ?", sessionID).First(&sessionRecord).Error; err == nil {
+			if GlobalWebSocketService != nil {
+				// 只向会话所属用户发送结束通知
+				endMsg := WSMessage{
+					Type:      SessionEnd,
+					Data:      map[string]interface{}{
+						"session_id": sessionID,
+						"status":     "closed",
+						"end_time":   now,
+						"reason":     "session_cleanup",
+					},
+					Timestamp: now,
+					SessionID: sessionID,
+				}
+				
+				// 精确发送给会话所属用户，不进行全局广播
+				GlobalWebSocketService.SendMessageToUser(sessionRecord.UserID, endMsg)
+				
+				logrus.WithFields(logrus.Fields{
 					"session_id": sessionID,
-					"status":     "closed",
-					"end_time":   now,
-				},
-				Timestamp: now,
-				SessionID: sessionID,
+					"user_id":    sessionRecord.UserID,
+				}).Info("已向会话用户发送结束通知")
 			}
-			
-			data, _ := json.Marshal(endMsg)
-			GlobalWebSocketService.manager.broadcast <- data
-			
-			logrus.WithField("session_id", sessionID).Info("已广播会话结束事件")
 		}
 	}
 }
