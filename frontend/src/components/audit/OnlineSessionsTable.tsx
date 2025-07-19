@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import {
   Card,
   Table,
@@ -21,11 +24,16 @@ import {
   SearchOutlined,
   EyeOutlined,
   PoweroffOutlined,
+  CopyOutlined,
+  FullscreenOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { AuditAPI, ActiveSession, TerminateSessionRequest } from '../../services/auditAPI';
 import { getWebSocketClient, WS_MESSAGE_TYPES, WSMessage } from '../../services/websocketClient';
+
+import '@xterm/xterm/css/xterm.css';
 
 const { TextArea } = Input;
 
@@ -48,6 +56,17 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
   // 终端镜像功能
   const [mirrorVisible, setMirrorVisible] = useState(false);
   const [mirrorSession, setMirrorSession] = useState<ActiveSession | null>(null);
+  const [terminalOutput, setTerminalOutput] = useState<string>('');
+  
+  // xterm.js 终端引用
+  const mirrorTerminalRef = useRef<HTMLDivElement>(null);
+  const mirrorTerminal = useRef<Terminal | null>(null);
+  const mirrorFitAddon = useRef<FitAddon | null>(null);
+  
+  // 终端主题和配置
+  const [terminalTheme, setTerminalTheme] = useState<'dark' | 'light'>('dark');
+  const [terminalFontSize, setTerminalFontSize] = useState(13);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // WebSocket客户端
   const wsClient = getWebSocketClient();
@@ -86,11 +105,6 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
       await wsClient.connect();
       setWsConnected(true);
 
-      // 订阅消息
-      wsClient.subscribe(WS_MESSAGE_TYPES.MONITORING_UPDATE, handleMonitoringUpdate);
-      wsClient.subscribe(WS_MESSAGE_TYPES.SESSION_START, handleSessionStart);
-      wsClient.subscribe(WS_MESSAGE_TYPES.SESSION_END, handleSessionEnd);
-
       // 监听连接状态变化
       wsClient.onConnectionStateChange(setWsConnected);
 
@@ -98,7 +112,7 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
       console.error('WebSocket连接失败:', error);
       setWsConnected(false);
     }
-  }, []);
+  }, [wsClient]);
 
   // 统一的会话去重处理函数
   const deduplicateSessions = useCallback((sessions: any[]) => {
@@ -170,10 +184,166 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
     }
   }, [fetchActiveSessions]);
 
+  // 初始化监控终端
+  const initMirrorTerminal = useCallback(() => {
+    if (!mirrorTerminalRef.current) {
+      return null;
+    }
+
+    // 清理旧的终端实例
+    if (mirrorTerminal.current) {
+      mirrorTerminal.current.dispose();
+    }
+
+    // 动态主题配置
+    const themes = {
+      dark: {
+        background: '#1e1e1e',
+        foreground: '#d4d4d4',
+        cursor: '#ffffff',
+        selectionBackground: '#264f78',
+        black: '#000000',
+        red: '#cd3131',
+        green: '#0dbc79',
+        yellow: '#e5e510',
+        blue: '#2472c8',
+        magenta: '#bc3fbc',
+        cyan: '#11a8cd',
+        white: '#e5e5e5',
+        brightBlack: '#666666',
+        brightRed: '#f14c4c',
+        brightGreen: '#23d18b',
+        brightYellow: '#f5f543',
+        brightBlue: '#3b8eea',
+        brightMagenta: '#d670d6',
+        brightCyan: '#29b8db',
+        brightWhite: '#e5e5e5'
+      },
+      light: {
+        background: '#ffffff',
+        foreground: '#333333',
+        cursor: '#000000',
+        selectionBackground: '#b3d4fc',
+        black: '#000000',
+        red: '#cd3131',
+        green: '#008000',
+        yellow: '#808000',
+        blue: '#0000cd',
+        magenta: '#cd00cd',
+        cyan: '#008080',
+        white: '#c0c0c0',
+        brightBlack: '#808080',
+        brightRed: '#ff0000',
+        brightGreen: '#00ff00',
+        brightYellow: '#ffff00',
+        brightBlue: '#0000ff',
+        brightMagenta: '#ff00ff',
+        brightCyan: '#00ffff',
+        brightWhite: '#ffffff'
+      }
+    };
+
+    const term = new Terminal({
+      theme: themes[terminalTheme],
+      fontSize: terminalFontSize,
+      fontFamily: 'Monaco, Menlo, "SF Mono", "Ubuntu Mono", "Courier New", monospace',
+      lineHeight: 1.3,
+      cursorBlink: false,
+      allowTransparency: false,
+      scrollback: 5000,
+      disableStdin: true,
+      rows: 28, // 减少行数为底部留出空间
+      cols: 120,
+      convertEol: true, // 转换换行符
+      wordSeparator: ' ()[]{},\"\' \t\r\n', // 优化单词选择
+      rightClickSelectsWord: true, // 右键选择单词
+      scrollSensitivity: 5, // 提高滚动灵敏度
+      fastScrollSensitivity: 10 // 快速滚动灵敏度
+    });
+
+    const fit = new FitAddon();
+    const webLinks = new WebLinksAddon();
+    
+    term.loadAddon(fit);
+    term.loadAddon(webLinks);
+    
+    term.open(mirrorTerminalRef.current);
+    
+    // 延迟调整大小，确保DOM已完全渲染
+    setTimeout(() => {
+      fit.fit();
+    }, 100);
+
+    mirrorTerminal.current = term;
+    mirrorFitAddon.current = fit;
+
+    return term;
+  }, [terminalTheme, terminalFontSize]);
+
+  // 处理终端输出消息 - 实时显示终端数据
+  const handleTerminalOutput = useCallback((message: WSMessage) => {
+    const { session_id, output } = message.data;
+    
+    // 只处理当前监控的会话输出
+    if (mirrorSession && session_id === mirrorSession.session_id) {
+      // 如果有真实终端，写入终端
+      if (mirrorTerminal.current && output) {
+        mirrorTerminal.current.write(output);
+      }
+      
+      // 同时保存到状态作为备用
+      setTerminalOutput(prevOutput => {
+        const newOutput = prevOutput + output;
+        return newOutput.length > 10000 ? newOutput.slice(-8000) : newOutput;
+      });
+    }
+  }, [mirrorSession]);
+
+  // 处理终端大小调整
+  const handleMirrorTerminalResize = useCallback(() => {
+    if (mirrorFitAddon.current && mirrorTerminal.current) {
+      setTimeout(() => {
+        mirrorFitAddon.current?.fit();
+      }, 100);
+    }
+  }, []);
+
+  // 复制终端内容
+  const copyTerminalContent = useCallback(() => {
+    if (mirrorTerminal.current) {
+      const selection = mirrorTerminal.current.getSelection();
+      if (selection) {
+        navigator.clipboard.writeText(selection).then(() => {
+          message.success('已复制选中内容');
+        }).catch(err => {
+          console.error('复制失败:', err);
+          message.error('复制失败');
+        });
+      } else {
+        // 如果没有选中内容，复制所有终端内容
+        navigator.clipboard.writeText(terminalOutput).then(() => {
+          message.success('已复制全部终端内容');
+        }).catch(err => {
+          console.error('复制失败:', err);
+          message.error('复制失败');
+        });
+      }
+    }
+  }, [terminalOutput]);
+
+  // 切换全屏模式
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen(prev => !prev);
+    // 延迟调整终端大小
+    setTimeout(() => {
+      handleMirrorTerminalResize();
+    }, 300);
+  }, [handleMirrorTerminalResize]);
+
   // 初始加载
   useEffect(() => {
     fetchActiveSessions();
-  }, []);
+  }, [fetchActiveSessions]);
 
   // WebSocket连接管理和重连后状态同步
   useEffect(() => {
@@ -181,12 +351,18 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
       // 总是尝试连接WebSocket，不依赖data.length
       initWebSocket();
     }
-  }, [wsConnected]);
+  }, [wsConnected, initWebSocket]);
 
   // WebSocket重连后同步状态
   useEffect(() => {
     if (wsConnected) {
-      // WebSocket连接成功后，刷新会话列表确保状态一致
+      // WebSocket连接成功后，设置消息订阅
+      wsClient.subscribe(WS_MESSAGE_TYPES.MONITORING_UPDATE, handleMonitoringUpdate);
+      wsClient.subscribe(WS_MESSAGE_TYPES.SESSION_START, handleSessionStart);
+      wsClient.subscribe(WS_MESSAGE_TYPES.SESSION_END, handleSessionEnd);
+      wsClient.subscribe('terminal_output', handleTerminalOutput);
+
+      // 刷新会话列表确保状态一致
       const timer = setTimeout(() => {
         console.log('WebSocket重连成功，执行状态同步');
         fetchActiveSessions();
@@ -194,7 +370,30 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
 
       return () => clearTimeout(timer);
     }
-  }, [wsConnected, fetchActiveSessions]);
+  }, [wsConnected, wsClient, fetchActiveSessions, handleMonitoringUpdate, handleSessionStart, handleSessionEnd, handleTerminalOutput]);
+
+  // 监控模态框窗口大小调整
+  useEffect(() => {
+    if (mirrorVisible) {
+      const handleResize = () => handleMirrorTerminalResize();
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, [mirrorVisible, handleMirrorTerminalResize]);
+  
+  // 终端主题或字体大小变化时重新初始化
+  useEffect(() => {
+    if (mirrorVisible && mirrorSession) {
+      // 延迟重新初始化，保持当前输出
+      const currentOutput = terminalOutput;
+      setTimeout(() => {
+        const newTerminal = initMirrorTerminal();
+        if (newTerminal && currentOutput) {
+          newTerminal.write(currentOutput);
+        }
+      }, 100);
+    }
+  }, [terminalTheme, terminalFontSize]);
 
   // 终止会话
   const handleTerminateSession = async () => {
@@ -232,19 +431,6 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
     }
   };
 
-  // 格式化持续时间
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    
-    if (hours > 0) {
-      return `${hours}小时${minutes}分钟`;
-    } else if (minutes > 0) {
-      return `${minutes}分钟`;
-    } else {
-      return `${seconds}秒`;
-    }
-  };
 
   // 过滤数据
   const filteredData = data.filter(item => {
@@ -344,7 +530,12 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
             size="small"
             onClick={() => {
               setMirrorSession(record);
+              setTerminalOutput(''); // 清空之前的输出
               setMirrorVisible(true);
+              // 延迟初始化终端，确保模态框已显示
+              setTimeout(() => {
+                initMirrorTerminal();
+              }, 200);
             }}
           >
             监控
@@ -476,80 +667,181 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
         </Form>
       </Modal>
 
-      {/* 终端镜像模态框 */}
+      {/* 终端镜像模态框 - 优化版本 */}
       <Modal
-        title={`实时监控 - ${mirrorSession?.username}@${mirrorSession?.asset_name}`}
+        title={
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            fontSize: '14px'
+          }}>
+            <span>
+              📺 实时监控 - {mirrorSession?.username}@{mirrorSession?.asset_name}
+            </span>
+            <Button 
+              type="text" 
+              size="small" 
+              onClick={handleMirrorTerminalResize}
+              style={{ fontSize: '12px' }}
+            >
+              🔄 调整大小
+            </Button>
+          </div>
+        }
         open={mirrorVisible}
-        onCancel={() => setMirrorVisible(false)}
+        onCancel={() => {
+          if (mirrorTerminal.current) {
+            mirrorTerminal.current.dispose();
+            mirrorTerminal.current = null;
+          }
+          setMirrorVisible(false);
+          setMirrorSession(null);
+          setTerminalOutput('');
+        }}
         footer={[
-          <Button key="close" onClick={() => setMirrorVisible(false)}>
-            关闭
-          </Button>
+          <div key="footer" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+            <Space>
+              <span style={{ fontSize: '12px', color: '#666' }}>
+                💡 提示: 双击选择单词，右键选择整行，Ctrl+A全选
+              </span>
+            </Space>
+            <Space>
+              <Button size="small" onClick={() => {
+                if (mirrorTerminal.current) {
+                  mirrorTerminal.current.clear();
+                }
+                setTerminalOutput('');
+              }}>
+                清空屏幕
+              </Button>
+              <Button onClick={() => {
+                if (mirrorTerminal.current) {
+                  mirrorTerminal.current.dispose();
+                  mirrorTerminal.current = null;
+                }
+                setMirrorVisible(false);
+                setMirrorSession(null);
+                setTerminalOutput('');
+                setIsFullscreen(false);
+              }}>
+                关闭
+              </Button>
+            </Space>
+          </div>
         ]}
-        width="80%"
-        style={{ top: 20 }}
+        width={isFullscreen ? '95%' : '85%'}
+        style={{ top: isFullscreen ? 5 : 10 }}
         bodyStyle={{ 
           padding: 0, 
-          backgroundColor: '#000',
-          minHeight: '600px',
+          backgroundColor: terminalTheme === 'dark' ? '#1e1e1e' : '#ffffff',
+          height: isFullscreen ? 'calc(100vh - 80px)' : 'calc(100vh - 150px)',
           display: 'flex',
           flexDirection: 'column'
         }}
+        destroyOnClose={true}
       >
+        {/* 压缩的会话信息条 */}
         <div style={{ 
-          padding: '12px 16px', 
-          backgroundColor: '#f0f0f0', 
+          padding: '6px 12px', 
+          backgroundColor: terminalTheme === 'dark' ? '#2d2d2d' : '#f5f5f5', 
           borderBottom: '1px solid #d9d9d9',
-          fontSize: '12px',
-          color: '#666'
+          fontSize: '11px',
+          color: terminalTheme === 'dark' ? '#ccc' : '#666',
+          lineHeight: '1.2',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
         }}>
-          <Space split={<span>|</span>}>
-            <span>会话ID: {mirrorSession?.session_id}</span>
-            <span>开始时间: {mirrorSession?.start_time ? dayjs(mirrorSession.start_time).format('YYYY-MM-DD HH:mm:ss') : ''}</span>
-            <span>状态: 只读监控</span>
+          <Space split={<span style={{ color: '#ccc' }}>|</span>} size={8}>
+            <span><strong>会话:</strong> {mirrorSession?.session_id?.slice(-8) || 'N/A'}</span>
+            <span><strong>时间:</strong> {mirrorSession?.start_time ? dayjs(mirrorSession.start_time).format('HH:mm:ss') : 'N/A'}</span>
+            <span><strong>协议:</strong> {mirrorSession?.protocol?.toUpperCase() || 'SSH'}</span>
+            <span style={{ color: '#52c41a' }}><strong>状态:</strong> 实时监控中</span>
+          </Space>
+          
+          <Space size={4}>
+            <span style={{ fontSize: '10px' }}>主题:</span>
+            <Button 
+              size="small" 
+              type={terminalTheme === 'dark' ? 'primary' : 'default'}
+              onClick={() => setTerminalTheme('dark')}
+              style={{ padding: '0 6px', height: '20px', fontSize: '10px' }}
+            >
+              深色
+            </Button>
+            <Button 
+              size="small" 
+              type={terminalTheme === 'light' ? 'primary' : 'default'}
+              onClick={() => setTerminalTheme('light')}
+              style={{ padding: '0 6px', height: '20px', fontSize: '10px' }}
+            >
+              浅色
+            </Button>
+            <span style={{ fontSize: '10px', marginLeft: '8px' }}>字号:</span>
+            <Button 
+              size="small" 
+              onClick={() => setTerminalFontSize(prev => Math.max(10, prev - 1))}
+              style={{ padding: '0 4px', height: '20px', fontSize: '10px' }}
+            >
+              -
+            </Button>
+            <span style={{ fontSize: '10px', width: '20px', textAlign: 'center' }}>{terminalFontSize}</span>
+            <Button 
+              size="small" 
+              onClick={() => setTerminalFontSize(prev => Math.min(20, prev + 1))}
+              style={{ padding: '0 4px', height: '20px', fontSize: '10px' }}
+            >
+              +
+            </Button>
           </Space>
         </div>
         
+        {/* 真实的xterm.js终端容器 */}
         <div style={{ 
           flex: 1, 
-          backgroundColor: '#000', 
-          color: '#fff', 
-          padding: '16px',
-          fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
-          fontSize: '14px',
-          lineHeight: '1.4',
-          overflow: 'auto'
+          backgroundColor: terminalTheme === 'dark' ? '#1e1e1e' : '#ffffff',
+          position: 'relative',
+          overflow: 'hidden',
+          border: `1px solid ${terminalTheme === 'dark' ? '#333' : '#d9d9d9'}`,
+          minHeight: 0 // 重要: 确保flex布局正确工作
         }}>
-          {mirrorSession ? (
-            <div>
-              <div style={{ marginBottom: '16px', color: '#00ff00' }}>
-                📺 正在实时监控会话...
+          <div
+            ref={mirrorTerminalRef}
+            style={{
+              width: '100%',
+              height: '100%',
+              padding: '12px 16px 32px 16px', // 关键修复: 增加底部padding(32px)避免截断
+              boxSizing: 'border-box',
+              backgroundColor: terminalTheme === 'dark' ? '#1e1e1e' : '#ffffff',
+              overflow: 'hidden' // 让xterm.js处理滚动
+            }}
+          />
+          
+          {/* 初始化提示 */}
+          {!mirrorTerminal.current && (
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              color: '#666',
+              textAlign: 'center',
+              fontSize: '13px'
+            }}>
+              <div style={{ marginBottom: '8px', color: terminalTheme === 'dark' ? '#00ff00' : '#007acc' }}>
+                🔄 正在初始化终端监控...
               </div>
-              <div style={{ color: '#888' }}>
-                • 用户: {mirrorSession.username}<br/>
-                • 主机: {mirrorSession.asset_name} ({mirrorSession.asset_address})<br/>
-                • 协议: {mirrorSession.protocol?.toUpperCase()}<br/>
-                • 系统用户: {'root'}<br/>
+              <div style={{ fontSize: '11px' }}>
+                {mirrorSession ? (
+                  <>
+                    监控目标: {mirrorSession.username}@{mirrorSession.asset_name}<br/>
+                    <small>实时终端输出将在此显示</small>
+                  </>
+                ) : (
+                  '请等待会话连接'
+                )}
               </div>
-              <div style={{ 
-                marginTop: '24px', 
-                padding: '16px',
-                border: '1px solid #333',
-                borderRadius: '4px',
-                backgroundColor: '#111'
-              }}>
-                <div style={{ color: '#00ff00', marginBottom: '8px' }}>
-                  [终端实时输出]
-                </div>
-                <div style={{ color: '#ccc', fontSize: '12px' }}>
-                  此功能将显示会话的实时终端输出...<br/>
-                  (需要连接到会话的WebSocket流)
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', color: '#666' }}>
-              请选择要监控的会话
             </div>
           )}
         </div>

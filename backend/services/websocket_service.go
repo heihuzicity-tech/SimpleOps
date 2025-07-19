@@ -52,12 +52,12 @@ type Client struct {
 
 // ConnectionManager WebSocket连接管理器
 type ConnectionManager struct {
-	clients    map[string]*Client  // clientID -> Client
-	userClients map[uint][]*Client // userID -> []*Client
+	Clients    map[string]*Client  // clientID -> Client (导出用于监控)
+	UserClients map[uint][]*Client // userID -> []*Client (导出用于监控)
+	Mutex      sync.RWMutex        // 读写锁 (导出用于监控)
 	broadcast  chan []byte         // 广播消息通道
 	register   chan *Client        // 注册新连接
 	unregister chan *Client        // 注销连接
-	mutex      sync.RWMutex        // 读写锁
 	upgrader   websocket.Upgrader  // WebSocket升级器
 }
 
@@ -69,8 +69,8 @@ type WebSocketService struct {
 // NewWebSocketService 创建WebSocket服务实例
 func NewWebSocketService() *WebSocketService {
 	manager := &ConnectionManager{
-		clients:     make(map[string]*Client),
-		userClients: make(map[uint][]*Client),
+		Clients:     make(map[string]*Client),
+		UserClients: make(map[uint][]*Client),
 		broadcast:   make(chan []byte),
 		register:    make(chan *Client),
 		unregister:  make(chan *Client),
@@ -169,20 +169,20 @@ func (cm *ConnectionManager) run() {
 
 // 注册客户端
 func (cm *ConnectionManager) registerClient(client *Client) {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
+	cm.Mutex.Lock()
+	defer cm.Mutex.Unlock()
 
-	cm.clients[client.ID] = client
+	cm.Clients[client.ID] = client
 	
 	// 添加到用户客户端映射
-	if _, ok := cm.userClients[client.UserID]; !ok {
-		cm.userClients[client.UserID] = make([]*Client, 0)
+	if _, ok := cm.UserClients[client.UserID]; !ok {
+		cm.UserClients[client.UserID] = make([]*Client, 0)
 	}
-	cm.userClients[client.UserID] = append(cm.userClients[client.UserID], client)
+	cm.UserClients[client.UserID] = append(cm.UserClients[client.UserID], client)
 
 	logrus.WithFields(logrus.Fields{
 		"client_id":     client.ID,
-		"total_clients": len(cm.clients),
+		"total_clients": len(cm.Clients),
 	}).Info("客户端已注册")
 
 	// 🔧 修复：移除冗余的欢迎消息，避免重复提示
@@ -199,58 +199,58 @@ func (cm *ConnectionManager) registerClient(client *Client) {
 
 // 注销客户端
 func (cm *ConnectionManager) unregisterClient(client *Client) {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
+	cm.Mutex.Lock()
+	defer cm.Mutex.Unlock()
 
-	if _, ok := cm.clients[client.ID]; ok {
-		delete(cm.clients, client.ID)
+	if _, ok := cm.Clients[client.ID]; ok {
+		delete(cm.Clients, client.ID)
 		close(client.Send)
 
 		// 从用户客户端映射中移除
-		if userClients, ok := cm.userClients[client.UserID]; ok {
+		if userClients, ok := cm.UserClients[client.UserID]; ok {
 			for i, c := range userClients {
 				if c.ID == client.ID {
-					cm.userClients[client.UserID] = append(userClients[:i], userClients[i+1:]...)
+					cm.UserClients[client.UserID] = append(userClients[:i], userClients[i+1:]...)
 					break
 				}
 			}
 			// 如果该用户没有其他客户端，删除映射
-			if len(cm.userClients[client.UserID]) == 0 {
-				delete(cm.userClients, client.UserID)
+			if len(cm.UserClients[client.UserID]) == 0 {
+				delete(cm.UserClients, client.UserID)
 			}
 		}
 
 		logrus.WithFields(logrus.Fields{
 			"client_id":     client.ID,
-			"total_clients": len(cm.clients),
+			"total_clients": len(cm.Clients),
 		}).Info("客户端已注销")
 	}
 }
 
 // 广播消息
 func (cm *ConnectionManager) broadcastMessage(message []byte) {
-	cm.mutex.RLock()
-	defer cm.mutex.RUnlock()
+	cm.Mutex.RLock()
+	defer cm.Mutex.RUnlock()
 
-	for clientID, client := range cm.clients {
+	for clientID, client := range cm.Clients {
 		select {
 		case client.Send <- message:
 		default:
 			close(client.Send)
-			delete(cm.clients, clientID)
+			delete(cm.Clients, clientID)
 		}
 	}
 }
 
 // 心跳检测
 func (cm *ConnectionManager) heartbeat() {
-	cm.mutex.RLock()
-	defer cm.mutex.RUnlock()
+	cm.Mutex.RLock()
+	defer cm.Mutex.RUnlock()
 
 	now := time.Now()
 	heartbeatTimeout := time.Duration(config.GlobalConfig.WebSocket.HeartbeatInterval*2) * time.Second
 
-	for _, client := range cm.clients {
+	for _, client := range cm.Clients {
 		// 发送心跳ping
 		pingMsg := WSMessage{
 			Type:      HeartbeatPing,
@@ -423,10 +423,10 @@ func (ws *WebSocketService) SendSessionUpdateToUser(sessionRecord *models.Sessio
 
 // SendMessageToUser 发送消息给指定用户
 func (ws *WebSocketService) SendMessageToUser(userID uint, message WSMessage) {
-	ws.manager.mutex.RLock()
-	defer ws.manager.mutex.RUnlock()
+	ws.manager.Mutex.RLock()
+	defer ws.manager.Mutex.RUnlock()
 
-	if clients, ok := ws.manager.userClients[userID]; ok {
+	if clients, ok := ws.manager.UserClients[userID]; ok {
 		data, err := json.Marshal(message)
 		if err != nil {
 			logrus.WithError(err).Error("消息序列化失败")
@@ -445,9 +445,14 @@ func (ws *WebSocketService) SendMessageToUser(userID uint, message WSMessage) {
 
 // GetConnectedClients 获取连接客户端数量
 func (ws *WebSocketService) GetConnectedClients() int {
-	ws.manager.mutex.RLock()
-	defer ws.manager.mutex.RUnlock()
-	return len(ws.manager.clients)
+	ws.manager.Mutex.RLock()
+	defer ws.manager.Mutex.RUnlock()
+	return len(ws.manager.Clients)
+}
+
+// GetManager 获取连接管理器（用于终端数据广播）
+func (ws *WebSocketService) GetManager() *ConnectionManager {
+	return ws.manager
 }
 
 // 全局WebSocket服务实例

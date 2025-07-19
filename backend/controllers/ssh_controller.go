@@ -594,6 +594,7 @@ func (sc *SSHController) handleSSHOutput(ctx context.Context, wsConn *WebSocketC
 				Data: outputData,
 			}
 
+			// 发送给SSH WebSocket客户端
 			wsConn.mu.Lock()
 			err := wsConn.conn.WriteJSON(message)
 			wsConn.mu.Unlock()
@@ -604,6 +605,25 @@ func (sc *SSHController) handleSSHOutput(ctx context.Context, wsConn *WebSocketC
 			}
 			
 			log.Printf("SSH output sent to WebSocket for session %s", wsConn.sessionID)
+			
+			// 🔧 新增：广播终端数据给监控WebSocket客户端
+			if services.GlobalWebSocketService != nil {
+				// 创建监控消息
+				monitorMsg := services.WSMessage{
+					Type: "terminal_output",
+					Data: map[string]interface{}{
+						"session_id": wsConn.sessionID,
+						"output":     outputData,
+						"timestamp":  time.Now(),
+					},
+					Timestamp: time.Now(),
+					SessionID: wsConn.sessionID,
+				}
+				
+				// 广播给所有具有monitor权限的客户端
+				sc.broadcastToMonitorClients(monitorMsg)
+				log.Printf("Terminal output broadcasted to monitor clients for session %s", wsConn.sessionID)
+			}
 			
 		case err := <-errorChan:
 			log.Printf("Failed to read SSH output for session %s: %v", wsConn.sessionID, err)
@@ -906,4 +926,40 @@ func (sc *SSHController) ForceCleanupSessions(c *gin.Context) {
 		"success": true,
 		"message": "All sessions have been forcefully cleaned up",
 	})
+}
+
+// broadcastToMonitorClients 广播消息给所有监控客户端
+func (sc *SSHController) broadcastToMonitorClients(message services.WSMessage) {
+	if services.GlobalWebSocketService == nil {
+		return
+	}
+	
+	// 获取所有连接的监控客户端
+	manager := services.GlobalWebSocketService.GetManager()
+	if manager == nil {
+		return
+	}
+	
+	manager.Mutex.RLock()
+	defer manager.Mutex.RUnlock()
+	
+	// 序列化消息
+	data, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Failed to marshal monitor message: %v", err)
+		return
+	}
+	
+	// 遍历所有客户端，发送给监控权限的客户端
+	for _, client := range manager.Clients {
+		// 检查客户端是否有监控权限（非SSH终端客户端）
+		if client.Role != "ssh_terminal" {
+			select {
+			case client.Send <- data:
+				log.Printf("Terminal output sent to monitor client %s", client.ID)
+			default:
+				log.Printf("Monitor client %s send buffer full, skipping", client.ID)
+			}
+		}
+	}
 }
