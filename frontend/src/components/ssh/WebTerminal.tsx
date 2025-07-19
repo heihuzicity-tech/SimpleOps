@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { message, Tag } from 'antd';
+import { message, Tag, Modal } from 'antd';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../../store';
 import { setConnectionStatus, updateSessionStatus } from '../../store/sshSessionSlice';
@@ -202,6 +202,72 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
             case 'error':
               console.error('Terminal error:', wsMessage.error);
               message.error(wsMessage.error || 'Terminal error');
+              break;
+            case 'force_terminate':
+              {
+                // 🔧 修复：增强会话ID验证和错误处理
+                let messageSessionId: string | undefined;
+                
+                // 尝试从多个可能的位置获取session_id
+                if (wsMessage.session_id) {
+                  messageSessionId = wsMessage.session_id;
+                } else if (wsMessage.data?.session_id) {
+                  messageSessionId = wsMessage.data.session_id;
+                } else if (typeof wsMessage.data === 'string') {
+                  // 可能是旧格式的消息
+                  messageSessionId = sessionId; // 假设是当前会话
+                }
+                
+                console.log('🔧 收到force_terminate消息:', {
+                  messageSessionId,
+                  currentSessionId: sessionId,
+                  wsMessage: wsMessage
+                });
+                
+                // 严格验证session_id
+                if (!messageSessionId) {
+                  console.warn('强制终止消息缺少有效的session_id，忽略处理');
+                  return;
+                }
+                
+                if (messageSessionId === sessionId) {
+                  const reason = wsMessage.data?.reason || wsMessage.data || '无具体原因';
+                  const admin_user = wsMessage.data?.admin_user || wsMessage.command || '未知管理员';
+                  
+                  console.log(`当前终端 ${sessionId} 收到有效的强制终止消息，执行关闭`);
+                  
+                  Modal.warning({
+                    title: '会话已被强制终止',
+                    content: (
+                      <div>
+                        <p><strong>会话ID:</strong> {messageSessionId}</p>
+                        <p><strong>操作管理员:</strong> {admin_user}</p>
+                        <p><strong>终止原因:</strong> {reason}</p>
+                        <p>您的连接已被管理员强制关闭。</p>
+                      </div>
+                    ),
+                    onOk: () => {
+                      onClose();
+                    },
+                    okText: '确认',
+                    maskClosable: false,
+                  });
+                } else {
+                  console.log(`终端 ${sessionId} 收到其他会话 ${messageSessionId} 的强制终止消息，忽略处理`);
+                }
+              }
+              break;
+            case 'warning':
+              {
+                const warning_message = wsMessage.data || '管理员警告';
+                message.warning(warning_message, 5);
+              }
+              break;
+            case 'alert':
+              {
+                const alert_message = wsMessage.data || '系统通知';
+                message.info(alert_message, 5);
+              }
               break;
             case 'pong':
               // 心跳响应

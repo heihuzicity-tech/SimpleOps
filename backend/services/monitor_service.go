@@ -15,6 +15,7 @@ import (
 type MonitorService struct {
 	db           *gorm.DB
 	redisSession *RedisSessionService
+	sshService   *SSHService
 }
 
 // NewMonitorService 创建监控服务实例
@@ -22,6 +23,7 @@ func NewMonitorService(db *gorm.DB) *MonitorService {
 	return &MonitorService{
 		db:           db,
 		redisSession: NewRedisSessionService(),
+		sshService:   NewSSHService(db),
 	}
 }
 
@@ -134,9 +136,7 @@ func (m *MonitorService) validateSessionsWithDB(redisSessions []*models.ActiveSe
 
 	// 从数据库获取真正活跃的会话 session_id
 	var dbSessionIDs []string
-	cutoffTime := time.Now().Add(-2 * time.Minute) // 只认为最近2分钟内的会话可能活跃
-	if err := m.db.Model(&models.SessionRecord{}).
-		Where("status = ? AND (is_terminated IS NULL OR is_terminated = ?) AND start_time >= ? AND end_time IS NULL", "active", false, cutoffTime).
+	if err := m.buildActiveSessionsQuery().
 		Pluck("session_id", &dbSessionIDs).Error; err != nil {
 		logrus.WithError(err).Error("Failed to validate sessions with database")
 		return redisSessions
@@ -184,19 +184,22 @@ func (m *MonitorService) validateSessionsWithDB(redisSessions []*models.ActiveSe
 	return validatedSessions
 }
 
+// buildActiveSessionsQuery 构建统一的活跃会话查询条件
+func (m *MonitorService) buildActiveSessionsQuery() *gorm.DB {
+	cutoffTime := time.Now().Add(-2 * time.Minute)
+	return m.db.Model(&models.SessionRecord{}).Where(
+		"status = ? AND (is_terminated IS NULL OR is_terminated = ?) AND end_time IS NULL AND start_time >= ?",
+		"active", false, cutoffTime,
+	)
+}
+
 // getActiveSessionsFromDB 从数据库获取活跃会话
 func (m *MonitorService) getActiveSessionsFromDB(req *models.ActiveSessionListRequest) ([]*models.ActiveSessionResponse, int64, error) {
 	var sessions []models.SessionRecord
 	var total int64
 
-	// ✅ 修复：严格过滤条件 - 只返回真正活跃的会话
-	// 1. 最近2分钟内开始的会话
-	// 2. end_time 为 NULL（未结束）
-	cutoffTime := time.Now().Add(-2 * time.Minute) // 缩短时间窗口到2分钟
-	query := m.db.Model(&models.SessionRecord{}).Where(
-		"status = ? AND (is_terminated IS NULL OR is_terminated = ?) AND start_time >= ? AND end_time IS NULL", 
-		"active", false, cutoffTime,
-	)
+	// 使用统一的活跃会话查询条件
+	query := m.buildActiveSessionsQuery()
 
 	// 添加过滤条件
 	if req.Username != "" {
@@ -354,9 +357,9 @@ func (m *MonitorService) TerminateSession(sessionID string, adminUserID uint, re
 		return fmt.Errorf("提交事务失败: %v", err)
 	}
 
-	// 发送WebSocket通知
+	// 发送精确的WebSocket通知
 	if GlobalWebSocketService != nil {
-		// 通知被终止的用户
+		// 1. 通知被终止的用户 - 精确投递
 		terminateMsg := WSMessage{
 			Type:      ForceTerminate,
 			Data: map[string]interface{}{
@@ -364,16 +367,84 @@ func (m *MonitorService) TerminateSession(sessionID string, adminUserID uint, re
 				"reason":     req.Reason,
 				"admin_user": adminUser.Username,
 				"force":      req.Force,
+				"user_id":    session.UserID,
 			},
 			Timestamp: now,
 			SessionID: sessionID,
 		}
+		
+		// 🔧 修复：同时发送给指定用户和进行有限广播确保消息送达
+		logrus.WithFields(logrus.Fields{
+			"session_id": sessionID,
+			"user_id":    session.UserID,
+			"msg_type":   terminateMsg.Type,
+		}).Info("发送强制终止消息给用户")
+		
 		GlobalWebSocketService.SendMessageToUser(session.UserID, terminateMsg)
+		
+		// 临时措施：为确保终端收到消息，也发送给所有管理客户端（但前端会验证session_id）
+		data, _ := json.Marshal(terminateMsg)
+		GlobalWebSocketService.manager.broadcast <- data
+		
+		logrus.WithField("session_id", sessionID).Info("已广播强制终止消息")
 
-		// 广播会话状态更新
-		session.Status = "terminated"
-		session.EndTime = &now
-		GlobalWebSocketService.BroadcastSessionUpdate(&session, SessionEnd)
+		// 2. 向有监控权限的管理员发送状态更新 - 避免全局广播
+		sessionUpdateMsg := WSMessage{
+			Type: SessionEnd,
+			Data: map[string]interface{}{
+				"session_id": sessionID,
+				"status":     "terminated",
+				"end_time":   now,
+				"reason":     req.Reason,
+				"user_id":    session.UserID,
+				"username":   session.Username,
+			},
+			Timestamp: now,
+			SessionID: sessionID,
+		}
+		
+		// 只向管理员发送监控更新，不进行全局广播
+		m.broadcastToAdmins(sessionUpdateMsg)
+		
+		logrus.WithFields(logrus.Fields{
+			"session_id": sessionID,
+			"user_id":    session.UserID,
+		}).Info("已发送精确的会话终止通知")
+	}
+
+	// 实际关闭 SSH 连接
+	if m.sshService != nil {
+		if err := m.sshService.CloseSessionWithReason(sessionID, req.Reason); err != nil {
+			// 记录详细错误信息
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"session_id": sessionID,
+				"admin_user": adminUser.Username,
+				"reason":     req.Reason,
+			}).Error("SSH连接关闭失败，但会话已标记为终止")
+			
+			// 通知管理员连接关闭异常
+			if GlobalWebSocketService != nil {
+				alertMsg := WSMessage{
+					Type: SystemAlert,
+					Data: map[string]interface{}{
+						"level":      "warning",
+						"message":    fmt.Sprintf("会话 %s SSH连接关闭异常，但已标记为终止", sessionID),
+						"session_id": sessionID,
+						"details":    err.Error(),
+					},
+					Timestamp: time.Now(),
+				}
+				GlobalWebSocketService.SendMessageToUser(adminUserID, alertMsg)
+			}
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"session_id": sessionID,
+				"admin_user": adminUser.Username,
+			}).Info("SSH连接已成功强制关闭")
+		}
+	} else {
+		// SSH服务不可用的情况
+		logrus.WithField("session_id", sessionID).Warn("SSH服务不可用，无法关闭连接，但会话已标记为终止")
 	}
 
 	logrus.WithFields(logrus.Fields{
@@ -384,6 +455,36 @@ func (m *MonitorService) TerminateSession(sessionID string, adminUserID uint, re
 	}).Info("会话已被终止")
 
 	return nil
+}
+
+// broadcastToAdmins 向有监控权限的管理员精确广播消息
+func (m *MonitorService) broadcastToAdmins(message WSMessage) {
+	if GlobalWebSocketService == nil {
+		return
+	}
+
+	// 获取所有有监控权限的在线用户
+	var adminUsers []models.User
+	if err := m.db.Preload("Roles.Permissions").Find(&adminUsers).Error; err != nil {
+		logrus.WithError(err).Error("获取管理员用户失败")
+		return
+	}
+
+	adminCount := 0
+	for _, user := range adminUsers {
+		// 检查用户是否有监控权限
+		if user.HasPermission("audit:view") || user.HasPermission("audit:terminate") {
+			// 向有权限的管理员发送消息
+			GlobalWebSocketService.SendMessageToUser(user.ID, message)
+			adminCount++
+		}
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"message_type": message.Type,
+		"admin_count":  adminCount,
+		"session_id":   message.SessionID,
+	}).Info("已向管理员发送精确广播")
 }
 
 // ======================== 会话警告管理 ========================
@@ -627,11 +728,11 @@ func (m *MonitorService) inactiveSessionDetectionTask() {
 func (m *MonitorService) updateSessionStatus() {
 	// 首先清理所有陈旧的"active"状态记录
 	now := time.Now()
-	cutoffTime := now.Add(-2 * time.Minute) // 缩短到2分钟，更及时地清理已结束的会话
+	cutoffTime := now.Add(-30 * time.Minute) // 🔧 修复：从2分钟改为30分钟，避免误清理活跃会话
 	
-	// 🔥 立即清理所有明显过期的会话（更激进的清理策略）
-	// 清理超过30秒无活动且没有正确end_time的会话
-	immediateCleanupTime := now.Add(-30 * time.Second)
+	// 🔧 修复：调整清理策略，避免过度激进
+	// 清理超过5分钟无活动且没有正确end_time的会话（从30秒改为5分钟）
+	immediateCleanupTime := now.Add(-5 * time.Minute)
 	immediateResult := m.db.Model(&models.SessionRecord{}).
 		Where("status = ? AND updated_at < ? AND end_time IS NULL", "active", immediateCleanupTime).
 		Updates(map[string]interface{}{
@@ -641,10 +742,10 @@ func (m *MonitorService) updateSessionStatus() {
 		})
 	
 	if immediateResult.RowsAffected > 0 {
-		logrus.WithField("cleaned_count", immediateResult.RowsAffected).Info("立即清理了无活动的会话记录")
+		logrus.WithField("cleaned_count", immediateResult.RowsAffected).Info("清理了5分钟内无活动的会话记录")
 	}
 	
-	// 清理超过2分钟的"active"会话
+	// 清理超过30分钟的"active"会话
 	result := m.db.Model(&models.SessionRecord{}).
 		Where("status = ? AND start_time < ?", "active", cutoffTime).
 		Updates(map[string]interface{}{

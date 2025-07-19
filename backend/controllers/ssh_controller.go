@@ -3,7 +3,10 @@ package controllers
 import (
 	"bastion/models"
 	"bastion/services"
+	"bastion/utils"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -29,11 +32,12 @@ type WebSocketMessage struct {
 
 // TerminalMessage 终端消息
 type TerminalMessage struct {
-	Type    string `json:"type"`
-	Data    string `json:"data"`
-	Rows    int    `json:"rows,omitempty"`
-	Cols    int    `json:"cols,omitempty"`
-	Command string `json:"command,omitempty"`
+	Type      string `json:"type"`
+	Data      string `json:"data"`
+	Rows      int    `json:"rows,omitempty"`
+	Cols      int    `json:"cols,omitempty"`
+	Command   string `json:"command,omitempty"`
+	SessionID string `json:"session_id,omitempty"` // 🔧 修复：添加session_id字段
 }
 
 // WebSocketConnection WebSocket连接包装
@@ -283,7 +287,41 @@ func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 
 // handleWebSocketConnection 处理WebSocket连接
 func (sc *SSHController) handleWebSocketConnection(wsConn *WebSocketConnection) {
+	// 注册到全局WebSocket服务，以便接收管理消息
+	var wsClient *services.Client
+	if services.GlobalWebSocketService != nil {
+		// 获取用户信息用于注册
+		var user models.User
+		if err := utils.GetDB().Where("id = ?", wsConn.userID).First(&user).Error; err == nil {
+			// 创建WebSocket客户端
+			wsClient = &services.Client{
+				ID:         fmt.Sprintf("ssh-%s", wsConn.sessionID),
+				UserID:     wsConn.userID,
+				Username:   user.Username,
+				Role:       "ssh_terminal",
+				Connection: wsConn.conn,
+				Send:       make(chan []byte, 256),
+				Manager:    nil, // 将在注册时设置
+				LastPong:   time.Now(),
+			}
+			
+			// 注册到WebSocket服务
+			services.GlobalWebSocketService.RegisterSSHClient(wsClient)
+			log.Printf("SSH WebSocket client registered for session %s, user %s", wsConn.sessionID, user.Username)
+			
+			// 启动管理消息处理协程
+			go sc.handleManagementMessages(wsClient, wsConn)
+		}
+	}
+
 	defer func() {
+		// 注销WebSocket客户端
+		if wsClient != nil && services.GlobalWebSocketService != nil {
+			services.GlobalWebSocketService.UnregisterSSHClient(wsClient)
+			close(wsClient.Send)
+			log.Printf("SSH WebSocket client unregistered for session %s", wsConn.sessionID)
+		}
+		
 		wsConn.conn.Close()
 		// ✅ 修复：WebSocket断开时优雅清理SSH会话，添加延迟避免过快清理
 		log.Printf("WebSocket disconnected for session %s, scheduling SSH session cleanup", wsConn.sessionID)
@@ -301,17 +339,30 @@ func (sc *SSHController) handleWebSocketConnection(wsConn *WebSocketConnection) 
 			log.Printf("Successfully cleaned up SSH session %s on WebSocket disconnect", wsConn.sessionID)
 		}
 		
-		// 🔥 额外保障：立即发送WebSocket广播，确保前端实时更新
+		// 🔧 修复：精确通知相关用户，避免全局广播误杀
 		if services.GlobalWebSocketService != nil {
-			// 创建假的SessionRecord用于广播
-			fakeSession := &models.SessionRecord{
-				SessionID: wsConn.sessionID,
-				Status:    "closed",
-				EndTime:   &[]time.Time{time.Now()}[0],
+			// 获取会话信息来进行精确通知
+			var sessionRecord models.SessionRecord
+			if err := utils.GetDB().Where("session_id = ?", wsConn.sessionID).First(&sessionRecord).Error; err == nil {
+				// 创建会话结束消息
+				endMsg := services.WSMessage{
+					Type: services.SessionEnd,
+					Data: map[string]interface{}{
+						"session_id": wsConn.sessionID,
+						"status":     "closed",
+						"end_time":   time.Now(),
+						"reason":     "user_disconnect",
+					},
+					Timestamp: time.Now(),
+					SessionID: wsConn.sessionID,
+				}
+				
+				// 只向会话所属用户发送消息，不进行全局广播
+				services.GlobalWebSocketService.SendMessageToUser(sessionRecord.UserID, endMsg)
+				log.Printf("Sent precise session end notification to user %d for session %s", sessionRecord.UserID, wsConn.sessionID)
+			} else {
+				log.Printf("Warning: Could not find session record for %s, skipping WebSocket notification", wsConn.sessionID)
 			}
-			
-			services.GlobalWebSocketService.BroadcastSessionUpdate(fakeSession, services.SessionEnd)
-			log.Printf("Immediately broadcasted session end event for %s on WebSocket disconnect", wsConn.sessionID)
 		}
 	}()
 
@@ -324,6 +375,149 @@ func (sc *SSHController) handleWebSocketConnection(wsConn *WebSocketConnection) 
 
 	// 等待连接结束
 	<-ctx.Done()
+}
+
+// handleManagementMessages 处理来自WebSocket服务的管理消息
+func (sc *SSHController) handleManagementMessages(wsClient *services.Client, wsConn *WebSocketConnection) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Management message handler panic: %v", r)
+		}
+	}()
+
+	for {
+		select {
+		case data, ok := <-wsClient.Send:
+			if !ok {
+				log.Printf("Management message channel closed for session %s", wsConn.sessionID)
+				return
+			}
+			
+			// 解析管理消息
+			var wsMessage services.WSMessage
+			if err := json.Unmarshal(data, &wsMessage); err != nil {
+				log.Printf("Failed to unmarshal management message: %v", err)
+				continue
+			}
+			
+			log.Printf("Received management message for session %s: %s", wsConn.sessionID, wsMessage.Type)
+			
+			// 处理不同类型的管理消息
+			switch wsMessage.Type {
+			case services.ForceTerminate:
+				sc.handleForceTerminate(wsConn, wsMessage)
+			case services.SessionWarning:
+				sc.handleSessionWarning(wsConn, wsMessage)
+			case services.SystemAlert:
+				sc.handleSystemAlert(wsConn, wsMessage)
+			default:
+				log.Printf("Unknown management message type: %s", wsMessage.Type)
+			}
+		}
+	}
+}
+
+// handleForceTerminate 处理强制终止消息
+func (sc *SSHController) handleForceTerminate(wsConn *WebSocketConnection, wsMessage services.WSMessage) {
+	log.Printf("Processing force terminate for session %s", wsConn.sessionID)
+	
+	// 🔧 修复：检查session_id是否匹配，避免误杀其他终端
+	var targetSessionID string
+	var reason string = "会话已被管理员强制终止"
+	var adminUser string = "未知管理员"
+	
+	if wsMessage.Data != nil {
+		if dataMap, ok := wsMessage.Data.(map[string]interface{}); ok {
+			if sessionId, ok := dataMap["session_id"].(string); ok {
+				targetSessionID = sessionId
+			}
+			if r, ok := dataMap["reason"].(string); ok {
+				reason = r
+			}
+			if admin, ok := dataMap["admin_user"].(string); ok {
+				adminUser = admin
+			}
+		}
+	}
+	
+	// 检查session_id是否匹配
+	if targetSessionID != "" && targetSessionID != wsConn.sessionID {
+		log.Printf("Force terminate message for session %s ignored by session %s (不匹配)", targetSessionID, wsConn.sessionID)
+		return
+	}
+	
+	log.Printf("Force terminate message validated for session %s", wsConn.sessionID)
+	
+	// 转换为终端消息格式
+	terminalMessage := TerminalMessage{
+		Type:      "force_terminate",
+		Data:      reason,
+		Command:   adminUser,
+		SessionID: wsConn.sessionID, // 🔧 修复：包含session_id以便前端验证
+	}
+	
+	// 发送强制终止消息到前端
+	wsConn.mu.Lock()
+	err := wsConn.conn.WriteJSON(terminalMessage)
+	wsConn.mu.Unlock()
+	
+	if err != nil {
+		log.Printf("Failed to send force terminate message: %v", err)
+	} else {
+		log.Printf("Force terminate message sent to session %s", wsConn.sessionID)
+	}
+	
+	// 给前端一点时间处理消息，然后关闭连接
+	time.Sleep(1 * time.Second)
+	wsConn.conn.Close()
+}
+
+// handleSessionWarning 处理会话警告消息
+func (sc *SSHController) handleSessionWarning(wsConn *WebSocketConnection, wsMessage services.WSMessage) {
+	terminalMessage := TerminalMessage{
+		Type: "warning",
+		Data: "管理员警告",
+	}
+	
+	if wsMessage.Data != nil {
+		if dataMap, ok := wsMessage.Data.(map[string]interface{}); ok {
+			if message, ok := dataMap["message"].(string); ok {
+				terminalMessage.Data = message
+			}
+		}
+	}
+	
+	wsConn.mu.Lock()
+	err := wsConn.conn.WriteJSON(terminalMessage)
+	wsConn.mu.Unlock()
+	
+	if err != nil {
+		log.Printf("Failed to send warning message: %v", err)
+	}
+}
+
+// handleSystemAlert 处理系统告警消息  
+func (sc *SSHController) handleSystemAlert(wsConn *WebSocketConnection, wsMessage services.WSMessage) {
+	terminalMessage := TerminalMessage{
+		Type: "alert",
+		Data: "系统通知",
+	}
+	
+	if wsMessage.Data != nil {
+		if dataMap, ok := wsMessage.Data.(map[string]interface{}); ok {
+			if message, ok := dataMap["message"].(string); ok {
+				terminalMessage.Data = message
+			}
+		}
+	}
+	
+	wsConn.mu.Lock()
+	err := wsConn.conn.WriteJSON(terminalMessage)
+	wsConn.mu.Unlock()
+	
+	if err != nil {
+		log.Printf("Failed to send alert message: %v", err)
+	}
 }
 
 // handleSSHOutput 处理SSH输出到WebSocket
