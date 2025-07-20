@@ -228,16 +228,18 @@ const CommandTimeline: React.FC<CommandTimelineProps> = ({
         flexDirection: 'column',
         backgroundColor: '#2d2d2d',
         border: '1px solid #404040',
-        borderRadius: '4px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+        borderRadius: '2px',
+        boxShadow: 'none',
       }}
       headStyle={{
         backgroundColor: '#3d3d3d',
         color: '#ffffff',
         borderBottom: '1px solid #404040',
-        borderRadius: '4px 4px 0 0',
-        fontSize: '16px',
+        borderRadius: '2px 2px 0 0',
+        fontSize: '14px',
         fontWeight: 500,
+        padding: '8px 12px',
+        minHeight: '36px',
       }}
       bodyStyle={{ 
         flex: 1, 
@@ -246,6 +248,7 @@ const CommandTimeline: React.FC<CommandTimelineProps> = ({
         flexDirection: 'column',
         backgroundColor: '#2d2d2d',
         padding: 0,
+        margin: 0,
       }}
     >
       {/* 命令时间轴列表 */}
@@ -279,13 +282,13 @@ const CommandTimeline: React.FC<CommandTimelineProps> = ({
                 <List.Item
                   key={command.id}
                   style={{ 
-                    padding: '8px 16px',
+                    padding: '6px 12px',
                     margin: 0,
                     borderBottom: '1px solid #404040',
                     cursor: 'pointer',
                     backgroundColor: 'transparent',
                     transition: 'background-color 0.2s',
-                    minHeight: '44px',
+                    minHeight: '36px',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = '#3d3d3d';
@@ -301,7 +304,7 @@ const CommandTimeline: React.FC<CommandTimelineProps> = ({
                     justifyContent: 'space-between', 
                     alignItems: 'center',
                     width: '100%',
-                    gap: '12px',
+                    gap: '8px',
                   }}>
                     
                     {/* 命令内容 */}
@@ -309,9 +312,9 @@ const CommandTimeline: React.FC<CommandTimelineProps> = ({
                       style={{
                         color: '#ffffff',
                         fontFamily: 'Monaco, "Courier New", monospace',
-                        fontSize: '14px',
+                        fontSize: '13px',
                         flex: 1,
-                        marginRight: '12px',
+                        marginRight: '8px',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
@@ -326,7 +329,7 @@ const CommandTimeline: React.FC<CommandTimelineProps> = ({
                       style={{
                         color: '#888888',
                         fontFamily: 'Monaco, "Courier New", monospace',
-                        fontSize: '12px',
+                        fontSize: '11px',
                         flexShrink: 0,
                       }}
                     >
