@@ -18,6 +18,7 @@ import SessionAuditPage from './pages/audit/SessionAuditPage';
 import CommandAuditPage from './pages/audit/CommandAuditPage';
 import OperationAuditPage from './pages/audit/OperationAuditPage';
 import AuditOverviewPage from './pages/audit/AuditOverviewPage';
+import RecordingAuditPage from './pages/audit/RecordingAuditPage';
 import GroupManagePage from './pages/GroupManagePage';
 import TerminalPage from './pages/connect/TerminalPage';
 import WorkspaceStandalone from './pages/connect/WorkspaceStandalone';
@@ -176,6 +177,7 @@ const App: React.FC = () => {
                   <Route path="/audit/session-audit" element={<SessionAuditPage />} />
                   <Route path="/audit/command-audit" element={<CommandAuditPage />} />
                   <Route path="/audit/operation-audit" element={<OperationAuditPage />} />
+                  <Route path="/audit/recording-audit" element={<RecordingAuditPage />} />
                   <Route path="/test/compact-host-list" element={<CompactHostListTest />} />
                 </Routes>
               </DashboardLayout>

@@ -1020,6 +1020,186 @@ func (s *SessionWarning) MarkAsRead() {
 
 // ======================== 资产分组相关请求响应结构 ========================
 
+// ======================== 会话录制相关模型 ========================
+
+// SessionRecording 会话录制模型
+type SessionRecording struct {
+	ID               uint           `json:"id" gorm:"primaryKey"`
+	SessionID        string         `json:"session_id" gorm:"uniqueIndex;not null;size:100"`
+	UserID           uint           `json:"user_id" gorm:"not null;index"`
+	AssetID          uint           `json:"asset_id" gorm:"not null;index"`
+	StartTime        time.Time      `json:"start_time"`
+	EndTime          *time.Time     `json:"end_time"`
+	Duration         int64          `json:"duration"` // 录制时长（秒）
+	FilePath         string         `json:"file_path" gorm:"not null;size:500"`
+	FileSize         int64          `json:"file_size"` // 文件大小（字节）
+	CompressedSize   int64          `json:"compressed_size"` // 压缩后大小
+	Format           string         `json:"format" gorm:"size:20;default:asciicast"` // 文件格式
+	Checksum         string         `json:"checksum" gorm:"size:64"` // 文件校验和
+	TerminalWidth    int            `json:"terminal_width"`
+	TerminalHeight   int            `json:"terminal_height"`
+	TotalBytes       int64          `json:"total_bytes"` // 原始数据总字节
+	CompressedBytes  int64          `json:"compressed_bytes"` // 压缩数据字节
+	CompressionRatio float64        `json:"compression_ratio"` // 压缩比
+	RecordCount      int            `json:"record_count"` // 记录数量
+	Status           string         `json:"status" gorm:"size:20;default:recording"` // recording, completed, failed
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	DeletedAt        gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// 关联关系
+	User    User          `json:"user" gorm:"foreignKey:UserID"`
+	Asset   Asset         `json:"asset" gorm:"foreignKey:AssetID"`
+	Session SessionRecord `json:"session" gorm:"foreignKey:SessionID;references:SessionID"`
+}
+
+// RecordingConfig 录制配置模型
+type RecordingConfig struct {
+	ID               uint           `json:"id" gorm:"primaryKey"`
+	UserID           uint           `json:"user_id" gorm:"index"` // 0表示全局配置
+	AssetID          uint           `json:"asset_id" gorm:"index"` // 0表示应用于所有资产
+	Enabled          bool           `json:"enabled" gorm:"default:true"`
+	AutoStart        bool           `json:"auto_start" gorm:"default:true"`
+	Format           string         `json:"format" gorm:"size:20;default:asciicast"`
+	CompressionEnabled bool         `json:"compression_enabled" gorm:"default:true"`
+	CompressionLevel int            `json:"compression_level" gorm:"default:6"`
+	MaxDuration      int64          `json:"max_duration" gorm:"default:86400"` // 最大录制时长（秒）
+	MaxFileSize      int64          `json:"max_file_size" gorm:"default:1073741824"` // 最大文件大小（字节）
+	RetentionDays    int            `json:"retention_days" gorm:"default:90"` // 保留天数
+	StorageLocation  string         `json:"storage_location" gorm:"size:100;default:local"` // local, s3, oss
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	DeletedAt        gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// 关联关系
+	User  *User  `json:"user,omitempty" gorm:"foreignKey:UserID"`
+	Asset *Asset `json:"asset,omitempty" gorm:"foreignKey:AssetID"`
+}
+
+// ======================== 会话录制请求响应结构 ========================
+
+// SessionRecordingListRequest 会话录制列表请求
+type SessionRecordingListRequest struct {
+	Page      int    `form:"page" binding:"omitempty,min=1"`
+	PageSize  int    `form:"page_size" binding:"omitempty,min=1,max=100"`
+	SessionID string `form:"session_id" binding:"omitempty,max=100"`
+	UserID    uint   `form:"user_id" binding:"omitempty"`
+	AssetID   uint   `form:"asset_id" binding:"omitempty"`
+	Status    string `form:"status" binding:"omitempty,oneof=recording completed failed"`
+	Format    string `form:"format" binding:"omitempty,oneof=asciicast json mp4"`
+	StartTime string `form:"start_time" binding:"omitempty"`
+	EndTime   string `form:"end_time" binding:"omitempty"`
+}
+
+// SessionRecordingResponse 会话录制响应
+type SessionRecordingResponse struct {
+	ID               uint       `json:"id"`
+	SessionID        string     `json:"session_id"`
+	UserID           uint       `json:"user_id"`
+	Username         string     `json:"username"`
+	AssetID          uint       `json:"asset_id"`
+	AssetName        string     `json:"asset_name"`
+	StartTime        time.Time  `json:"start_time"`
+	EndTime          *time.Time `json:"end_time"`
+	Duration         int64      `json:"duration"`
+	FilePath         string     `json:"file_path"`
+	FileSize         int64      `json:"file_size"`
+	CompressedSize   int64      `json:"compressed_size"`
+	Format           string     `json:"format"`
+	TerminalWidth    int        `json:"terminal_width"`
+	TerminalHeight   int        `json:"terminal_height"`
+	CompressionRatio float64    `json:"compression_ratio"`
+	RecordCount      int        `json:"record_count"`
+	Status           string     `json:"status"`
+	CreatedAt        time.Time  `json:"created_at"`
+	CanDownload      bool       `json:"can_download"`
+	CanView          bool       `json:"can_view"`
+	CanDelete        bool       `json:"can_delete"`
+}
+
+// RecordingConfigRequest 录制配置请求
+type RecordingConfigRequest struct {
+	UserID             uint   `json:"user_id" binding:"omitempty"`
+	AssetID            uint   `json:"asset_id" binding:"omitempty"`
+	Enabled            bool   `json:"enabled"`
+	AutoStart          bool   `json:"auto_start"`
+	Format             string `json:"format" binding:"omitempty,oneof=asciicast json mp4"`
+	CompressionEnabled bool   `json:"compression_enabled"`
+	CompressionLevel   int    `json:"compression_level" binding:"omitempty,min=1,max=9"`
+	MaxDuration        int64  `json:"max_duration" binding:"omitempty,min=60"`
+	MaxFileSize        int64  `json:"max_file_size" binding:"omitempty,min=1048576"`
+	RetentionDays      int    `json:"retention_days" binding:"omitempty,min=1"`
+	StorageLocation    string `json:"storage_location" binding:"omitempty,oneof=local s3 oss"`
+}
+
+// ======================== 表名映射 ========================
+
+func (SessionRecording) TableName() string {
+	return "session_recordings"
+}
+
+func (RecordingConfig) TableName() string {
+	return "recording_configs"
+}
+
+// ======================== 模型方法 ========================
+
+func (sr *SessionRecording) ToResponse() *SessionRecordingResponse {
+	canDownload := sr.Status == "completed" && sr.FileSize > 0
+	canView := sr.Status == "completed" && sr.Format == "asciicast"
+	
+	return &SessionRecordingResponse{
+		ID:               sr.ID,
+		SessionID:        sr.SessionID,
+		UserID:           sr.UserID,
+		Username:         sr.User.Username,
+		AssetID:          sr.AssetID,
+		AssetName:        sr.Asset.Name,
+		StartTime:        sr.StartTime,
+		EndTime:          sr.EndTime,
+		Duration:         sr.Duration,
+		FilePath:         sr.FilePath,
+		FileSize:         sr.FileSize,
+		CompressedSize:   sr.CompressedSize,
+		Format:           sr.Format,
+		TerminalWidth:    sr.TerminalWidth,
+		TerminalHeight:   sr.TerminalHeight,
+		CompressionRatio: sr.CompressionRatio,
+		RecordCount:      sr.RecordCount,
+		Status:           sr.Status,
+		CreatedAt:        sr.CreatedAt,
+		CanDownload:      canDownload,
+		CanView:          canView,
+		CanDelete:        true, // 根据权限确定
+	}
+}
+
+func (sr *SessionRecording) IsCompleted() bool {
+	return sr.Status == "completed"
+}
+
+func (sr *SessionRecording) IsRecording() bool {
+	return sr.Status == "recording"
+}
+
+func (sr *SessionRecording) CalculateCompressionRatio() {
+	if sr.TotalBytes > 0 {
+		sr.CompressionRatio = float64(sr.CompressedBytes) / float64(sr.TotalBytes)
+	}
+}
+
+func (rc *RecordingConfig) IsGlobal() bool {
+	return rc.UserID == 0 && rc.AssetID == 0
+}
+
+func (rc *RecordingConfig) IsUserSpecific() bool {
+	return rc.UserID > 0 && rc.AssetID == 0
+}
+
+func (rc *RecordingConfig) IsAssetSpecific() bool {
+	return rc.AssetID > 0
+}
+
 // AssetGroupCreateRequest 资产分组创建请求
 type AssetGroupCreateRequest struct {
 	Name        string `json:"name" binding:"required,min=1,max=50"`
@@ -1111,4 +1291,56 @@ func (ag *AssetGroup) ToResponseWithHosts() *AssetGroupWithHostsResponse {
 		CreatedAt:   ag.CreatedAt,
 		UpdatedAt:   ag.UpdatedAt,
 	}
+}
+
+// ======================== 批量操作相关数据结构 ========================
+
+// BatchOperationRequest 批量操作请求
+type BatchOperationRequest struct {
+	RecordingIDs []uint                 `json:"recording_ids" binding:"required,min=1,max=50"`
+	Operation    string                 `json:"operation" binding:"required,oneof=delete download archive"`
+	Reason       string                 `json:"reason" binding:"omitempty,max=200"`
+	Options      map[string]interface{} `json:"options"`
+}
+
+// BatchOperationResponse 批量操作响应
+type BatchOperationResponse struct {
+	TaskID       string                   `json:"task_id"`
+	TotalCount   int                      `json:"total_count"`
+	SuccessCount int                      `json:"success_count"`
+	FailedCount  int                      `json:"failed_count"`
+	Status       string                   `json:"status"` // pending, running, completed, failed
+	Results      []BatchOperationResult   `json:"results"`
+	DownloadURL  string                   `json:"download_url,omitempty"`
+	Message      string                   `json:"message,omitempty"`
+	CreatedAt    time.Time                `json:"created_at"`
+	UpdatedAt    time.Time                `json:"updated_at"`
+}
+
+// BatchOperationResult 批量操作单个结果
+type BatchOperationResult struct {
+	RecordingID uint   `json:"recording_id"`
+	Success     bool   `json:"success"`
+	Error       string `json:"error,omitempty"`
+	Message     string `json:"message,omitempty"`
+}
+
+// BatchTask 批量任务（用于任务队列和状态跟踪）
+type BatchTask struct {
+	ID           string                 `json:"id"`
+	Operation    string                 `json:"operation"`
+	RecordingIDs []uint                 `json:"recording_ids"`
+	UserID       uint                   `json:"user_id"`
+	Reason       string                 `json:"reason"`
+	Options      map[string]interface{} `json:"options"`
+	Status       string                 `json:"status"` // pending, running, completed, failed
+	TotalCount   int                    `json:"total_count"`
+	SuccessCount int                    `json:"success_count"`
+	FailedCount  int                    `json:"failed_count"`
+	Results      []BatchOperationResult `json:"results"`
+	DownloadURL  string                 `json:"download_url,omitempty"`
+	ErrorMessage string                 `json:"error_message,omitempty"`
+	CreatedAt    time.Time              `json:"created_at"`
+	UpdatedAt    time.Time              `json:"updated_at"`
+	ExpiresAt    time.Time              `json:"expires_at"`
 }

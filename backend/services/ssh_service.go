@@ -24,29 +24,31 @@ import (
 
 // SSHService SSH服务
 type SSHService struct {
-	db           *gorm.DB
-	auditService *AuditService
-	sessions     map[string]*SSHSession // 内存中的SSH连接
-	sessionsMu   sync.RWMutex
-	redisSession *RedisSessionService // Redis会话管理
+	db              *gorm.DB
+	auditService    *AuditService
+	recordingService *RecordingService
+	sessions        map[string]*SSHSession // 内存中的SSH连接
+	sessionsMu      sync.RWMutex
+	redisSession    *RedisSessionService // Redis会话管理
 }
 
 // SSHSession SSH会话
 type SSHSession struct {
-	ID           string       `json:"id"`
-	UserID       uint         `json:"user_id"`
-	AssetID      uint         `json:"asset_id"`
-	CredentialID uint         `json:"credential_id"`
-	ClientConn   *ssh.Client  `json:"-"`
-	SessionConn  *ssh.Session `json:"-"`
-	StdoutPipe   io.Reader    `json:"-"`
-	StdinPipe    io.WriteCloser `json:"-"`
-	Status       string       `json:"status"`
-	CreatedAt    time.Time    `json:"created_at"`
-	UpdatedAt    time.Time    `json:"updated_at"`
-	LastActive   time.Time    `json:"last_active"`
-	Commands     []SSHCommand `json:"commands,omitempty"`
-	mu           sync.RWMutex `json:"-"`
+	ID           string              `json:"id"`
+	UserID       uint                `json:"user_id"`
+	AssetID      uint                `json:"asset_id"`
+	CredentialID uint                `json:"credential_id"`
+	ClientConn   *ssh.Client         `json:"-"`
+	SessionConn  *ssh.Session        `json:"-"`
+	StdoutPipe   io.Reader           `json:"-"`
+	StdinPipe    io.WriteCloser      `json:"-"`
+	Status       string              `json:"status"`
+	CreatedAt    time.Time           `json:"created_at"`
+	UpdatedAt    time.Time           `json:"updated_at"`
+	LastActive   time.Time           `json:"last_active"`
+	Commands     []SSHCommand        `json:"commands,omitempty"`
+	recorder     *SessionRecorder    `json:"-"` // 会话录制器
+	mu           sync.RWMutex        `json:"-"`
 }
 
 // SSHCommand SSH命令记录
@@ -89,11 +91,19 @@ func NewSSHService(db *gorm.DB) *SSHService {
 		redisSessionService.StartSessionCleanupTask()
 	}
 	
+	// 验证录制服务状态
+	if GlobalRecordingService == nil {
+		logrus.Warn("SSH服务创建时，GlobalRecordingService 为 nil")
+	} else {
+		logrus.Info("SSH服务创建时，GlobalRecordingService 已正确初始化")
+	}
+	
 	return &SSHService{
-		db:           db,
-		auditService: NewAuditService(db),
-		sessions:     make(map[string]*SSHSession),
-		redisSession: redisSessionService,
+		db:              db,
+		auditService:    NewAuditService(db),
+		recordingService: GlobalRecordingService,
+		sessions:        make(map[string]*SSHSession),
+		redisSession:    redisSessionService,
 	}
 }
 
@@ -270,6 +280,25 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		}
 	}
 
+	// 🎬 启动会话录制（如果启用）
+	if s.recordingService != nil {
+		logrus.WithField("session_id", sessionID).Info("准备启动会话录制")
+		if recorder, err := s.recordingService.StartRecording(sessionID, userID, request.AssetID, width, height); err != nil {
+			logrus.WithError(err).WithField("session_id", sessionID).Error("启动会话录制失败")
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"session_id": sessionID,
+				"user_id":    userID,
+				"asset_id":   request.AssetID,
+			}).Info("会话录制已启动")
+			
+			// 将录制器存储到会话中以便后续使用
+			session.recorder = recorder
+		}
+	} else {
+		logrus.WithField("session_id", sessionID).Warn("录制服务未初始化，跳过录制")
+	}
+
 	// 记录会话开始到审计日志（统一使用审计服务）
 	clientIP := "127.0.0.1" // 这里需要从上下文中获取真实IP
 	go s.auditService.RecordSessionStart(
@@ -442,6 +471,18 @@ func (s *SSHService) CloseSessionWithReason(sessionID string, reason string) err
 // cleanupSessionFromAllSources 统一清理所有数据源中的会话
 func (s *SSHService) cleanupSessionFromAllSources(sessionID string) {
 	now := time.Now()
+	
+	// 🎬 停止会话录制
+	if s.recordingService != nil {
+		logrus.WithField("session_id", sessionID).Info("准备停止会话录制")
+		if err := s.recordingService.StopRecording(sessionID); err != nil {
+			logrus.WithError(err).WithField("session_id", sessionID).Error("停止会话录制失败")
+		} else {
+			logrus.WithField("session_id", sessionID).Info("会话录制已停止")
+		}
+	} else {
+		logrus.WithField("session_id", sessionID).Warn("录制服务未初始化，跳过录制停止")
+	}
 	
 	// 1. 从Redis中删除会话
 	if s.redisSession != nil {

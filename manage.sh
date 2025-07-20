@@ -33,7 +33,7 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# 检查进程是否运行
+# 检查进程是否运行（基于PID文件）
 is_process_running() {
     local pid_file=$1
     if [ -f "$pid_file" ]; then
@@ -45,6 +45,41 @@ is_process_running() {
             return 1
         fi
     fi
+    return 1
+}
+
+# 检查后端服务是否运行（多种方式）
+is_backend_running() {
+    # 方式1: 检查PID文件
+    if is_process_running "$BACKEND_PID_FILE"; then
+        return 0
+    fi
+    
+    # 方式2: 检查进程名
+    if pgrep -f "$BACKEND_BINARY" > /dev/null; then
+        return 0
+    fi
+    
+    # 方式3: 检查端口占用
+    if lsof -ti:8080 > /dev/null 2>&1; then
+        return 0
+    fi
+    
+    return 1
+}
+
+# 检查前端服务是否运行（多种方式）
+is_frontend_running() {
+    # 方式1: 检查PID文件
+    if is_process_running "$FRONTEND_PID_FILE"; then
+        return 0
+    fi
+    
+    # 方式2: 检查端口占用
+    if lsof -ti:3000 > /dev/null 2>&1; then
+        return 0
+    fi
+    
     return 1
 }
 
@@ -194,12 +229,24 @@ check_status() {
     echo "=== Bastion 服务状态 ==="
     
     # 检查后端
-    if is_process_running "$BACKEND_PID_FILE"; then
-        local backend_pid=$(cat "$BACKEND_PID_FILE")
-        log_success "后端服务: 运行中 (PID: $backend_pid)"
+    if is_backend_running; then
+        # 尝试获取PID
+        local backend_pid=""
+        if [ -f "$BACKEND_PID_FILE" ]; then
+            backend_pid=$(cat "$BACKEND_PID_FILE")
+            log_success "后端服务: 运行中 (PID: $backend_pid)"
+        else
+            # 通过进程名获取PID
+            backend_pid=$(pgrep -f "$BACKEND_BINARY" | head -1)
+            if [ -n "$backend_pid" ]; then
+                log_success "后端服务: 运行中 (PID: $backend_pid)"
+            else
+                log_success "后端服务: 运行中 (端口8080)"
+            fi
+        fi
         
         # 检查API健康状态
-        if curl -s http://localhost:8080/api/v1/health > /dev/null; then
+        if curl -s http://localhost:8080/api/v1/health > /dev/null 2>&1; then
             log_success "后端API: 正常响应"
         else
             log_warning "后端API: 无响应"
@@ -209,12 +256,24 @@ check_status() {
     fi
     
     # 检查前端
-    if is_process_running "$FRONTEND_PID_FILE"; then
-        local frontend_pid=$(cat "$FRONTEND_PID_FILE")
-        log_success "前端服务: 运行中 (PID: $frontend_pid)"
+    if is_frontend_running; then
+        # 尝试获取PID
+        local frontend_pid=""
+        if [ -f "$FRONTEND_PID_FILE" ]; then
+            frontend_pid=$(cat "$FRONTEND_PID_FILE")
+            log_success "前端服务: 运行中 (PID: $frontend_pid)"
+        else
+            # 通过端口获取PID
+            frontend_pid=$(lsof -ti:3000 2>/dev/null | head -1)
+            if [ -n "$frontend_pid" ]; then
+                log_success "前端服务: 运行中 (PID: $frontend_pid)"
+            else
+                log_success "前端服务: 运行中 (端口3000)"
+            fi
+        fi
         
         # 检查前端访问
-        if curl -s http://localhost:3000 > /dev/null; then
+        if curl -s http://localhost:3000 > /dev/null 2>&1; then
             log_success "前端访问: 正常"
         else
             log_warning "前端访问: 无响应"

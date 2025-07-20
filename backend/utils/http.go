@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 // ResetRequestBody 重置HTTP请求体
@@ -45,4 +49,22 @@ func GenerateID() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return fmt.Sprintf("%x", b)
+}
+
+// GenerateUUID 生成UUID
+func GenerateUUID() string {
+	return uuid.New().String()
+}
+
+// LogAudit 记录审计日志
+func LogAudit(userID uint, action string, description string) {
+	logrus.WithFields(logrus.Fields{
+		"user_id":     userID,
+		"action":      action,
+		"description": description,
+		"timestamp":   time.Now(),
+		"type":        "audit",
+	}).Info("Audit log")
+	
+	// TODO: 如果需要，可以在这里添加将审计日志写入数据库的逻辑
 }

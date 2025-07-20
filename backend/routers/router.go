@@ -42,6 +42,7 @@ func SetupRouter() *gin.Engine {
 	sshController := controllers.NewSSHController(sshService)
 	auditController := controllers.NewAuditController(auditService)
 	monitorController := controllers.NewMonitorController(monitorService)
+	recordingController := controllers.NewRecordingController()
 
 	// API 路由组
 	api := router.Group("/api/v1")
@@ -219,6 +220,55 @@ func SetupRouter() *gin.Engine {
 				{
 					// 标记警告为已读
 					warnings.POST("/:id/read", monitorController.MarkWarningAsRead)
+				}
+			}
+			
+			// ======================== 录屏审计路由 ========================
+			// 录屏审计（需要录屏权限）
+			recording := authenticated.Group("/recording")
+			recording.Use(middleware.RequirePermission("recording:view"))
+			{
+				// 录制列表
+				recording.GET("/list", recordingController.GetRecordingList)
+				
+				// 录制详情
+				recording.GET("/:id", recordingController.GetRecordingDetail)
+				
+				// 活跃录制
+				recording.GET("/active", recordingController.GetActiveRecordings)
+				
+				// 批量操作路由
+				batchGroup := recording.Group("/batch")
+				{
+					// 批量删除（需要删除权限）
+					batchGroup.POST("/delete", middleware.RequirePermission("recording:delete"), recordingController.BatchDeleteRecording)
+					
+					// 批量下载（需要下载权限）
+					batchGroup.POST("/download", middleware.RequirePermission("recording:download"), recordingController.BatchDownloadRecording)
+					
+					// 批量归档（需要删除权限）
+					batchGroup.POST("/archive", middleware.RequirePermission("recording:delete"), recordingController.BatchArchiveRecording)
+					
+					// 批量操作状态查询
+					batchGroup.GET("/status/:task_id", recordingController.GetBatchOperationStatus)
+				}
+				
+				// 录制文件下载路由（需要下载权限）
+				recording.GET("/:id/download", middleware.RequirePermission("recording:download"), recordingController.DownloadRecording)
+				
+				// 批量下载相关路由
+				downloadGroup := recording.Group("/download")
+				downloadGroup.Use(middleware.RequirePermission("recording:download"))
+				{
+					// 批量下载文件
+					downloadGroup.GET("/batch/:task_id", recordingController.DownloadBatchFile)
+				}
+				
+				// 删除录制（需要删除权限）
+				deleteGroup := recording.Group("/:id")
+				deleteGroup.Use(middleware.RequirePermission("recording:delete"))
+				{
+					deleteGroup.DELETE("", recordingController.DeleteRecording)
 				}
 			}
 		}

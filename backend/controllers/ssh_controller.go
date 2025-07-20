@@ -42,10 +42,11 @@ type TerminalMessage struct {
 
 // WebSocketConnection WebSocket连接包装
 type WebSocketConnection struct {
-	conn      *websocket.Conn
-	sessionID string
-	userID    uint
-	mu        sync.Mutex
+	conn         *websocket.Conn
+	intercepted  *services.InterceptedConn // 录制拦截器
+	sessionID    string
+	userID       uint
+	mu           sync.Mutex
 }
 
 // NewSSHController 创建SSH控制器实例
@@ -274,11 +275,23 @@ func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 	
 	log.Printf("WebSocket upgraded successfully for session %s", sessionID)
 
+	// 🎬 集成录制拦截器
+	var interceptedConn *services.InterceptedConn
+	if services.GlobalRecordingService != nil {
+		interceptedConn = services.GlobalRecordingService.InterceptWebSocketConnection(wsConn, sessionID)
+		log.Printf("录制拦截器已集成到WebSocket连接，会话ID: %s", sessionID)
+	} else {
+		// 如果录制服务不可用，使用原始连接
+		interceptedConn = &services.InterceptedConn{Conn: wsConn}
+		log.Printf("录制服务不可用，使用原始WebSocket连接，会话ID: %s", sessionID)
+	}
+
 	// 创建WebSocket连接包装
 	wsWrapper := &WebSocketConnection{
-		conn:      wsConn,
-		sessionID: sessionID,
-		userID:    user.ID,
+		conn:        wsConn,            // 原始连接用于WebSocket通信
+		intercepted: interceptedConn,   // 拦截器用于录制
+		sessionID:   sessionID,
+		userID:      user.ID,
 	}
 
 	// 处理WebSocket连接
@@ -587,11 +600,25 @@ func (sc *SSHController) handleSSHOutput(ctx context.Context, wsConn *WebSocketC
 			}
 			
 			outputData := string(data)
-			log.Printf("SSH output received for session %s: %d bytes, content: %q", wsConn.sessionID, len(data), outputData)
+			log.Printf("SSH output received for session %s: %d bytes", wsConn.sessionID, len(data))
 			
 			message := TerminalMessage{
 				Type: "output",
 				Data: outputData,
+			}
+
+			// 🎬 记录输出数据到录制服务
+			if services.GlobalRecordingService != nil {
+				if recorder, exists := services.GlobalRecordingService.GetRecorder(wsConn.sessionID); exists {
+					outputRecord := &services.WSRecord{
+						Timestamp: time.Now(),
+						Type:      "output",
+						Data:      data,
+						Size:      len(data),
+					}
+					recorder.WriteRecord(outputRecord)
+					log.Printf("录制输出数据: 会话=%s, 大小=%d", wsConn.sessionID, len(data))
+				}
 			}
 
 			// 发送给SSH WebSocket客户端
@@ -656,6 +683,21 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 
 			switch message.Type {
 			case "input":
+				// 🎬 记录输入数据到录制服务
+				if services.GlobalRecordingService != nil {
+					// 直接调用录制服务记录输入数据
+					if recorder, exists := services.GlobalRecordingService.GetRecorder(wsConn.sessionID); exists {
+						inputRecord := &services.WSRecord{
+							Timestamp: time.Now(),
+							Type:      "input",
+							Data:      []byte(message.Data),
+							Size:      len(message.Data),
+						}
+						recorder.WriteRecord(inputRecord)
+						log.Printf("录制输入数据: 会话=%s, 大小=%d", wsConn.sessionID, len(message.Data))
+					}
+				}
+				
 				// 处理用户输入
 				err = sc.sshService.WriteToSession(wsConn.sessionID, []byte(message.Data))
 				if err != nil {

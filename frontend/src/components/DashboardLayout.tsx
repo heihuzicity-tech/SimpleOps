@@ -13,6 +13,7 @@ import {
   CodeOutlined,
   GlobalOutlined,
   FolderOutlined,
+  VideoCameraOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -156,6 +157,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           key: '/audit/operation-audit',
           icon: <SettingOutlined />,
           label: '操作审计',
+        },
+        {
+          key: '/audit/recording-audit',
+          icon: <VideoCameraOutlined />,
+          label: '录屏审计',
         },
       ],
     });

@@ -72,12 +72,6 @@ func main() {
 	// 设置Gin模式
 	gin.SetMode(config.GlobalConfig.App.Mode)
 
-	// 设置路由
-	router := routers.SetupRouter()
-
-	// 添加Swagger路由
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-
 	// 设置信号处理
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -86,8 +80,26 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// 🎯 必须先初始化录制服务，再设置路由（因为路由中会创建SSH服务）
+	logrus.Info("开始初始化核心服务...")
+	
+	// 初始化录制服务 - 必须在SSH服务之前
+	services.InitRecordingService(utils.GetDB())
+	
 	// 初始化WebSocket服务
 	services.InitWebSocketService()
+
+	// 确保录制服务完全初始化后再创建SSH服务
+	if services.GlobalRecordingService == nil {
+		logrus.Fatal("录制服务初始化失败")
+	}
+	logrus.WithField("recording_service", "initialized").Info("录制服务验证完成，开始设置路由")
+
+	// 🎯 现在设置路由，此时录制服务已经初始化
+	router := routers.SetupRouter()
+
+	// 添加Swagger路由
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// 启动SSH服务的会话清理任务
 	sshService := services.NewSSHService(utils.GetDB())
