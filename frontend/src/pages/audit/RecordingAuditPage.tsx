@@ -290,14 +290,12 @@ const RecordingAuditPage: React.FC = () => {
     {
       title: '操作',
       key: 'actions',
-      width: 180,
+      width: 280,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
           {record.can_view && (
             <Button
-              type="link"
-              size="small"
               icon={<PlayCircleOutlined />}
               onClick={() => handlePlay(record)}
             >
@@ -306,8 +304,6 @@ const RecordingAuditPage: React.FC = () => {
           )}
           {record.can_download && (
             <Button
-              type="link"
-              size="small"
               icon={<DownloadOutlined />}
               onClick={() => handleDownload(record)}
             >
@@ -321,10 +317,8 @@ const RecordingAuditPage: React.FC = () => {
             cancelText="取消"
           >
             <Button
-              type="link"
-              size="small"
-              icon={<DeleteOutlined />}
               danger
+              icon={<DeleteOutlined />}
             >
               删除
             </Button>

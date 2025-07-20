@@ -326,13 +326,11 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
     {
       title: '操作',
       key: 'actions',
-      width: 180,
+      width: 280,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
           <Button
-            type="link"
-            size="small"
             icon={loadingRecording ? <Spin size="small" /> : <PlayCircleOutlined />}
             onClick={() => handleReplay(record)}
             loading={loadingRecording}
@@ -341,8 +339,6 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
             播放
           </Button>
           <Button
-            type="link"
-            size="small"
             icon={<EyeOutlined />}
             onClick={() => handleDetail(record)}
           >
@@ -355,10 +351,8 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
             cancelText="取消"
           >
             <Button
-              type="link"
-              size="small"
-              icon={<DeleteOutlined />}
               danger
+              icon={<DeleteOutlined />}
             >
               删除
             </Button>
