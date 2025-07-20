@@ -537,8 +537,7 @@ const RecordingAuditPage: React.FC = () => {
         open={playerVisible}
         onCancel={() => setPlayerVisible(false)}
         footer={null}
-        width={isPlayerFullscreen ? '100vw' : 1200}
-        height={isPlayerFullscreen ? '100vh' : 820}
+        width={isPlayerFullscreen ? '100vw' : 1300}
         destroyOnClose
         centered={!isPlayerFullscreen}
         styles={{
@@ -546,8 +545,10 @@ const RecordingAuditPage: React.FC = () => {
             display: 'none',
           },
           body: { 
-            height: isPlayerFullscreen ? 'calc(100vh - 40px)' : '820px',
-            padding: isPlayerFullscreen ? '0' : '16px',
+            height: isPlayerFullscreen ? 'calc(100vh - 40px)' : 'auto',
+            maxHeight: isPlayerFullscreen ? 'calc(100vh - 40px)' : '85vh',
+            padding: isPlayerFullscreen ? '0' : '8px',
+            overflow: 'hidden',
           },
           content: {
             maxWidth: isPlayerFullscreen ? '100vw' : undefined,
@@ -560,29 +561,10 @@ const RecordingAuditPage: React.FC = () => {
           }
         }}
         maskClosable={!isPlayerFullscreen}
-        closeIcon={
-          <div style={{ 
-            position: 'absolute', 
-            top: '8px', 
-            right: '8px', 
-            zIndex: 1000,
-            color: '#fff',
-            fontSize: '16px',
-            cursor: 'pointer',
-            background: 'rgba(0,0,0,0.5)',
-            borderRadius: '50%',
-            width: '24px',
-            height: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            ×
-          </div>
-        }
+        closeIcon={!isPlayerFullscreen}
       >
         {currentRecording && (
-          <div style={{ height: '100%' }}>
+          <div style={{ height: '100%', overflow: 'hidden' }}>
             <RecordingPlayer 
               recording={currentRecording} 
               onFullscreenChange={handlePlayerFullscreenChange}

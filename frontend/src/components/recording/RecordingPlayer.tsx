@@ -217,7 +217,7 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscre
       const player = window.AsciinemaPlayer.create(url, playerRef.current, {
         autoPlay: false,
         loop: false,
-        fit: 'width',
+        fit: 'width',  // 恢复为width，再用CSS控制高度
         fontSize: '14px',
         theme: 'asciinema'
       });
@@ -228,6 +228,24 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscre
 
       console.log('播放器创建成功');
       playerInstanceRef.current = player;
+
+      // 强制设置播放器样式以填满容器
+      setTimeout(() => {
+        const playerElement = playerRef.current?.querySelector('.asciinema-player');
+        const terminalElement = playerRef.current?.querySelector('.asciinema-terminal');
+        if (playerElement && playerRef.current) {
+          const containerHeight = playerRef.current.clientHeight;
+          (playerElement as HTMLElement).style.width = '100%';
+          (playerElement as HTMLElement).style.height = '100%';
+          
+          // 同时调整终端元素的尺寸
+          if (terminalElement) {
+            (terminalElement as HTMLElement).style.height = `${containerHeight - 32}px`; // 减去控制栏高度
+          }
+          
+          console.log('播放器样式已设置为填满容器', { containerHeight });
+        }
+      }, 500);
 
       // 等待播放器完全加载后再设置事件监听器
       setTimeout(() => {
@@ -421,17 +439,33 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscre
   }
 
   return (
-    <div style={{ width: '100%', height: '100%' }}>
-      <Row gutter={isFullscreen ? 8 : 16} style={{ height: '100%' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Row gutter={isFullscreen ? 4 : 8} style={{ flex: 1, minHeight: 0, alignItems: 'stretch' }}>
         {/* 左侧播放器 */}
-        <Col span={isFullscreen ? 18 : 16} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Col span={isFullscreen ? 19 : 17} style={{ display: 'flex', flexDirection: 'column' }}>
           {/* 播放器容器 */}
-          <Card style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: 16 }}>
+          <Card 
+            style={{ 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column', 
+              marginBottom: 6,
+              minHeight: 0
+            }} 
+            bodyStyle={{ 
+              padding: '4px', 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
             <div 
               ref={playerRef} 
               style={{ 
                 width: '100%', 
-                height: isFullscreen ? 'calc(100vh - 150px)' : '540px',
+                flex: 1,
+                minHeight: '400px',
                 backgroundColor: '#000',
                 borderRadius: '4px',
                 overflow: 'hidden'
@@ -440,9 +474,9 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscre
           </Card>
 
           {/* 播放控制 */}
-          <Card style={{ flexShrink: 0 }}>
+          <Card style={{ flexShrink: 0 }} bodyStyle={{ padding: '6px' }}>
             {/* 进度条 */}
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 6 }}>
               <Slider
                 min={0}
                 max={duration}
@@ -453,9 +487,9 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscre
                   formatter: (value) => formatTimeDisplay(value || 0),
                 }}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                <Text type="secondary">{formatTimeDisplay(currentTime)}</Text>
-                <Text type="secondary">{formatTimeDisplay(duration)}</Text>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                <Text type="secondary" style={{ fontSize: '11px' }}>{formatTimeDisplay(currentTime)}</Text>
+                <Text type="secondary" style={{ fontSize: '11px' }}>{formatTimeDisplay(duration)}</Text>
               </div>
             </div>
 
@@ -464,17 +498,17 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscre
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: 'center',
-              padding: '8px 12px',
-              minHeight: '56px'
+              padding: '2px 4px',
+              minHeight: '36px'
             }}>
               {/* 左侧播放控制按钮 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Button
                   type="primary"
                   size="small"
                   icon={playing ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
                   onClick={togglePlay}
-                  style={{ minWidth: '68px' }}
+                  style={{ minWidth: '60px', height: '28px', fontSize: '12px' }}
                 >
                   {playing ? '暂停' : '播放'}
                 </Button>
@@ -483,31 +517,34 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscre
                   icon={<StepBackwardOutlined />}
                   onClick={() => skipTime(-10)}
                   title="后退10秒"
+                  style={{ height: '28px', minWidth: '28px' }}
                 />
                 <Button
                   size="small"
                   icon={<StepForwardOutlined />}
                   onClick={() => skipTime(10)}
                   title="前进10秒"
+                  style={{ height: '28px', minWidth: '28px' }}
                 />
                 <Button
                   size="small"
                   icon={<ReloadOutlined />}
                   onClick={restart}
                   title="重新开始"
+                  style={{ height: '28px', minWidth: '28px' }}
                 />
               </div>
 
               {/* 右侧速度和全屏控制 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap' }}>
-                  播放速度:
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap' }}>
+                  速度:
                 </span>
                 <Select
                   size="small"
                   value={speed}
                   onChange={handleSpeedChange}
-                  style={{ width: 65 }}
+                  style={{ width: 58, fontSize: '11px' }}
                 >
                   <Option value={0.25}>0.25x</Option>
                   <Option value={0.5}>0.5x</Option>
@@ -524,6 +561,7 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscre
                   icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
                   onClick={toggleFullscreen}
                   title={isFullscreen ? '退出全屏' : '全屏'}
+                  style={{ height: '28px', minWidth: '28px' }}
                 />
               </div>
             </div>
@@ -531,7 +569,7 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscre
         </Col>
 
         {/* 右侧命令时间轴 */}
-        <Col span={isFullscreen ? 6 : 8} style={{ height: '100%' }}>
+        <Col span={isFullscreen ? 5 : 7} style={{ display: 'flex', flexDirection: 'column' }}>
           <CommandTimeline
             recording={recording}
             recordingData={recordingData}
