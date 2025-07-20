@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Card, Button, Space, Slider, Select, Spin, message, Row, Col, Typography, Tabs } from 'antd';
+import { Card, Button, Slider, Select, Spin, message, Row, Col, Typography } from 'antd';
 import {
   PlayCircleOutlined,
   PauseCircleOutlined,
@@ -8,18 +8,17 @@ import {
   ReloadOutlined,
   FullscreenOutlined,
   FullscreenExitOutlined,
-  SearchOutlined,
-  InfoCircleOutlined,
 } from '@ant-design/icons';
 import { RecordingResponse, RecordingAPI } from '../../services/recordingAPI';
-import { formatDuration, formatFileSize } from '../../utils/format';
-import RecordingSearchPlayer from './RecordingSearchPlayer';
+// import { formatDuration, formatFileSize } from '../../utils/format';
+import CommandTimeline from './CommandTimeline';
 
 const { Option } = Select;
 const { Text } = Typography;
 
 interface RecordingPlayerProps {
   recording: RecordingResponse;
+  onFullscreenChange?: (isFullscreen: boolean) => void;
 }
 
 // AsciinemaPlayer类型定义
@@ -57,7 +56,7 @@ declare global {
   }
 }
 
-const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording }) => {
+const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscreenChange }) => {
   const playerRef = useRef<HTMLDivElement>(null);
   const playerInstanceRef = useRef<AsciinemaPlayerInstance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -368,30 +367,12 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording }) => {
     seekTo(0);
   };
 
-  // 全屏切换
+  // 页面内全屏切换
   const toggleFullscreen = () => {
-    if (!playerRef.current) return;
-
-    if (!isFullscreen) {
-      if (playerRef.current.requestFullscreen) {
-        playerRef.current.requestFullscreen();
-      }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
-    }
+    const newFullscreenState = !isFullscreen;
+    setIsFullscreen(newFullscreenState);
+    onFullscreenChange?.(newFullscreenState);
   };
-
-  // 监听全屏状态变化
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
 
   // 组件加载时获取录制数据
   useEffect(() => {
@@ -440,49 +421,17 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording }) => {
   }
 
   return (
-    <div style={{ width: '100%' }}>
-      {/* 录制信息 */}
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Row gutter={16}>
-          <Col span={6}>
-            <Text strong>会话ID:</Text> {recording.session_id}
-          </Col>
-          <Col span={6}>
-            <Text strong>用户:</Text> {recording.username}
-          </Col>
-          <Col span={6}>
-            <Text strong>资产:</Text> {recording.asset_name}
-          </Col>
-          <Col span={6}>
-            <Text strong>时长:</Text> {formatDuration(recording.duration)}
-          </Col>
-        </Row>
-        <Row gutter={16} style={{ marginTop: 8 }}>
-          <Col span={6}>
-            <Text strong>格式:</Text> {recording.format.toUpperCase()}
-          </Col>
-          <Col span={6}>
-            <Text strong>终端尺寸:</Text> {recording.terminal_width}x{recording.terminal_height}
-          </Col>
-          <Col span={6}>
-            <Text strong>录制时间:</Text> {new Date(recording.start_time).toLocaleString()}
-          </Col>
-          <Col span={6}>
-            <Text strong>文件大小:</Text> {(recording.file_size / 1024 / 1024).toFixed(2)} MB
-          </Col>
-        </Row>
-      </Card>
-
-      <Row gutter={16}>
+    <div style={{ width: '100%', height: '100%' }}>
+      <Row gutter={isFullscreen ? 8 : 16} style={{ height: '100%' }}>
         {/* 左侧播放器 */}
-        <Col span={16}>
+        <Col span={isFullscreen ? 18 : 16} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           {/* 播放器容器 */}
-          <Card style={{ marginBottom: 16 }}>
+          <Card style={{ flex: 1, display: 'flex', flexDirection: 'column', marginBottom: 16 }}>
             <div 
               ref={playerRef} 
               style={{ 
                 width: '100%', 
-                height: '400px',
+                height: isFullscreen ? 'calc(100vh - 150px)' : '540px',
                 backgroundColor: '#000',
                 borderRadius: '4px',
                 overflow: 'hidden'
@@ -491,7 +440,7 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording }) => {
           </Card>
 
           {/* 播放控制 */}
-          <Card>
+          <Card style={{ flexShrink: 0 }}>
             {/* 进度条 */}
             <div style={{ marginBottom: 16 }}>
               <Slider
@@ -511,118 +460,82 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording }) => {
             </div>
 
             {/* 控制按钮 */}
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Space>
-                  <Button
-                    type="primary"
-                    icon={playing ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-                    onClick={togglePlay}
-                  >
-                    {playing ? '暂停' : '播放'}
-                  </Button>
-                  <Button
-                    icon={<StepBackwardOutlined />}
-                    onClick={() => skipTime(-10)}
-                    title="后退10秒"
-                  />
-                  <Button
-                    icon={<StepForwardOutlined />}
-                    onClick={() => skipTime(10)}
-                    title="前进10秒"
-                  />
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={restart}
-                    title="重新开始"
-                  />
-                </Space>
-              </Col>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              padding: '8px 12px',
+              minHeight: '56px'
+            }}>
+              {/* 左侧播放控制按钮 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={playing ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                  onClick={togglePlay}
+                  style={{ minWidth: '68px' }}
+                >
+                  {playing ? '暂停' : '播放'}
+                </Button>
+                <Button
+                  size="small"
+                  icon={<StepBackwardOutlined />}
+                  onClick={() => skipTime(-10)}
+                  title="后退10秒"
+                />
+                <Button
+                  size="small"
+                  icon={<StepForwardOutlined />}
+                  onClick={() => skipTime(10)}
+                  title="前进10秒"
+                />
+                <Button
+                  size="small"
+                  icon={<ReloadOutlined />}
+                  onClick={restart}
+                  title="重新开始"
+                />
+              </div>
 
-              <Col>
-                <Space>
-                  <Text>播放速度:</Text>
-                  <Select
-                    value={speed}
-                    onChange={handleSpeedChange}
-                    style={{ width: 80 }}
-                  >
-                    <Option value={0.25}>0.25x</Option>
-                    <Option value={0.5}>0.5x</Option>
-                    <Option value={0.75}>0.75x</Option>
-                    <Option value={1}>1x</Option>
-                    <Option value={1.25}>1.25x</Option>
-                    <Option value={1.5}>1.5x</Option>
-                    <Option value={2}>2x</Option>
-                    <Option value={4}>4x</Option>
-                  </Select>
-                  
-                  <Button
-                    icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-                    onClick={toggleFullscreen}
-                    title={isFullscreen ? '退出全屏' : '全屏'}
-                  />
-                </Space>
-              </Col>
-            </Row>
+              {/* 右侧速度和全屏控制 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', color: '#666', whiteSpace: 'nowrap' }}>
+                  播放速度:
+                </span>
+                <Select
+                  size="small"
+                  value={speed}
+                  onChange={handleSpeedChange}
+                  style={{ width: 65 }}
+                >
+                  <Option value={0.25}>0.25x</Option>
+                  <Option value={0.5}>0.5x</Option>
+                  <Option value={0.75}>0.75x</Option>
+                  <Option value={1}>1x</Option>
+                  <Option value={1.25}>1.25x</Option>
+                  <Option value={1.5}>1.5x</Option>
+                  <Option value={2}>2x</Option>
+                  <Option value={4}>4x</Option>
+                </Select>
+                
+                <Button
+                  size="small"
+                  icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                  onClick={toggleFullscreen}
+                  title={isFullscreen ? '退出全屏' : '全屏'}
+                />
+              </div>
+            </div>
           </Card>
         </Col>
 
-        {/* 右侧功能面板 */}
-        <Col span={8}>
-          <Tabs
-            defaultActiveKey="search"
-            items={[
-              {
-                key: 'search',
-                label: (
-                  <span>
-                    <SearchOutlined />
-                    搜索
-                  </span>
-                ),
-                children: (
-                  <RecordingSearchPlayer
-                    recording={recording}
-                    recordingData={recordingData}
-                    onSeekTo={seekTo}
-                  />
-                ),
-              },
-              {
-                key: 'info',
-                label: (
-                  <span>
-                    <InfoCircleOutlined />
-                    详情
-                  </span>
-                ),
-                children: (
-                  <Card size="small">
-                    <div style={{ fontSize: '12px' }}>
-                      <div style={{ marginBottom: 8 }}>
-                        <Text strong>压缩比:</Text> {(recording.compression_ratio * 100).toFixed(1)}%
-                      </div>
-                      <div style={{ marginBottom: 8 }}>
-                        <Text strong>记录数:</Text> {recording.record_count}
-                      </div>
-                      <div style={{ marginBottom: 8 }}>
-                        <Text strong>原始大小:</Text> {formatFileSize(recording.file_size / recording.compression_ratio)}
-                      </div>
-                      <div style={{ marginBottom: 8 }}>
-                        <Text strong>压缩后:</Text> {formatFileSize(recording.file_size)}
-                      </div>
-                      <div style={{ marginBottom: 8 }}>
-                        <Text strong>格式版本:</Text> asciicast v2
-                      </div>
-                      <div>
-                        <Text strong>创建时间:</Text> {new Date(recording.created_at).toLocaleString()}
-                      </div>
-                    </div>
-                  </Card>
-                ),
-              },
-            ]}
+        {/* 右侧命令时间轴 */}
+        <Col span={isFullscreen ? 6 : 8} style={{ height: '100%' }}>
+          <CommandTimeline
+            recording={recording}
+            recordingData={recordingData}
+            onSeekTo={seekTo}
           />
         </Col>
       </Row>

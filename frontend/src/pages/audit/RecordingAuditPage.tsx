@@ -52,6 +52,7 @@ const RecordingAuditPage: React.FC = () => {
   // 播放器状态
   const [playerVisible, setPlayerVisible] = useState(false);
   const [currentRecording, setCurrentRecording] = useState<RecordingResponse | null>(null);
+  const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
   
   // 批量选择状态
   const batchSelection = useBatchSelection();
@@ -222,6 +223,11 @@ const RecordingAuditPage: React.FC = () => {
       console.error('批量归档失败:', error);
       throw error;
     }
+  };
+
+  // 处理播放器全屏状态变化
+  const handlePlayerFullscreenChange = (isFullscreen: boolean) => {
+    setIsPlayerFullscreen(isFullscreen);
   };
 
   // 状态标签渲染
@@ -527,15 +533,61 @@ const RecordingAuditPage: React.FC = () => {
 
       {/* 播放器模态框 */}
       <Modal
-        title={`播放录制 - ${currentRecording?.session_id}`}
+        title={null}
         open={playerVisible}
         onCancel={() => setPlayerVisible(false)}
         footer={null}
-        width={1000}
+        width={isPlayerFullscreen ? '100vw' : 1200}
+        height={isPlayerFullscreen ? '100vh' : 820}
         destroyOnClose
+        centered={!isPlayerFullscreen}
+        styles={{
+          header: {
+            display: 'none',
+          },
+          body: { 
+            height: isPlayerFullscreen ? 'calc(100vh - 40px)' : '820px',
+            padding: isPlayerFullscreen ? '0' : '16px',
+          },
+          content: {
+            maxWidth: isPlayerFullscreen ? '100vw' : undefined,
+            maxHeight: isPlayerFullscreen ? '100vh' : undefined,
+            margin: isPlayerFullscreen ? 0 : undefined,
+            borderRadius: isPlayerFullscreen ? 0 : undefined,
+          },
+          mask: {
+            backgroundColor: isPlayerFullscreen ? 'rgba(0, 0, 0, 0.95)' : undefined,
+          }
+        }}
+        maskClosable={!isPlayerFullscreen}
+        closeIcon={
+          <div style={{ 
+            position: 'absolute', 
+            top: '8px', 
+            right: '8px', 
+            zIndex: 1000,
+            color: '#fff',
+            fontSize: '16px',
+            cursor: 'pointer',
+            background: 'rgba(0,0,0,0.5)',
+            borderRadius: '50%',
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            ×
+          </div>
+        }
       >
         {currentRecording && (
-          <RecordingPlayer recording={currentRecording} />
+          <div style={{ height: '100%' }}>
+            <RecordingPlayer 
+              recording={currentRecording} 
+              onFullscreenChange={handlePlayerFullscreenChange}
+            />
+          </div>
         )}
       </Modal>
     </div>
