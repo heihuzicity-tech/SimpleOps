@@ -15,6 +15,7 @@ import {
   Popconfirm,
   Breadcrumb,
   Spin,
+  Descriptions,
 } from 'antd';
 import {
   SearchOutlined,
@@ -184,21 +185,73 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
     }
   };
 
+  // 获取状态文本
+  const getStatusText = (status: string) => {
+    const statusMap: Record<string, { text: string; color: string }> = {
+      active: { text: '进行中', color: 'processing' },
+      closed: { text: '已结束', color: 'success' },
+      timeout: { text: '超时', color: 'warning' },
+      terminated: { text: '强制终止', color: 'error' },
+    };
+    const statusInfo = statusMap[status] || { text: status, color: 'default' };
+    return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
+  };
+
+  // 格式化会话持续时间
+  const formatSessionDuration = (record: SessionRecord) => {
+    if (!record.duration) return '-';
+    const hours = Math.floor(record.duration / 3600);
+    const minutes = Math.floor((record.duration % 3600) / 60);
+    const seconds = record.duration % 60;
+    
+    if (hours > 0) {
+      return `${hours}小时${minutes}分钟${seconds}秒`;
+    } else if (minutes > 0) {
+      return `${minutes}分钟${seconds}秒`;
+    } else {
+      return `${seconds}秒`;
+    }
+  };
+
   // 查看详情
   const handleDetail = (record: SessionRecord) => {
     Modal.info({
       title: '会话详情',
-      width: 600,
+      width: 800,
       content: (
         <div>
-          <p><strong>会话ID:</strong> {record.session_id}</p>
-          <p><strong>用户:</strong> {record.username}</p>
-          <p><strong>主机:</strong> {record.asset_name} ({record.asset_address})</p>
-          <p><strong>系统用户:</strong> root</p>
-          <p><strong>开始时间:</strong> {dayjs(record.start_time).format('YYYY-MM-DD HH:mm:ss')}</p>
-          <p><strong>结束时间:</strong> {record.end_time ? dayjs(record.end_time).format('YYYY-MM-DD HH:mm:ss') : '进行中'}</p>
-          <p><strong>持续时间:</strong> {record.duration ? `${Math.floor(record.duration / 60)}分钟` : '-'}</p>
-          <p><strong>状态:</strong> {record.status === 'closed' ? '已结束' : '进行中'}</p>
+          <Descriptions column={2} bordered size="small">
+            <Descriptions.Item label="会话ID" span={2}>
+              <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+                {record.session_id}
+              </span>
+            </Descriptions.Item>
+            <Descriptions.Item label="协议类型">
+              <Tag color="blue">{record.protocol?.toUpperCase() || 'SSH'}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="会话状态">
+              {getStatusText(record.status)}
+            </Descriptions.Item>
+            <Descriptions.Item label="用户名">{record.username}</Descriptions.Item>
+            <Descriptions.Item label="客户端IP">{record.ip}</Descriptions.Item>
+            <Descriptions.Item label="目标主机">{record.asset_name}</Descriptions.Item>
+            <Descriptions.Item label="主机地址">{record.asset_address}</Descriptions.Item>
+            <Descriptions.Item label="开始时间">
+              {dayjs(record.start_time).format('YYYY-MM-DD HH:mm:ss')}
+            </Descriptions.Item>
+            <Descriptions.Item label="结束时间">
+              {record.end_time ? dayjs(record.end_time).format('YYYY-MM-DD HH:mm:ss') : '进行中'}
+            </Descriptions.Item>
+            <Descriptions.Item label="持续时长">
+              {formatSessionDuration(record)}
+            </Descriptions.Item>
+            <Descriptions.Item label="录制状态">
+              {record.record_path ? <Tag color="green">已录制</Tag> : <Tag color="default">未录制</Tag>}
+            </Descriptions.Item>
+            <Descriptions.Item label="创建时间">
+              {dayjs(record.created_at).format('YYYY-MM-DD HH:mm:ss')}
+            </Descriptions.Item>
+          </Descriptions>
         </div>
       ),
     });
