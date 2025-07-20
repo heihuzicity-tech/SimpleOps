@@ -213,6 +213,37 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
     }
   };
 
+  // 录制状态组件
+  const RecordingStatusTag: React.FC<{ sessionId: string }> = ({ sessionId }) => {
+    const [status, setStatus] = useState<'loading' | 'recorded' | 'not-recorded' | 'error'>('loading');
+    
+    useEffect(() => {
+      const checkRecordingStatus = async () => {
+        try {
+          const recording = await findRecordingBySessionId(sessionId);
+          setStatus(recording ? 'recorded' : 'not-recorded');
+        } catch (error) {
+          setStatus('error');
+        }
+      };
+      
+      checkRecordingStatus();
+    }, [sessionId]);
+    
+    switch (status) {
+      case 'loading':
+        return <Tag color="processing">检查中...</Tag>;
+      case 'recorded':
+        return <Tag color="green">已录制</Tag>;
+      case 'not-recorded':
+        return <Tag color="default">未录制</Tag>;
+      case 'error':
+        return <Tag color="warning">检查失败</Tag>;
+      default:
+        return <Tag color="default">未知</Tag>;
+    }
+  };
+
   // 查看详情
   const handleDetail = (record: SessionRecord) => {
     Modal.info({
@@ -246,7 +277,7 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
               {formatSessionDuration(record)}
             </Descriptions.Item>
             <Descriptions.Item label="录制状态">
-              {record.record_path ? <Tag color="green">已录制</Tag> : <Tag color="default">未录制</Tag>}
+              <RecordingStatusTag sessionId={record.session_id} />
             </Descriptions.Item>
             <Descriptions.Item label="创建时间">
               {dayjs(record.created_at).format('YYYY-MM-DD HH:mm:ss')}
