@@ -159,18 +159,13 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
 
   // 播放历史
   const handleReplay = async (record: SessionRecord) => {
-    if (!record.record_path) {
-      message.warning('该会话没有录制文件');
-      return;
-    }
-
     setLoadingRecording(true);
     try {
       // 根据session_id查找录制文件
       const recording = await findRecordingBySessionId(record.session_id);
       
       if (!recording) {
-        message.warning('找不到对应的录制文件');
+        message.warning('该会话没有录制文件');
         return;
       }
 
@@ -335,18 +330,16 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          {record.record_path && (
-            <Button
-              type="link"
-              size="small"
-              icon={loadingRecording ? <Spin size="small" /> : <PlayCircleOutlined />}
-              onClick={() => handleReplay(record)}
-              loading={loadingRecording}
-              disabled={loadingRecording}
-            >
-              播放
-            </Button>
-          )}
+          <Button
+            type="link"
+            size="small"
+            icon={loadingRecording ? <Spin size="small" /> : <PlayCircleOutlined />}
+            onClick={() => handleReplay(record)}
+            loading={loadingRecording}
+            disabled={loadingRecording}
+          >
+            播放
+          </Button>
           <Button
             type="link"
             size="small"
