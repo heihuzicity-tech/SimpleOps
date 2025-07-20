@@ -14,6 +14,7 @@ import {
   message,
   Popconfirm,
   Breadcrumb,
+  Spin,
 } from 'antd';
 import {
   SearchOutlined,
@@ -25,8 +26,8 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { AuditAPI, SessionRecord, SessionRecordListParams } from '../../services/auditAPI';
-
-const { Option } = Select;
+import { RecordingAPI, RecordingResponse } from '../../services/recordingAPI';
+import RecordingPlayer from '../recording/RecordingPlayer';
 
 interface SessionAuditTableProps {
   className?: string;
@@ -47,6 +48,16 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
   // 紧凑式搜索状态
   const [searchType, setSearchType] = useState('登录用户');
   const [searchText, setSearchText] = useState('');
+  
+  // 播放器状态
+  const [playerVisible, setPlayerVisible] = useState(false);
+  const [currentRecording, setCurrentRecording] = useState<RecordingResponse | null>(null);
+  const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
+  const [loadingRecording, setLoadingRecording] = useState(false);
+  
+  // 批量选择状态
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchDeleting, setBatchDeleting] = useState(false);
 
   // 获取会话记录列表
   const fetchSessionRecords = useCallback(async (params: SessionRecordListParams = {}) => {
@@ -126,14 +137,56 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
     fetchSessionRecords(params);
   };
 
+  // 根据session_id查找录制文件
+  const findRecordingBySessionId = async (sessionId: string): Promise<RecordingResponse | null> => {
+    try {
+      const response = await RecordingAPI.getRecordingList({
+        session_id: sessionId,
+        page: 1,
+        page_size: 1,
+      });
+      
+      if (response.items && response.items.length > 0) {
+        return response.items[0];
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('查找录制文件失败:', error);
+      return null;
+    }
+  };
+
   // 播放历史
-  const handleReplay = (record: SessionRecord) => {
+  const handleReplay = async (record: SessionRecord) => {
     if (!record.record_path) {
       message.warning('该会话没有录制文件');
       return;
     }
-    // 这里应该打开播放器窗口
-    message.info('播放功能开发中...');
+
+    setLoadingRecording(true);
+    try {
+      // 根据session_id查找录制文件
+      const recording = await findRecordingBySessionId(record.session_id);
+      
+      if (!recording) {
+        message.warning('找不到对应的录制文件');
+        return;
+      }
+
+      if (!recording.can_view) {
+        message.warning('该录制文件无法播放');
+        return;
+      }
+
+      setCurrentRecording(recording);
+      setPlayerVisible(true);
+    } catch (error) {
+      console.error('播放录制失败:', error);
+      message.error('播放录制失败');
+    } finally {
+      setLoadingRecording(false);
+    }
   };
 
   // 查看详情
@@ -156,6 +209,11 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
     });
   };
 
+  // 处理播放器全屏状态变化
+  const handlePlayerFullscreenChange = (isFullscreen: boolean) => {
+    setIsPlayerFullscreen(isFullscreen);
+  };
+
   // 删除记录
   const handleDelete = async (record: SessionRecord) => {
     try {
@@ -164,6 +222,29 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
     } catch (error) {
       console.error('删除失败:', error);
       message.error('删除失败');
+    }
+  };
+
+  // 批量删除处理
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请选择要删除的会话记录');
+      return;
+    }
+    
+    setBatchDeleting(true);
+    try {
+      const sessionIds = selectedRowKeys.map(key => String(key));
+      const reason = '批量删除操作';
+      await AuditAPI.batchDeleteSessionRecords(sessionIds, reason);
+      setSelectedRowKeys([]);
+      fetchSessionRecords();
+      message.success(`成功删除 ${sessionIds.length} 个会话记录`);
+    } catch (error) {
+      console.error('批量删除失败:', error);
+      message.error('批量删除失败');
+    } finally {
+      setBatchDeleting(false);
     }
   };
 
@@ -250,41 +331,45 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
     {
       title: '操作',
       key: 'actions',
-      width: 160,
+      width: 180,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Tooltip title="播放历史">
+          {record.record_path && (
             <Button
-              type="text"
-              icon={<PlayCircleOutlined />}
+              type="link"
+              size="small"
+              icon={loadingRecording ? <Spin size="small" /> : <PlayCircleOutlined />}
               onClick={() => handleReplay(record)}
-              disabled={!record.record_path}
-              style={{ color: record.record_path ? '#52c41a' : undefined }}
-            />
-          </Tooltip>
-          <Tooltip title="详情">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => handleDetail(record)}
-              style={{ color: '#1890ff' }}
-            />
-          </Tooltip>
-          <Tooltip title="删除">
-            <Popconfirm
-              title="确认删除此记录？"
-              onConfirm={() => handleDelete(record)}
-              okText="确认"
-              cancelText="取消"
+              loading={loadingRecording}
+              disabled={loadingRecording}
             >
-              <Button
-                type="text"
-                icon={<DeleteOutlined />}
-                danger
-              />
-            </Popconfirm>
-          </Tooltip>
+              播放
+            </Button>
+          )}
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => handleDetail(record)}
+          >
+            详情
+          </Button>
+          <Popconfirm
+            title="确定要删除这个会话记录吗？"
+            onConfirm={() => handleDelete(record)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button
+              type="link"
+              size="small"
+              icon={<DeleteOutlined />}
+              danger
+            >
+              删除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -359,6 +444,11 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
           dataSource={data}
           rowKey="session_id"
           loading={loading}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+            preserveSelectedRowKeys: true,
+          }}
           pagination={{
             current: pagination.current,
             pageSize: pagination.pageSize,
@@ -378,7 +468,81 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
           }}
           size="middle"
         />
+        
+        {/* 批量删除按钮 - 与分页器保持同一水平高度 */}
+        <div style={{ 
+          marginTop: -40, 
+          display: 'flex', 
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          height: '32px'
+        }}>
+          <Popconfirm
+            title={`确定要删除这 ${selectedRowKeys.length} 个会话记录吗？`}
+            onConfirm={handleBatchDelete}
+            okText="确定"
+            cancelText="取消"
+            disabled={selectedRowKeys.length === 0}
+          >
+            <Button 
+              danger 
+              icon={<DeleteOutlined />}
+              loading={batchDeleting}
+              disabled={selectedRowKeys.length === 0}
+              title={selectedRowKeys.length === 0 ? "请先选择要删除的会话记录" : `删除选中的 ${selectedRowKeys.length} 个会话记录`}
+            >
+              批量删除 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            </Button>
+          </Popconfirm>
+          {selectedRowKeys.length > 0 && (
+            <span style={{ marginLeft: 12, color: '#666' }}>
+              已选择 {selectedRowKeys.length} 个会话记录
+            </span>
+          )}
+        </div>
       </Card>
+
+      {/* 播放器模态框 */}
+      <Modal
+        title={null}
+        open={playerVisible}
+        onCancel={() => setPlayerVisible(false)}
+        footer={null}
+        width={isPlayerFullscreen ? '100vw' : 1300}
+        destroyOnClose
+        centered={!isPlayerFullscreen}
+        styles={{
+          header: {
+            display: 'none',
+          },
+          body: { 
+            height: isPlayerFullscreen ? 'calc(100vh - 40px)' : 'auto',
+            maxHeight: isPlayerFullscreen ? 'calc(100vh - 40px)' : '85vh',
+            padding: isPlayerFullscreen ? '0' : '8px',
+            overflow: 'hidden',
+          },
+          content: {
+            maxWidth: isPlayerFullscreen ? '100vw' : undefined,
+            maxHeight: isPlayerFullscreen ? '100vh' : undefined,
+            margin: isPlayerFullscreen ? 0 : undefined,
+            borderRadius: isPlayerFullscreen ? 0 : undefined,
+          },
+          mask: {
+            backgroundColor: isPlayerFullscreen ? 'rgba(0, 0, 0, 0.95)' : undefined,
+          }
+        }}
+        maskClosable={!isPlayerFullscreen}
+        closeIcon={!isPlayerFullscreen}
+      >
+        {currentRecording && (
+          <div style={{ height: '100%', overflow: 'hidden' }}>
+            <RecordingPlayer 
+              recording={currentRecording} 
+              onFullscreenChange={handlePlayerFullscreenChange}
+            />
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

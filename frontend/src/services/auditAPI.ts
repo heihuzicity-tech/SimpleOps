@@ -270,6 +270,15 @@ export class AuditAPI {
     const response = await apiClient.post<ApiResponse<any>>(`/audit/warnings/${warningId}/read`);
     return response.data;
   }
+
+  // 批量删除会话记录
+  static async batchDeleteSessionRecords(sessionIds: string[], reason: string) {
+    const response = await apiClient.post<ApiResponse<any>>('/audit/session-records/batch/delete', {
+      session_ids: sessionIds,
+      reason,
+    });
+    return response.data;
+  }
 }
 
 export default AuditAPI;
