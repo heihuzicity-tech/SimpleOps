@@ -37,7 +37,7 @@ const RecordingAuditPage: React.FC = () => {
   // 搜索和过滤状态
   const [searchParams, setSearchParams] = useState<RecordingListRequest>({});
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [searchType, setSearchType] = useState('session_id'); // session_id, user_name, host_name
+  const [searchType, setSearchType] = useState('session_id'); // session_id, user_name, asset_name
   
   // 播放器状态
   const [playerVisible, setPlayerVisible] = useState(false);
@@ -110,8 +110,8 @@ const RecordingAuditPage: React.FC = () => {
         case 'user_name':
           params.user_name = searchValue.trim();
           break;
-        case 'host_name':
-          params.host_name = searchValue.trim();
+        case 'asset_name':
+          params.asset_name = searchValue.trim();
           break;
       }
     }
@@ -314,33 +314,21 @@ const RecordingAuditPage: React.FC = () => {
               下载
             </Button>
           )}
-          {record.can_delete ? (
-            <Popconfirm
-              title="确定要删除这个录制吗？"
-              onConfirm={() => handleDelete(record)}
-              okText="确定"
-              cancelText="取消"
-            >
-              <Button
-                type="link"
-                size="small"
-                icon={<DeleteOutlined />}
-                danger
-              >
-                删除
-              </Button>
-            </Popconfirm>
-          ) : (
+          <Popconfirm
+            title="确定要删除这个录制吗？"
+            onConfirm={() => handleDelete(record)}
+            okText="确定"
+            cancelText="取消"
+          >
             <Button
               type="link"
               size="small"
               icon={<DeleteOutlined />}
-              disabled
-              style={{ color: '#ccc' }}
+              danger
             >
               删除
             </Button>
-          )}
+          </Popconfirm>
         </Space>
       ),
     },
@@ -413,7 +401,7 @@ const RecordingAuditPage: React.FC = () => {
           searchOptions={[
             { value: 'session_id', label: '会话ID' },
             { value: 'user_name', label: '用户名称' },
-            { value: 'host_name', label: '主机名称' },
+            { value: 'asset_name', label: '资产名称' },
           ]}
           style={{ width: 300 }}
         />

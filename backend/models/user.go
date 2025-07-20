@@ -1083,6 +1083,8 @@ type SessionRecordingListRequest struct {
 	Page      int    `form:"page" binding:"omitempty,min=1"`
 	PageSize  int    `form:"page_size" binding:"omitempty,min=1,max=100"`
 	SessionID string `form:"session_id" binding:"omitempty,max=100"`
+	UserName  string `form:"user_name" binding:"omitempty,max=100"`
+	AssetName string `form:"asset_name" binding:"omitempty,max=100"`
 	UserID    uint   `form:"user_id" binding:"omitempty"`
 	AssetID   uint   `form:"asset_id" binding:"omitempty"`
 	Status    string `form:"status" binding:"omitempty,oneof=recording completed failed"`

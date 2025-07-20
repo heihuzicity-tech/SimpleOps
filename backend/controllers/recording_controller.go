@@ -110,6 +110,14 @@ func (rc *RecordingController) GetRecordingList(c *gin.Context) {
 	if request.SessionID != "" {
 		query = query.Where("session_id LIKE ?", "%"+request.SessionID+"%")
 	}
+	if request.UserName != "" {
+		query = query.Joins("LEFT JOIN users ON users.id = session_recordings.user_id").
+			Where("users.username LIKE ?", "%"+request.UserName+"%")
+	}
+	if request.AssetName != "" {
+		query = query.Joins("LEFT JOIN assets ON assets.id = session_recordings.asset_id").
+			Where("assets.name LIKE ?", "%"+request.AssetName+"%")
+	}
 	if request.UserID > 0 {
 		query = query.Where("user_id = ?", request.UserID)
 	}
@@ -361,9 +369,75 @@ func (rc *RecordingController) DownloadRecording(c *gin.Context) {
 // @Security BearerAuth
 // @Router /recording/{id} [delete]
 func (rc *RecordingController) DeleteRecording(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"success": false,
-		"message": "删除功能开发中",
+	// 验证用户权限
+	user, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "用户未认证",
+		})
+		return
+	}
+	currentUser := user.(*models.User)
+
+	if !currentUser.HasPermission("recording:delete") {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "没有录屏删除权限",
+		})
+		return
+	}
+
+	// 获取录制ID
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的录制ID",
+		})
+		return
+	}
+
+	db := utils.GetDB()
+	var recording models.SessionRecording
+	if err := db.Where("id = ?", id).First(&recording).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "录制记录不存在",
+		})
+		return
+	}
+
+	// 删除文件
+	if recording.FilePath != "" {
+		if err := os.Remove(recording.FilePath); err != nil && !os.IsNotExist(err) {
+			logrus.WithError(err).WithField("file_path", recording.FilePath).Warn("删除录制文件失败")
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("删除录制文件失败: %v", err),
+			})
+			return
+		}
+	}
+
+	// 删除数据库记录
+	if err := db.Delete(&recording).Error; err != nil {
+		logrus.WithError(err).Error("删除录制数据库记录失败")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "删除录制记录失败",
+		})
+		return
+	}
+
+	// 记录审计日志
+	utils.LogAudit(currentUser.ID, "删除录制", 
+		fmt.Sprintf("删除录制文件，会话ID: %s, 录制ID: %d", recording.SessionID, recording.ID))
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "录制删除成功",
 	})
 }
 

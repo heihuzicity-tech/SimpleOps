@@ -5,6 +5,8 @@ export interface RecordingListRequest {
   page?: number;
   page_size?: number;
   session_id?: string;
+  user_name?: string;
+  asset_name?: string;
   user_id?: number;
   asset_id?: number;
   status?: 'recording' | 'completed' | 'failed';
