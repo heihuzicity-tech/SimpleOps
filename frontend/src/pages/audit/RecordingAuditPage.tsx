@@ -11,30 +11,21 @@ import {
   Row,
   Col,
   Statistic,
-  Input,
-  Select,
-  DatePicker,
   Popconfirm,
-  Checkbox,
 } from 'antd';
 import {
   PlayCircleOutlined,
   DownloadOutlined,
   DeleteOutlined,
   EyeOutlined,
-  SearchOutlined,
   ReloadOutlined,
-  SelectOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { RecordingAPI, RecordingResponse, RecordingListRequest } from '../../services/recordingAPI';
 import RecordingPlayer from '../../components/recording/RecordingPlayer';
-import BatchOperationToolbar from '../../components/recording/BatchOperationToolbar';
-import { useBatchSelection } from '../../hooks/useBatchSelection';
+import SearchSelect from '../../components/common/SearchSelect';
 import { formatFileSize, formatDuration } from '../../utils/format';
 
-const { RangePicker } = DatePicker;
-const { Option } = Select;
 
 const RecordingAuditPage: React.FC = () => {
   const [recordings, setRecordings] = useState<RecordingResponse[]>([]);
@@ -45,9 +36,8 @@ const RecordingAuditPage: React.FC = () => {
   
   // 搜索和过滤状态
   const [searchParams, setSearchParams] = useState<RecordingListRequest>({});
-  const [sessionIdSearch, setSessionIdSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string | undefined>();
-  const [formatFilter, setFormatFilter] = useState<string | undefined>();
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchType, setSearchType] = useState('session_id'); // session_id, user_name, host_name
   
   // 播放器状态
   const [playerVisible, setPlayerVisible] = useState(false);
@@ -55,7 +45,8 @@ const RecordingAuditPage: React.FC = () => {
   const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
   
   // 批量选择状态
-  const batchSelection = useBatchSelection();
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchDeleting, setBatchDeleting] = useState(false);
   
   // 统计数据
   const [statistics, setStatistics] = useState({
@@ -106,31 +97,38 @@ const RecordingAuditPage: React.FC = () => {
   };
 
   // 搜索处理
-  const handleSearch = () => {
+  const handleSearch = (keyword?: string) => {
+    const searchValue = keyword || searchKeyword;
     const params: RecordingListRequest = {};
     
-    if (sessionIdSearch.trim()) {
-      params.session_id = sessionIdSearch.trim();
-    }
-    if (statusFilter) {
-      params.status = statusFilter as any;
-    }
-    if (formatFilter) {
-      params.format = formatFilter as any;
+    if (searchValue.trim()) {
+      // 根据搜索类型设置对应的搜索参数
+      switch (searchType) {
+        case 'session_id':
+          params.session_id = searchValue.trim();
+          break;
+        case 'user_name':
+          params.user_name = searchValue.trim();
+          break;
+        case 'host_name':
+          params.host_name = searchValue.trim();
+          break;
+      }
     }
     
     setSearchParams(params);
     setCurrentPage(1);
   };
 
-  // 重置搜索
-  const handleReset = () => {
-    setSessionIdSearch('');
-    setStatusFilter(undefined);
-    setFormatFilter(undefined);
-    setSearchParams({});
-    setCurrentPage(1);
+  // 搜索类型切换处理
+  const handleSearchTypeChange = (value: string) => {
+    setSearchType(value);
+    // 如果有搜索关键词，立即触发搜索
+    if (searchKeyword.trim()) {
+      setTimeout(() => handleSearch(), 100);
+    }
   };
+
 
   // 播放录制
   const handlePlay = (record: RecordingResponse) => {
@@ -179,49 +177,25 @@ const RecordingAuditPage: React.FC = () => {
   };
 
   // 批量删除处理
-  const handleBatchDelete = async (reason: string) => {
-    const selectedRecordings = batchSelection.getSelectedRecordings(recordings);
-    const recordingIds = selectedRecordings.map(r => r.id);
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请选择要删除的录制文件');
+      return;
+    }
     
+    setBatchDeleting(true);
     try {
-      await RecordingAPI.batchDeleteRecordings(recordingIds, reason);
-      batchSelection.clearSelection();
+      const ids = selectedRowKeys.map(key => Number(key));
+      const reason = '批量删除操作';
+      await RecordingAPI.batchDeleteRecordings(ids, reason);
+      setSelectedRowKeys([]);
       loadRecordings();
+      message.success(`成功删除 ${ids.length} 个录制文件`);
     } catch (error) {
       console.error('批量删除失败:', error);
-      throw error;
-    }
-  };
-
-  // 批量下载处理
-  const handleBatchDownload = async () => {
-    const selectedRecordings = batchSelection.getSelectedRecordings(recordings);
-    const recordingIds = selectedRecordings.map(r => r.id);
-    
-    try {
-      const result = await RecordingAPI.batchDownloadRecordings(recordingIds);
-      if (result.download_url) {
-        // 直接触发下载
-        window.open(result.download_url, '_blank');
-      }
-    } catch (error) {
-      console.error('批量下载失败:', error);
-      throw error;
-    }
-  };
-
-  // 批量归档处理
-  const handleBatchArchive = async (reason: string) => {
-    const selectedRecordings = batchSelection.getSelectedRecordings(recordings);
-    const recordingIds = selectedRecordings.map(r => r.id);
-    
-    try {
-      await RecordingAPI.batchArchiveRecordings(recordingIds, reason);
-      batchSelection.clearSelection();
-      loadRecordings();
-    } catch (error) {
-      console.error('批量归档失败:', error);
-      throw error;
+      message.error('批量删除失败');
+    } finally {
+      setBatchDeleting(false);
     }
   };
 
@@ -241,26 +215,6 @@ const RecordingAuditPage: React.FC = () => {
     return <Tag color={config.color}>{config.text}</Tag>;
   };
 
-  // 选择列定义
-  const selectionColumn: ColumnsType<RecordingResponse>[0] = {
-    title: (
-      <Checkbox
-        indeterminate={batchSelection.isIndeterminate(recordings.length)}
-        checked={batchSelection.isAllSelected(recordings.length)}
-        onChange={() => batchSelection.toggleSelectAll(recordings.map(r => r.id))}
-      >
-        全选
-      </Checkbox>
-    ),
-    key: 'selection',
-    width: 60,
-    render: (_, record) => (
-      <Checkbox
-        checked={batchSelection.selectedIds.has(record.id)}
-        onChange={(e) => batchSelection.toggleSelection(record.id)}
-      />
-    ),
-  };
 
   // 基础表格列定义
   const baseColumns: ColumnsType<RecordingResponse> = [
@@ -336,59 +290,68 @@ const RecordingAuditPage: React.FC = () => {
     {
       title: '操作',
       key: 'actions',
-      width: 140,
+      width: 180,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
           {record.can_view && (
-            <Tooltip title="播放">
-              <Button
-                type="link"
-                size="small"
-                icon={<PlayCircleOutlined />}
-                onClick={() => handlePlay(record)}
-              />
-            </Tooltip>
+            <Button
+              type="link"
+              size="small"
+              icon={<PlayCircleOutlined />}
+              onClick={() => handlePlay(record)}
+            >
+              播放
+            </Button>
           )}
           {record.can_download && (
-            <Tooltip title="下载">
-              <Button
-                type="link"
-                size="small"
-                icon={<DownloadOutlined />}
-                onClick={() => handleDownload(record)}
-              />
-            </Tooltip>
+            <Button
+              type="link"
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={() => handleDownload(record)}
+            >
+              下载
+            </Button>
           )}
-          {record.can_delete && (
+          {record.can_delete ? (
             <Popconfirm
               title="确定要删除这个录制吗？"
               onConfirm={() => handleDelete(record)}
               okText="确定"
               cancelText="取消"
             >
-              <Tooltip title="删除">
-                <Button
-                  type="link"
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  danger
-                />
-              </Tooltip>
+              <Button
+                type="link"
+                size="small"
+                icon={<DeleteOutlined />}
+                danger
+              >
+                删除
+              </Button>
             </Popconfirm>
+          ) : (
+            <Button
+              type="link"
+              size="small"
+              icon={<DeleteOutlined />}
+              disabled
+              style={{ color: '#ccc' }}
+            >
+              删除
+            </Button>
           )}
         </Space>
       ),
     },
   ];
 
-  // 动态构建表格列，根据批量选择模式决定是否包含选择列
-  const columns: ColumnsType<RecordingResponse> = batchSelection.isSelecting 
-    ? [selectionColumn, ...baseColumns] 
-    : baseColumns;
+  // 表格列定义
+  const columns: ColumnsType<RecordingResponse> = baseColumns;
 
   useEffect(() => {
     loadRecordings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, pageSize, searchParams]);
 
   return (
@@ -431,90 +394,53 @@ const RecordingAuditPage: React.FC = () => {
         </Col>
       </Row>
 
-      {/* 搜索和过滤 */}
-      <Card style={{ marginBottom: 16 }}>
-        <Row gutter={16} align="middle">
-          <Col span={6}>
-            <Input
-              placeholder="搜索会话ID"
-              value={sessionIdSearch}
-              onChange={(e) => setSessionIdSearch(e.target.value)}
-              onPressEnter={handleSearch}
-            />
-          </Col>
-          <Col span={4}>
-            <Select
-              placeholder="状态"
-              value={statusFilter}
-              onChange={setStatusFilter}
-              allowClear
-              style={{ width: '100%' }}
-            >
-              <Option value="recording">录制中</Option>
-              <Option value="completed">已完成</Option>
-              <Option value="failed">失败</Option>
-            </Select>
-          </Col>
-          <Col span={4}>
-            <Select
-              placeholder="格式"
-              value={formatFilter}
-              onChange={setFormatFilter}
-              allowClear
-              style={{ width: '100%' }}
-            >
-              <Option value="asciicast">ASCIICAST</Option>
-              <Option value="json">JSON</Option>
-              <Option value="mp4">MP4</Option>
-            </Select>
-          </Col>
-          <Col span={6}>
-            <Space>
-              <Button 
-                type="primary" 
-                icon={<SearchOutlined />}
-                onClick={handleSearch}
-              >
-                搜索
-              </Button>
-              <Button onClick={handleReset}>重置</Button>
-              <Button 
-                icon={<ReloadOutlined />}
-                onClick={loadRecordings}
-              >
-                刷新
-              </Button>
-              <Button 
-                type={batchSelection.isSelecting ? "primary" : "default"}
-                icon={<SelectOutlined />}
-                onClick={() => batchSelection.setSelecting(!batchSelection.isSelecting)}
-              >
-                {batchSelection.isSelecting ? "退出选择" : "批量选择"}
-              </Button>
-            </Space>
-          </Col>
-        </Row>
-      </Card>
 
-      {/* 批量操作工具栏 */}
-      {batchSelection.isSelecting && (
-        <BatchOperationToolbar
-          selectedRecordings={batchSelection.getSelectedRecordings(recordings)}
-          onClearSelection={batchSelection.clearSelection}
-          onBatchDelete={handleBatchDelete}
-          onBatchDownload={handleBatchDownload}
-          onBatchArchive={handleBatchArchive}
-          loading={loading}
+
+      {/* 搜索和操作区域 */}
+      <div style={{ 
+        marginBottom: 8, 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center'
+      }}>
+        <SearchSelect
+          searchType={searchType}
+          onSearchTypeChange={handleSearchTypeChange}
+          onSearch={handleSearch}
+          value={searchKeyword}
+          onChange={(e) => setSearchKeyword(e.target.value)}
+          placeholder="请输入关键字搜索"
+          searchOptions={[
+            { value: 'session_id', label: '会话ID' },
+            { value: 'user_name', label: '用户名称' },
+            { value: 'host_name', label: '主机名称' },
+          ]}
+          style={{ width: 300 }}
         />
-      )}
+        <Space>
+          <Button 
+            icon={<ReloadOutlined />}
+            onClick={loadRecordings}
+          >
+            刷新
+          </Button>
+        </Space>
+      </div>
 
       {/* 录制列表表格 */}
-      <Card title="录屏记录">
+      <Card 
+        styles={{ body: { padding: '12px 16px' } }}
+      >
         <Table
+          size="middle"
           columns={columns}
           dataSource={recordings}
           rowKey="id"
           loading={loading}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+          }}
           pagination={{
             current: currentPage,
             pageSize: pageSize,
@@ -529,6 +455,38 @@ const RecordingAuditPage: React.FC = () => {
           }}
           scroll={{ x: 1200 }}
         />
+        
+        {/* 批量删除按钮 - 与分页器保持同一水平高度 */}
+        <div style={{ 
+          marginTop: -40, 
+          display: 'flex', 
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          height: '32px'
+        }}>
+          <Popconfirm
+            title={`确定要删除这 ${selectedRowKeys.length} 个录制文件吗？`}
+            onConfirm={handleBatchDelete}
+            okText="确定"
+            cancelText="取消"
+            disabled={selectedRowKeys.length === 0}
+          >
+            <Button 
+              danger 
+              icon={<DeleteOutlined />}
+              loading={batchDeleting}
+              disabled={selectedRowKeys.length === 0}
+              title={selectedRowKeys.length === 0 ? "请先选择要删除的录制文件" : `删除选中的 ${selectedRowKeys.length} 个录制文件`}
+            >
+              批量删除 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            </Button>
+          </Popconfirm>
+          {selectedRowKeys.length > 0 && (
+            <span style={{ marginLeft: 12, color: '#666' }}>
+              已选择 {selectedRowKeys.length} 个录制文件
+            </span>
+          )}
+        </div>
       </Card>
 
       {/* 播放器模态框 */}
