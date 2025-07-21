@@ -549,6 +549,19 @@ func (a *AuditService) shouldLogOperation(method, path string) bool {
 		return false
 	}
 
+	// 跳过操作日志删除接口，避免删除操作产生新的审计记录导致死循环
+	if strings.Contains(path, "/audit/operation-logs") {
+		// 跳过所有操作日志相关的DELETE和批量删除操作
+		if method == "DELETE" || 
+		   (method == "POST" && strings.Contains(path, "/batch/delete")) {
+			logrus.WithFields(logrus.Fields{
+				"method": method,
+				"path":   path,
+			}).Debug("Skipping audit log for operation-logs delete operation")
+			return false
+		}
+	}
+
 	// 只记录修改操作，跳过所有GET请求（浏览操作）
 	if method == "GET" {
 		return false
@@ -639,12 +652,28 @@ func (a *AuditService) LogMiddleware() gin.HandlerFunc {
 func (a *AuditService) parseActionAndResource(method, path string) (string, string) {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
-	if len(parts) < 2 {
+	if len(parts) < 3 {
 		return "unknown", "unknown"
 	}
 
-	resource := parts[1] // 第二部分通常是资源名称
+	// 对于 /api/v1/assets/ 格式，资源名称在第3个位置（索引2）
+	resource := parts[2]
+	
+	// 处理特殊情况：审计相关的路径
+	if len(parts) >= 4 && parts[2] == "audit" {
+		// /api/v1/audit/operation-logs -> operation-logs
+		resource = parts[3]
+	}
 
+	// 特殊路径处理：根据路径内容判断实际操作类型
+	if strings.Contains(path, "/delete") {
+		return "delete", resource
+	}
+	if strings.Contains(path, "/archive") {
+		return "archive", resource
+	}
+	
+	// 标准HTTP方法处理
 	switch method {
 	case "GET":
 		return "read", resource
@@ -822,23 +851,7 @@ func (a *AuditService) DeleteOperationLog(id uint, username, ip, reason string) 
 		return err
 	}
 
-	// 记录操作日志（系统操作，不记录到审计日志避免死循环）
-	go a.RecordOperationLog(
-		operationLog.UserID,
-		username,
-		ip,
-		"DELETE",
-		fmt.Sprintf("/audit/operation-logs/%d", id),
-		"delete",
-		"operation_log",
-		id,
-		200,
-		fmt.Sprintf("删除操作日志: ID=%d, 原因: %s", id, reason),
-		nil,
-		nil,
-		0,
-		true, // isSystemOperation=true，避免删除操作日志产生新的操作日志导致死循环
-	)
+	// 不再需要手动记录操作日志，中间件已跳过此类操作以避免死循环
 
 	logrus.WithFields(logrus.Fields{
 		"operation_log_id": id,
@@ -886,25 +899,7 @@ func (a *AuditService) BatchDeleteOperationLogs(ids []uint, username, ip, reason
 		return err
 	}
 
-	// 记录操作日志（系统操作，不记录到审计日志避免死循环）
-	for _, log := range existingLogs {
-		go a.RecordOperationLog(
-			log.UserID,
-			username,
-			ip,
-			"DELETE",
-			"/audit/operation-logs/batch/delete",
-			"batch_delete",
-			"operation_log",
-			log.ID,
-			200,
-			fmt.Sprintf("批量删除操作日志: ID=%d, 原因: %s", log.ID, reason),
-			nil,
-			nil,
-			0,
-			true, // isSystemOperation=true，避免批量删除操作日志产生新的操作日志导致死循环
-		)
-	}
+	// 不再需要手动记录操作日志，中间件已跳过此类操作以避免死循环
 
 	logrus.WithFields(logrus.Fields{
 		"operation_log_ids": ids,
