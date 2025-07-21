@@ -65,6 +65,7 @@ func SetupRouter() *gin.Engine {
 		// 需要身份验证的路由
 		authenticated := api.Group("/")
 		authenticated.Use(middleware.AuthMiddleware())
+		authenticated.Use(auditService.LogMiddleware()) // 添加审计中间件，自动记录所有操作日志
 		{
 			// 当前用户相关路由
 			authenticated.GET("/profile", authController.GetProfile)
