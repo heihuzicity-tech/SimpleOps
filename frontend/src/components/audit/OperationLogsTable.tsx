@@ -16,8 +16,9 @@ import {
   Statistic,
   message,
   Breadcrumb,
+  Popconfirm,
 } from 'antd';
-import { SearchOutlined, ReloadOutlined, EyeOutlined, FileTextOutlined } from '@ant-design/icons';
+import { SearchOutlined, ReloadOutlined, EyeOutlined, FileTextOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { AuditAPI, OperationLog, OperationLogListParams } from '../../services/auditAPI';
@@ -46,6 +47,10 @@ const OperationLogsTable: React.FC<OperationLogsTableProps> = ({ className }) =>
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedLog, setSelectedLog] = useState<OperationLog | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  
+  // 批量删除相关状态
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchDeleting, setBatchDeleting] = useState(false);
 
   // 获取操作日志列表
   const fetchOperationLogs = useCallback(async (params: OperationLogListParams = {}) => {
@@ -102,6 +107,42 @@ const OperationLogsTable: React.FC<OperationLogsTableProps> = ({ className }) =>
       message.error('获取操作日志详情失败');
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  // 删除单个操作日志
+  const handleDelete = async (id: number) => {
+    try {
+      await AuditAPI.deleteOperationLog(id);
+      message.success('操作日志删除成功');
+      // 刷新数据
+      fetchOperationLogs();
+    } catch (error) {
+      console.error('删除操作日志失败:', error);
+      message.error('删除操作日志失败');
+    }
+  };
+
+  // 批量删除操作日志
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请选择要删除的操作日志');
+      return;
+    }
+
+    setBatchDeleting(true);
+    try {
+      const ids = selectedRowKeys.map(key => Number(key));
+      await AuditAPI.batchDeleteOperationLogs(ids, '批量删除操作');
+      setSelectedRowKeys([]);
+      message.success(`成功删除 ${ids.length} 个操作日志`);
+      // 刷新数据
+      fetchOperationLogs();
+    } catch (error) {
+      console.error('批量删除操作日志失败:', error);
+      message.error('批量删除操作日志失败');
+    } finally {
+      setBatchDeleting(false);
     }
   };
 
@@ -205,17 +246,28 @@ const OperationLogsTable: React.FC<OperationLogsTableProps> = ({ className }) =>
     {
       title: '操作',
       key: 'actions',
-      width: 80,
-      fixed: 'right',
+      width: 280,
+      align: 'center' as const,
+      fixed: 'right' as const,
       render: (_, record) => (
-        <Space>
-          <Tooltip title="查看详情">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => handleViewDetail(record)}
-            />
-          </Tooltip>
+        <Space size="small">
+          <Button 
+            icon={<EyeOutlined />}
+            onClick={() => handleViewDetail(record)}
+          >
+            查看
+          </Button>
+          <Popconfirm
+            title="确定要删除这个操作日志吗？"
+            onConfirm={() => handleDelete(record.id)}
+          >
+            <Button 
+              danger
+              icon={<DeleteOutlined />}
+            >
+              删除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -358,6 +410,10 @@ const OperationLogsTable: React.FC<OperationLogsTableProps> = ({ className }) =>
 
         {/* 表格 */}
         <Table
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+          }}
           columns={columns}
           dataSource={data}
           rowKey="id"
@@ -380,6 +436,38 @@ const OperationLogsTable: React.FC<OperationLogsTableProps> = ({ className }) =>
             y: 'calc(100vh - 450px)'
           }}
         />
+        
+        {/* 批量删除按钮 - 与分页器保持同一水平高度 */}
+        <div style={{ 
+          marginTop: -40, 
+          display: 'flex', 
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          height: '32px'
+        }}>
+          <Popconfirm
+            title={`确定要删除这 ${selectedRowKeys.length} 个操作日志吗？`}
+            onConfirm={handleBatchDelete}
+            okText="确定"
+            cancelText="取消"
+            disabled={selectedRowKeys.length === 0}
+          >
+            <Button 
+              danger 
+              icon={<DeleteOutlined />}
+              loading={batchDeleting}
+              disabled={selectedRowKeys.length === 0}
+              title={selectedRowKeys.length === 0 ? "请先选择要删除的操作日志" : `删除选中的 ${selectedRowKeys.length} 个操作日志`}
+            >
+              批量删除 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            </Button>
+          </Popconfirm>
+          {selectedRowKeys.length > 0 && (
+            <span style={{ marginLeft: 12, color: '#666' }}>
+              已选择 {selectedRowKeys.length} 个操作日志
+            </span>
+          )}
+        </div>
       </Card>
 
       {/* 详情模态框 */}

@@ -512,3 +512,119 @@ func (ac *AuditController) BatchDeleteSessionRecords(c *gin.Context) {
 		},
 	})
 }
+
+// DeleteOperationLog 删除操作日志
+// @Summary      删除操作日志
+// @Description  删除指定的操作日志
+// @Tags         审计管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      uint  true  "操作日志ID"
+// @Success      200  {object}  map[string]interface{}  "删除成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Failure      404  {object}  map[string]interface{}  "操作日志不存在"
+// @Failure      500  {object}  map[string]interface{}  "服务器错误"
+// @Router       /audit/operation-logs/{id} [delete]
+func (ac *AuditController) DeleteOperationLog(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid operation log ID",
+		})
+		return
+	}
+
+	// 获取当前用户信息（用于审计日志）
+	userInterface, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "User not found",
+		})
+		return
+	}
+
+	user := userInterface.(*models.User)
+
+	// 执行删除操作
+	if err := ac.auditService.DeleteOperationLog(uint(id), user.Username, c.ClientIP(), "手动删除操作"); err != nil {
+		if err.Error() == "operation log not found" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "请求的资源不存在",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "删除失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "操作日志删除成功",
+	})
+}
+
+// BatchDeleteOperationLogs 批量删除操作日志
+// @Summary      批量删除操作日志
+// @Description  批量删除指定的操作日志
+// @Tags         审计管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body  object  true  "批量删除请求"
+// @Success      200  {object}  map[string]interface{}  "删除成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Failure      500  {object}  map[string]interface{}  "服务器错误"
+// @Router       /audit/operation-logs/batch/delete [post]
+func (ac *AuditController) BatchDeleteOperationLogs(c *gin.Context) {
+	var req struct {
+		IDs    []uint `json:"ids" binding:"required"`
+		Reason string `json:"reason"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request parameters",
+		})
+		return
+	}
+
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Operation log IDs cannot be empty",
+		})
+		return
+	}
+
+	// 获取当前用户信息（用于审计日志）
+	userInterface, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "User not found",
+		})
+		return
+	}
+
+	user := userInterface.(*models.User)
+
+	// 执行批量删除操作
+	if err := ac.auditService.BatchDeleteOperationLogs(req.IDs, user.Username, c.ClientIP(), req.Reason); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "批量删除失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "批量删除成功",
+		"data": gin.H{
+			"deleted_count": len(req.IDs),
+		},
+	})
+}

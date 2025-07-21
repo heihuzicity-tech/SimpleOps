@@ -166,6 +166,8 @@ func SetupRouter() *gin.Engine {
 				// 操作日志
 				audit.GET("/operation-logs", auditController.GetOperationLogs)
 				audit.GET("/operation-logs/:id", auditController.GetOperationLog)
+				audit.DELETE("/operation-logs/:id", middleware.RequirePermission("audit:delete"), auditController.DeleteOperationLog)
+				audit.POST("/operation-logs/batch/delete", middleware.RequirePermission("audit:delete"), auditController.BatchDeleteOperationLogs)
 
 				// 会话记录
 				audit.GET("/session-records", auditController.GetSessionRecords)

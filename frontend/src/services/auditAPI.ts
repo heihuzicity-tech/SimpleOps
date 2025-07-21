@@ -285,6 +285,21 @@ export class AuditAPI {
     });
     return response.data;
   }
+
+  // 删除单个操作日志
+  static async deleteOperationLog(id: number) {
+    const response = await apiClient.delete<ApiResponse<any>>(`/audit/operation-logs/${id}`);
+    return response.data;
+  }
+
+  // 批量删除操作日志
+  static async batchDeleteOperationLogs(ids: number[], reason: string) {
+    const response = await apiClient.post<ApiResponse<any>>('/audit/operation-logs/batch/delete', {
+      ids,
+      reason,
+    });
+    return response.data;
+  }
 }
 
 export default AuditAPI;
