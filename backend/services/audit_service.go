@@ -542,6 +542,22 @@ func (a *AuditService) calculateCommandRisk(command string) string {
 	return "low"
 }
 
+// shouldLogOperation 判断是否需要记录操作日志
+func (a *AuditService) shouldLogOperation(method, path string) bool {
+	// 跳过健康检查等系统接口
+	if strings.Contains(path, "/health") || strings.Contains(path, "/metrics") {
+		return false
+	}
+
+	// 只记录修改操作，跳过所有GET请求（浏览操作）
+	if method == "GET" {
+		return false
+	}
+
+	// 记录所有非GET操作（POST、PUT、DELETE、PATCH等）
+	return true
+}
+
 // LogMiddleware 创建操作日志中间件
 func (a *AuditService) LogMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -559,6 +575,11 @@ func (a *AuditService) LogMiddleware() gin.HandlerFunc {
 
 		// 处理请求
 		c.Next()
+
+		// 判断是否需要记录操作日志
+		if !a.shouldLogOperation(c.Request.Method, c.Request.URL.Path) {
+			return
+		}
 
 		// 记录操作日志
 		duration := time.Since(start).Milliseconds()
