@@ -5,6 +5,10 @@
 *.so
 *.dylib
 
+# Go binaries
+backend/bastion
+bastion
+
 # Test binary, built with `go test -c`
 *.test
 

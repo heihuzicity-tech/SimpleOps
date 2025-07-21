@@ -299,6 +299,9 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		logrus.WithField("session_id", sessionID).Warn("录制服务未初始化，跳过录制")
 	}
 
+	// 📝 记录会话到数据库（重要：这确保在线监控能看到会话）
+	go s.recordSessionToDB(session, asset, credential)
+
 	// 记录会话开始到审计日志（统一使用审计服务）
 	clientIP := "127.0.0.1" // 这里需要从上下文中获取真实IP
 	go s.auditService.RecordSessionStart(
