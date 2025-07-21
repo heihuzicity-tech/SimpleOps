@@ -170,6 +170,8 @@ func SetupRouter() *gin.Engine {
 				// 会话记录
 				audit.GET("/session-records", auditController.GetSessionRecords)
 				audit.GET("/session-records/:id", auditController.GetSessionRecord)
+				audit.DELETE("/session-records/:id", middleware.RequirePermission("audit:delete"), auditController.DeleteSessionRecord)
+				audit.POST("/session-records/batch/delete", middleware.RequirePermission("audit:delete"), auditController.BatchDeleteSessionRecords)
 
 				// 命令日志
 				audit.GET("/command-logs", auditController.GetCommandLogs)

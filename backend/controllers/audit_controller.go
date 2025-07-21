@@ -397,3 +397,118 @@ func (ac *AuditController) CleanupAuditLogs(c *gin.Context) {
 		"message": "Audit logs cleanup completed",
 	})
 }
+
+// DeleteSessionRecord 删除会话记录
+// @Summary      删除会话记录
+// @Description  删除指定的会话记录
+// @Tags         审计管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "会话ID"
+// @Success      200  {object}  map[string]interface{}  "删除成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Failure      404  {object}  map[string]interface{}  "会话记录不存在"
+// @Failure      500  {object}  map[string]interface{}  "服务器错误"
+// @Router       /audit/session-records/{id} [delete]
+func (ac *AuditController) DeleteSessionRecord(c *gin.Context) {
+	sessionID := c.Param("id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid session ID",
+		})
+		return
+	}
+
+	// 获取当前用户信息（用于审计日志）
+	userInterface, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "User not found",
+		})
+		return
+	}
+
+	user := userInterface.(*models.User)
+
+	// 执行删除操作
+	if err := ac.auditService.DeleteSessionRecord(sessionID, user.Username, c.ClientIP(), "手动删除操作"); err != nil {
+		if err.Error() == "session record not found" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "请求的资源不存在",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "删除失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "会话记录删除成功",
+	})
+}
+
+// BatchDeleteSessionRecords 批量删除会话记录
+// @Summary      批量删除会话记录
+// @Description  批量删除指定的会话记录
+// @Tags         审计管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body  object  true  "批量删除请求"
+// @Success      200  {object}  map[string]interface{}  "删除成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Failure      500  {object}  map[string]interface{}  "服务器错误"
+// @Router       /audit/session-records/batch/delete [post]
+func (ac *AuditController) BatchDeleteSessionRecords(c *gin.Context) {
+	var req struct {
+		SessionIDs []string `json:"session_ids" binding:"required"`
+		Reason     string   `json:"reason"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request parameters",
+		})
+		return
+	}
+
+	if len(req.SessionIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Session IDs cannot be empty",
+		})
+		return
+	}
+
+	// 获取当前用户信息（用于审计日志）
+	userInterface, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "User not found",
+		})
+		return
+	}
+
+	user := userInterface.(*models.User)
+
+	// 执行批量删除操作
+	if err := ac.auditService.BatchDeleteSessionRecords(req.SessionIDs, user.Username, c.ClientIP(), req.Reason); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "批量删除失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "批量删除成功",
+		"data": gin.H{
+			"deleted_count": len(req.SessionIDs),
+		},
+	})
+}

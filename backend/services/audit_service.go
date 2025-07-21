@@ -664,3 +664,113 @@ func (a *AuditService) CleanupAuditLogs() error {
 	logrus.WithField("cutoff", cutoff).Info("Audit logs cleanup completed")
 	return nil
 }
+
+// DeleteSessionRecord 删除会话记录
+func (a *AuditService) DeleteSessionRecord(sessionID, username, ip, reason string) error {
+	// 检查会话记录是否存在
+	var sessionRecord models.SessionRecord
+	if err := a.db.Where("session_id = ?", sessionID).First(&sessionRecord).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("session record not found")
+		}
+		logrus.WithError(err).Error("Failed to find session record")
+		return err
+	}
+
+	// 删除会话记录
+	if err := a.db.Where("session_id = ?", sessionID).Delete(&models.SessionRecord{}).Error; err != nil {
+		logrus.WithError(err).Error("Failed to delete session record")
+		return err
+	}
+
+	// 记录操作日志
+	go a.RecordOperationLog(
+		sessionRecord.UserID,
+		username,
+		ip,
+		"DELETE",
+		fmt.Sprintf("/audit/session-records/%s", sessionID),
+		"delete",
+		"session_record",
+		uint(sessionRecord.ID),
+		200,
+		fmt.Sprintf("删除会话记录: %s, 原因: %s", sessionID, reason),
+		nil,
+		nil,
+		0,
+	)
+
+	logrus.WithFields(logrus.Fields{
+		"session_id": sessionID,
+		"username":   username,
+		"reason":     reason,
+	}).Info("Session record deleted")
+
+	return nil
+}
+
+// BatchDeleteSessionRecords 批量删除会话记录
+func (a *AuditService) BatchDeleteSessionRecords(sessionIDs []string, username, ip, reason string) error {
+	if len(sessionIDs) == 0 {
+		return fmt.Errorf("session IDs cannot be empty")
+	}
+
+	// 检查所有会话记录是否存在
+	var existingRecords []models.SessionRecord
+	if err := a.db.Where("session_id IN ?", sessionIDs).Find(&existingRecords).Error; err != nil {
+		logrus.WithError(err).Error("Failed to find session records")
+		return err
+	}
+
+	if len(existingRecords) != len(sessionIDs) {
+		// 找出不存在的会话ID
+		existingSessionIDs := make(map[string]bool)
+		for _, record := range existingRecords {
+			existingSessionIDs[record.SessionID] = true
+		}
+
+		var missingIDs []string
+		for _, sessionID := range sessionIDs {
+			if !existingSessionIDs[sessionID] {
+				missingIDs = append(missingIDs, sessionID)
+			}
+		}
+
+		logrus.WithField("missing_ids", missingIDs).Warn("Some session records not found")
+		return fmt.Errorf("some session records not found: %v", missingIDs)
+	}
+
+	// 批量删除会话记录
+	if err := a.db.Where("session_id IN ?", sessionIDs).Delete(&models.SessionRecord{}).Error; err != nil {
+		logrus.WithError(err).Error("Failed to batch delete session records")
+		return err
+	}
+
+	// 记录操作日志
+	for _, record := range existingRecords {
+		go a.RecordOperationLog(
+			record.UserID,
+			username,
+			ip,
+			"DELETE",
+			"/audit/session-records/batch/delete",
+			"batch_delete",
+			"session_record",
+			uint(record.ID),
+			200,
+			fmt.Sprintf("批量删除会话记录: %s, 原因: %s", record.SessionID, reason),
+			nil,
+			nil,
+			0,
+		)
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"session_ids":    sessionIDs,
+		"deleted_count":  len(existingRecords),
+		"username":       username,
+		"reason":         reason,
+	}).Info("Session records batch deleted")
+
+	return nil
+}

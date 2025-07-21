@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card,
   Table,
@@ -61,8 +61,10 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
   const [batchDeleting, setBatchDeleting] = useState(false);
 
   // 获取会话记录列表
-  const fetchSessionRecords = useCallback(async (params: SessionRecordListParams = {}) => {
-    setLoading(true);
+  const fetchSessionRecords = useCallback(async (params: SessionRecordListParams = {}, showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     try {
       const response = await AuditAPI.getSessionRecords({
         page: pagination.current,
@@ -79,14 +81,21 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
       console.error('获取会话记录失败:', error);
       message.error('获取会话记录失败');
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }, [pagination.current, pagination.pageSize, searchParams]);
 
-  // 初始加载
+  // 分页切换时的加载状态
+  const [pageChanging, setPageChanging] = useState(false);
+
+  // 初始加载和分页变化监听
   useEffect(() => {
-    fetchSessionRecords();
-  }, []);
+    // 初次加载显示完整loading，分页切换显示轻量loading
+    const isInitialLoad = pagination.current === 1 && !pageChanging;
+    fetchSessionRecords({}, isInitialLoad);
+  }, [fetchSessionRecords, pageChanging]);
 
   // 搜索处理
   const handleSearch = () => {
@@ -159,7 +168,7 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
   };
 
   // 播放历史
-  const handleReplay = async (record: SessionRecord) => {
+  const handleReplay = useCallback(async (record: SessionRecord) => {
     setLoadingRecording(true);
     try {
       // 根据session_id查找录制文件
@@ -183,10 +192,10 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
     } finally {
       setLoadingRecording(false);
     }
-  };
+  }, []);
 
   // 获取状态文本
-  const getStatusText = (status: string) => {
+  const getStatusText = useCallback((status: string) => {
     const statusMap: Record<string, { text: string; color: string }> = {
       active: { text: '进行中', color: 'processing' },
       closed: { text: '已结束', color: 'success' },
@@ -195,10 +204,10 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
     };
     const statusInfo = statusMap[status] || { text: status, color: 'default' };
     return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
-  };
+  }, []);
 
   // 格式化会话持续时间
-  const formatSessionDuration = (record: SessionRecord) => {
+  const formatSessionDuration = useCallback((record: SessionRecord) => {
     if (!record.duration) return '-';
     const hours = Math.floor(record.duration / 3600);
     const minutes = Math.floor((record.duration % 3600) / 60);
@@ -211,7 +220,7 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
     } else {
       return `${seconds}秒`;
     }
-  };
+  }, []);
 
   // 录制状态组件
   const RecordingStatusTag: React.FC<{ sessionId: string }> = ({ sessionId }) => {
@@ -245,7 +254,7 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
   };
 
   // 查看详情
-  const handleDetail = (record: SessionRecord) => {
+  const handleDetail = useCallback((record: SessionRecord) => {
     Modal.info({
       title: '会话详情',
       width: 800,
@@ -286,7 +295,7 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
         </div>
       ),
     });
-  };
+  }, [getStatusText, formatSessionDuration]);
 
   // 处理播放器全屏状态变化
   const handlePlayerFullscreenChange = (isFullscreen: boolean) => {
@@ -294,15 +303,16 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
   };
 
   // 删除记录
-  const handleDelete = async (record: SessionRecord) => {
+  const handleDelete = useCallback(async (record: SessionRecord) => {
     try {
-      // await AuditAPI.deleteSessionRecord(record.session_id);
-      message.warning('删除功能暂未实现');
+      await AuditAPI.deleteSessionRecord(record.session_id);
+      fetchSessionRecords();
+      message.success('会话记录删除成功');
     } catch (error) {
       console.error('删除失败:', error);
       message.error('删除失败');
     }
-  };
+  }, [fetchSessionRecords]);
 
   // 批量删除处理
   const handleBatchDelete = async () => {
@@ -340,8 +350,8 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
     }
   };
 
-  // 表格列定义（参考图片设计）
-  const columns: ColumnsType<SessionRecord> = [
+  // 表格列定义（参考图片设计）- 使用 useMemo 优化性能
+  const columns: ColumnsType<SessionRecord> = useMemo(() => [
     {
       title: '登录用户',
       dataIndex: 'username',
@@ -444,7 +454,7 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
         </Space>
       ),
     },
-  ];
+  ], [loadingRecording, handleReplay, handleDetail, handleDelete]);
 
   return (
     <div className={className}>
@@ -514,7 +524,7 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
           columns={columns}
           dataSource={data}
           rowKey="session_id"
-          loading={loading}
+          loading={loading || pageChanging}
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
@@ -528,7 +538,15 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
             showQuickJumper: true,
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条 / 共 ${total} 条`,
             onChange: (page, pageSize) => {
-              setPagination({ current: page, pageSize });
+              setPageChanging(true);
+              setPagination({ current: page, pageSize: pageSize || pagination.pageSize });
+              // 延迟重置pageChanging状态，确保数据加载完成
+              setTimeout(() => setPageChanging(false), 100);
+            },
+            onShowSizeChange: (current, size) => {
+              setPageChanging(true);
+              setPagination({ current: 1, pageSize: size });
+              setTimeout(() => setPageChanging(false), 100);
             },
             responsive: true,
             showLessItems: true,

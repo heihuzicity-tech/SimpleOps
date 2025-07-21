@@ -271,6 +271,12 @@ export class AuditAPI {
     return response.data;
   }
 
+  // 删除单个会话记录
+  static async deleteSessionRecord(sessionId: string) {
+    const response = await apiClient.delete<ApiResponse<any>>(`/audit/session-records/${sessionId}`);
+    return response.data;
+  }
+
   // 批量删除会话记录
   static async batchDeleteSessionRecords(sessionIds: string[], reason: string) {
     const response = await apiClient.post<ApiResponse<any>>('/audit/session-records/batch/delete', {
