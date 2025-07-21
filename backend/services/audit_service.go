@@ -115,8 +115,13 @@ func (a *AuditService) GetLoginLogs(req *models.LoginLogListRequest) ([]*models.
 // ======================== 操作日志相关 ========================
 
 // RecordOperationLog 记录操作日志
-func (a *AuditService) RecordOperationLog(userID uint, username, ip, method, url, action, resource string, resourceID uint, status int, message string, requestData, responseData interface{}, duration int64) error {
+func (a *AuditService) RecordOperationLog(userID uint, username, ip, method, url, action, resource string, resourceID uint, status int, message string, requestData, responseData interface{}, duration int64, isSystemOperation bool) error {
 	if !config.GlobalConfig.Audit.EnableOperationLog {
+		return nil
+	}
+
+	// 跳过审计系统自身的管理操作，避免死循环
+	if isSystemOperation {
 		return nil
 	}
 
@@ -604,6 +609,7 @@ func (a *AuditService) LogMiddleware() gin.HandlerFunc {
 			requestData,
 			responseData,
 			duration,
+			false, // isSystemOperation=false，正常业务操作需要记录审计日志
 		)
 	}
 }
@@ -683,7 +689,7 @@ func (a *AuditService) DeleteSessionRecord(sessionID, username, ip, reason strin
 		return err
 	}
 
-	// 记录操作日志
+	// 记录操作日志（系统操作，不记录到审计日志避免死循环）
 	go a.RecordOperationLog(
 		sessionRecord.UserID,
 		username,
@@ -698,6 +704,7 @@ func (a *AuditService) DeleteSessionRecord(sessionID, username, ip, reason strin
 		nil,
 		nil,
 		0,
+		true, // isSystemOperation=true，避免审计管理操作记录死循环
 	)
 
 	logrus.WithFields(logrus.Fields{
@@ -746,7 +753,7 @@ func (a *AuditService) BatchDeleteSessionRecords(sessionIDs []string, username, 
 		return err
 	}
 
-	// 记录操作日志
+	// 记录操作日志（系统操作，不记录到审计日志避免死循环）
 	for _, record := range existingRecords {
 		go a.RecordOperationLog(
 			record.UserID,
@@ -762,6 +769,7 @@ func (a *AuditService) BatchDeleteSessionRecords(sessionIDs []string, username, 
 			nil,
 			nil,
 			0,
+			true, // isSystemOperation=true，避免审计管理操作记录死循环
 		)
 	}
 
@@ -771,6 +779,118 @@ func (a *AuditService) BatchDeleteSessionRecords(sessionIDs []string, username, 
 		"username":       username,
 		"reason":         reason,
 	}).Info("Session records batch deleted")
+
+	return nil
+}
+
+// DeleteOperationLog 删除操作日志
+func (a *AuditService) DeleteOperationLog(id uint, username, ip, reason string) error {
+	// 检查操作日志是否存在
+	var operationLog models.OperationLog
+	if err := a.db.Where("id = ?", id).First(&operationLog).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("operation log not found")
+		}
+		logrus.WithError(err).Error("Failed to find operation log")
+		return err
+	}
+
+	// 删除操作日志
+	if err := a.db.Where("id = ?", id).Delete(&models.OperationLog{}).Error; err != nil {
+		logrus.WithError(err).Error("Failed to delete operation log")
+		return err
+	}
+
+	// 记录操作日志（系统操作，不记录到审计日志避免死循环）
+	go a.RecordOperationLog(
+		operationLog.UserID,
+		username,
+		ip,
+		"DELETE",
+		fmt.Sprintf("/audit/operation-logs/%d", id),
+		"delete",
+		"operation_log",
+		id,
+		200,
+		fmt.Sprintf("删除操作日志: ID=%d, 原因: %s", id, reason),
+		nil,
+		nil,
+		0,
+		true, // isSystemOperation=true，避免删除操作日志产生新的操作日志导致死循环
+	)
+
+	logrus.WithFields(logrus.Fields{
+		"operation_log_id": id,
+		"username":         username,
+		"reason":           reason,
+	}).Info("Operation log deleted")
+
+	return nil
+}
+
+// BatchDeleteOperationLogs 批量删除操作日志
+func (a *AuditService) BatchDeleteOperationLogs(ids []uint, username, ip, reason string) error {
+	if len(ids) == 0 {
+		return fmt.Errorf("operation log IDs cannot be empty")
+	}
+
+	// 检查所有操作日志是否存在
+	var existingLogs []models.OperationLog
+	if err := a.db.Where("id IN ?", ids).Find(&existingLogs).Error; err != nil {
+		logrus.WithError(err).Error("Failed to find operation logs")
+		return err
+	}
+
+	if len(existingLogs) != len(ids) {
+		// 找出不存在的日志ID
+		existingIDs := make(map[uint]bool)
+		for _, log := range existingLogs {
+			existingIDs[log.ID] = true
+		}
+
+		var missingIDs []uint
+		for _, id := range ids {
+			if !existingIDs[id] {
+				missingIDs = append(missingIDs, id)
+			}
+		}
+
+		logrus.WithField("missing_ids", missingIDs).Warn("Some operation logs not found")
+		return fmt.Errorf("some operation logs not found: %v", missingIDs)
+	}
+
+	// 批量删除操作日志
+	if err := a.db.Where("id IN ?", ids).Delete(&models.OperationLog{}).Error; err != nil {
+		logrus.WithError(err).Error("Failed to batch delete operation logs")
+		return err
+	}
+
+	// 记录操作日志（系统操作，不记录到审计日志避免死循环）
+	for _, log := range existingLogs {
+		go a.RecordOperationLog(
+			log.UserID,
+			username,
+			ip,
+			"DELETE",
+			"/audit/operation-logs/batch/delete",
+			"batch_delete",
+			"operation_log",
+			log.ID,
+			200,
+			fmt.Sprintf("批量删除操作日志: ID=%d, 原因: %s", log.ID, reason),
+			nil,
+			nil,
+			0,
+			true, // isSystemOperation=true，避免批量删除操作日志产生新的操作日志导致死循环
+		)
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"operation_log_ids": ids,
+		"deleted_count":     len(existingLogs),
+		"username":          username,
+		"reason":            reason,
+	}).Info("Operation logs batch deleted")
 
 	return nil
 }

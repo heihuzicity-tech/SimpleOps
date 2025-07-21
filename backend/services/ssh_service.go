@@ -331,6 +331,7 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		request,
 		nil,
 		0,
+		false, // isSystemOperation=false，SSH会话创建是正常业务操作
 	)
 
 	return &SSHSessionResponse{
@@ -462,6 +463,7 @@ func (s *SSHService) CloseSessionWithReason(sessionID string, reason string) err
 			nil,
 			nil,
 			0,
+			false, // isSystemOperation=false，SSH会话关闭是正常业务操作
 		)
 	}
 
