@@ -226,18 +226,10 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		return nil, fmt.Errorf("failed to start shell: %w", err)
 	}
 
-	// ✅ 修复：减少初始化命令，只发送一个回车符
-	go func() {
-		time.Sleep(300 * time.Millisecond) // 等待shell启动
-		log.Printf("Sending initial command to shell for session %s", sessionID)
-		
-		// 只发送一个换行符激活shell提示符
-		if _, err := stdin.Write([]byte("\n")); err != nil {
-			log.Printf("Failed to send initial newline to shell: %v", err)
-		} else {
-			log.Printf("Initial newline sent successfully to session %s", sessionID)
-		}
-	}()
+	// ✅ 修复：完全移除初始化命令，让shell自然显示提示符
+	// 不发送任何初始化命令，避免多余的换行符
+	// shell会在连接建立后自动显示提示符
+	log.Printf("SSH shell started for session %s, no initialization commands sent", sessionID)
 
 	// 启动会话监控goroutine，检测SSH会话自然结束
 	go func() {

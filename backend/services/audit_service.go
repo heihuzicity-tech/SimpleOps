@@ -125,6 +125,9 @@ func (a *AuditService) RecordOperationLog(userID uint, username, ip, method, url
 		return nil
 	}
 
+	// 注意：测试连接操作已在shouldLogOperationWithContext中完全屏蔽
+	// 这里不再需要单独的去重逻辑，因为test类型操作不会达到这里
+
 	var reqData, respData string
 	if requestData != nil {
 		if data, err := json.Marshal(requestData); err == nil {
@@ -572,6 +575,45 @@ func (a *AuditService) shouldLogOperation(method, path string) bool {
 	return true
 }
 
+// shouldLogOperationWithContext 判断是否需要记录操作日志（包含上下文信息）
+func (a *AuditService) shouldLogOperationWithContext(method, path, userAgent, referer string) bool {
+	// 跳过健康检查等系统接口
+	if strings.Contains(path, "/health") || strings.Contains(path, "/metrics") {
+		return false
+	}
+
+	// 跳过操作日志删除接口，避免删除操作产生新的审计记录导致死循环
+	if strings.Contains(path, "/audit/operation-logs") {
+		// 跳过所有操作日志相关的DELETE和批量删除操作
+		if method == "DELETE" || 
+		   (method == "POST" && strings.Contains(path, "/batch/delete")) {
+			logrus.WithFields(logrus.Fields{
+				"method": method,
+				"path":   path,
+			}).Debug("Skipping audit log for operation-logs delete operation")
+			return false
+		}
+	}
+
+	// 完全屏蔽测试连接操作的审计记录
+	if strings.Contains(path, "/assets/test-connection") && method == "POST" {
+		logrus.WithFields(logrus.Fields{
+			"method": method,
+			"path":   path,
+			"referer": referer,
+		}).Debug("跳过测试连接操作的审计记录")
+		return false // 直接跳过，不记录任何测试连接操作
+	}
+
+	// 只记录修改操作，跳过所有GET请求（浏览操作）
+	if method == "GET" {
+		return false
+	}
+
+	// 记录所有非GET操作（POST、PUT、DELETE、PATCH等）
+	return true
+}
+
 // LogMiddleware 创建操作日志中间件
 func (a *AuditService) LogMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -592,8 +634,10 @@ func (a *AuditService) LogMiddleware() gin.HandlerFunc {
 		// 处理请求
 		c.Next()
 
-		// 判断是否需要记录操作日志
-		if !a.shouldLogOperation(c.Request.Method, c.Request.URL.Path) {
+		// 判断是否需要记录操作日志（使用上下文信息）
+		userAgent := c.GetHeader("User-Agent")
+		referer := c.GetHeader("Referer")
+		if !a.shouldLogOperationWithContext(c.Request.Method, c.Request.URL.Path, userAgent, referer) {
 			return
 		}
 
