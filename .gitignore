@@ -155,4 +155,4 @@ recordings/
 *.backup
 
 # Test coverage
-coverage.txt 
+coverage.txt .claude/
