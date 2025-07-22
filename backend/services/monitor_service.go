@@ -31,21 +31,27 @@ func NewMonitorService(db *gorm.DB) *MonitorService {
 
 // GetActiveSessions 获取活跃会话列表
 func (m *MonitorService) GetActiveSessions(req *models.ActiveSessionListRequest) ([]*models.ActiveSessionResponse, int64, error) {
-	// 优先使用 Redis 获取活跃会话，但与数据库进行交叉验证
-	if m.redisSession != nil {
-		redisSessions, _, err := m.getActiveSessionsFromRedis(req)
-		if err != nil {
-			logrus.WithError(err).Error("Failed to get sessions from Redis, falling back to database")
-			return m.getActiveSessionsFromDB(req)
+	// 🔧 优化：优先使用数据库作为权威数据源，Redis作为缓存补充
+	// 这确保了会话状态的准确性，特别是在会话刚刚关闭的场景下
+	
+	// 第一步：从数据库获取权威的活跃会话列表
+	dbSessions, dbTotal, err := m.getActiveSessionsFromDB(req)
+	if err != nil {
+		logrus.WithError(err).Error("Failed to get sessions from database")
+		// 如果数据库失败，尝试从Redis获取（降级策略）
+		if m.redisSession != nil {
+			return m.getActiveSessionsFromRedisOnly(req)
 		}
-		
-		// 与数据库会话进行交叉验证，去除重复或已失效的会话
-		validatedSessions := m.validateSessionsWithDB(redisSessions)
-		return validatedSessions, int64(len(validatedSessions)), nil
+		return nil, 0, err
 	}
 	
-	// 备选方案：从数据库获取
-	return m.getActiveSessionsFromDB(req)
+	// 第二步：如果Redis可用，用Redis数据补充实时信息（如最后活动时间）
+	if m.redisSession != nil {
+		enhancedSessions := m.enhanceSessionsWithRedisData(dbSessions)
+		return enhancedSessions, dbTotal, nil
+	}
+	
+	return dbSessions, dbTotal, nil
 }
 
 // getActiveSessionsFromRedis 从 Redis 获取活跃会话
@@ -182,6 +188,57 @@ func (m *MonitorService) validateSessionsWithDB(redisSessions []*models.ActiveSe
 	}).Info("会话验证完成")
 
 	return validatedSessions
+}
+
+// getActiveSessionsFromRedisOnly 仅从Redis获取活跃会话（降级策略）
+func (m *MonitorService) getActiveSessionsFromRedisOnly(req *models.ActiveSessionListRequest) ([]*models.ActiveSessionResponse, int64, error) {
+	redisSessions, total, err := m.getActiveSessionsFromRedis(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	logrus.WithField("sessions_count", len(redisSessions)).Warn("使用Redis降级策略获取会话")
+	return redisSessions, total, nil
+}
+
+// enhanceSessionsWithRedisData 用Redis数据增强数据库会话信息
+func (m *MonitorService) enhanceSessionsWithRedisData(dbSessions []*models.ActiveSessionResponse) []*models.ActiveSessionResponse {
+	if len(dbSessions) == 0 {
+		return dbSessions
+	}
+	
+	// 从Redis批量获取会话信息
+	redisSessionMap := make(map[string]*RedisSessionData)
+	redisSessions, err := m.redisSession.GetActiveSessions()
+	if err != nil {
+		logrus.WithError(err).Warn("无法从Redis获取会话数据，使用数据库数据")
+		return dbSessions
+	}
+	
+	// 构建Redis会话映射
+	for _, redisSession := range redisSessions {
+		redisSessionMap[redisSession.SessionID] = redisSession
+	}
+	
+	// 增强数据库会话信息
+	for _, dbSession := range dbSessions {
+		if redisData, exists := redisSessionMap[dbSession.SessionID]; exists {
+			// 使用Redis中的实时数据更新最后活动时间
+			dbSession.LastActivity = redisData.LastActive.Format("2006-01-02 15:04:05")
+			dbSession.InactiveTime = int64(time.Since(redisData.LastActive).Seconds())
+			
+			// 保持数据库为权威状态源，只更新实时活动信息
+			logrus.WithField("session_id", dbSession.SessionID).Debug("使用Redis数据增强会话信息")
+		}
+	}
+	
+	logrus.WithFields(logrus.Fields{
+		"db_sessions":    len(dbSessions),
+		"redis_sessions": len(redisSessions),
+		"enhanced":       len(dbSessions),
+	}).Info("完成会话数据增强")
+	
+	return dbSessions
 }
 
 // buildActiveSessionsQuery 构建统一的活跃会话查询条件
@@ -765,7 +822,7 @@ func (m *MonitorService) updateSessionStatus() {
 		return
 	}
 
-	// 同步清理Redis中的过期会话
+	// 🔧 优化：增强Redis与数据库的同步清理机制
 	if m.redisSession != nil {
 		// 获取数据库中的活跃会话ID列表
 		var dbSessionIDs []string
@@ -782,13 +839,38 @@ func (m *MonitorService) updateSessionStatus() {
 				dbSessionMap[sessionID] = true
 			}
 
+			cleanupCount := 0
 			for _, redisSession := range redisSessions {
 				if !dbSessionMap[redisSession.SessionID] {
+					cleanupCount++
 					logrus.WithField("session_id", redisSession.SessionID).Info("清理Redis中的过期会话")
-					if err := m.redisSession.CloseSession(redisSession.SessionID, "expired"); err != nil {
+					if err := m.redisSession.CloseSession(redisSession.SessionID, "db_sync_expired"); err != nil {
 						logrus.WithError(err).Error("清理Redis过期会话失败")
 					}
 				}
+			}
+			
+			// 双向检查：确保数据库中的活跃会话在Redis中也存在
+			redisSessionMap := make(map[string]bool)
+			for _, redisSession := range redisSessions {
+				redisSessionMap[redisSession.SessionID] = true
+			}
+			
+			missingInRedisCount := 0
+			for _, session := range sessions {
+				if !redisSessionMap[session.SessionID] {
+					missingInRedisCount++
+					logrus.WithField("session_id", session.SessionID).Debug("数据库会话在Redis中不存在，这是正常的（会话可能刚创建）")
+				}
+			}
+			
+			if cleanupCount > 0 || missingInRedisCount > 0 {
+				logrus.WithFields(logrus.Fields{
+					"redis_cleaned":        cleanupCount,
+					"missing_in_redis":     missingInRedisCount,
+					"db_active_sessions":   len(sessions),
+					"redis_sessions":       len(redisSessions),
+				}).Info("完成Redis-数据库同步清理")
 			}
 		}
 	}

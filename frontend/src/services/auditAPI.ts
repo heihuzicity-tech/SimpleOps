@@ -47,6 +47,10 @@ export interface SessionRecord {
   duration: number;
   record_path: string;
   created_at: string;
+  // 超时管理字段
+  timeout_minutes?: number;
+  last_activity?: string;
+  close_reason?: string;
 }
 
 export interface CommandLog {

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Select, Form, Spin, Empty, Tag, Space, Typography } from 'antd';
+import { Modal, Select, Form, Spin, Empty, Tag, Space, Typography, Divider } from 'antd';
 import { LockOutlined, UserOutlined, KeyOutlined } from '@ant-design/icons';
 import { Credential } from '../../types';
+import SessionTimeoutConfig from '../ssh/SessionTimeoutConfig';
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -11,7 +12,7 @@ interface CredentialSelectorProps {
   asset: any;
   credentials: Credential[];
   loading?: boolean;
-  onSelect: (credentialId: number) => void;
+  onSelect: (credentialId: number, timeoutMinutes?: number) => void;
   onCancel: () => void;
 }
 
@@ -24,6 +25,7 @@ export const CredentialSelector: React.FC<CredentialSelectorProps> = ({
   onCancel
 }) => {
   const [selectedCredential, setSelectedCredential] = useState<Credential | null>(null);
+  const [timeoutMinutes, setTimeoutMinutes] = useState<number>(30);
   const [form] = Form.useForm();
   
   // 获取与资产关联的凭证
@@ -43,6 +45,7 @@ export const CredentialSelector: React.FC<CredentialSelectorProps> = ({
         form.resetFields();
       }
       setSelectedCredential(null);
+      setTimeoutMinutes(30); // 重置超时时间为默认值
     } else if (availableCredentials.length === 1 && form) {
       // 如果只有一个凭证，自动选中
       form.setFieldsValue({ credentialId: availableCredentials[0].id });
@@ -56,7 +59,7 @@ export const CredentialSelector: React.FC<CredentialSelectorProps> = ({
     }
     try {
       const values = await form.validateFields();
-      onSelect(values.credentialId);
+      onSelect(values.credentialId, timeoutMinutes);
     } catch (error) {
       // 表单验证失败
     }
@@ -102,7 +105,7 @@ export const CredentialSelector: React.FC<CredentialSelectorProps> = ({
       onCancel={onCancel}
       okText="连接"
       cancelText="取消"
-      width={500}
+      width={560}
     >
       <Spin spinning={loading}>
         {!shouldRenderForm ? (
@@ -137,6 +140,13 @@ export const CredentialSelector: React.FC<CredentialSelectorProps> = ({
                   ))}
                 </Select>
               </Form.Item>
+              
+              <Divider>会话配置</Divider>
+              
+              <SessionTimeoutConfig
+                value={timeoutMinutes}
+                onChange={setTimeoutMinutes}
+              />
             </Form>
             
             {selectedCredential && (

@@ -27,6 +27,7 @@ const (
 	HeartbeatPong       MessageType = "heartbeat_pong"
 	MonitoringUpdate    MessageType = "monitoring_update"
 	SessionWarning      MessageType = "session_warning"
+	SessionTimeout      MessageType = "session_timeout" // 🆕 会话超时消息
 )
 
 // WSMessage WebSocket消息结构
@@ -457,6 +458,7 @@ func (ws *WebSocketService) GetManager() *ConnectionManager {
 
 // 全局WebSocket服务实例
 var GlobalWebSocketService *WebSocketService
+var GlobalSessionTimeoutService *SessionTimeoutService
 
 // RegisterSSHClient 注册SSH客户端到WebSocket服务
 func (ws *WebSocketService) RegisterSSHClient(client *Client) {

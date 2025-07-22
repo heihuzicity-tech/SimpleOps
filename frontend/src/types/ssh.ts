@@ -5,6 +5,7 @@ export interface SSHSessionRequest {
   protocol: string;
   width?: number;
   height?: number;
+  timeout_minutes?: number;
 }
 
 export interface SSHSessionResponse {

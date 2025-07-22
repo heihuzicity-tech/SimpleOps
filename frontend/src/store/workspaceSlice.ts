@@ -72,6 +72,48 @@ export const closeSSHConnection = createAsyncThunk(
   }
 );
 
+// 异步操作：关闭标签页（包含会话清理）
+export const closeTabWithCleanup = createAsyncThunk(
+  'workspace/closeTabWithCleanup',
+  async (params: {
+    tabId: string;
+    sessionId?: string;
+    force?: boolean; // 是否强制关闭（忽略API错误）
+  }, { dispatch, getState, rejectWithValue }) => {
+    try {
+      const { tabId, sessionId, force = false } = params;
+      
+      console.log('closeTabWithCleanup: 开始清理标签页', { tabId, sessionId, force });
+      
+      // 如果有会话ID，先尝试清理服务端会话
+      if (sessionId) {
+        try {
+          await sshAPI.closeConnection(sessionId);
+          console.log('closeTabWithCleanup: 服务端会话清理成功', sessionId);
+        } catch (error: any) {
+          console.warn('closeTabWithCleanup: 服务端会话清理失败', error);
+          
+          // 如果不是强制关闭，则抛出错误
+          if (!force) {
+            throw error;
+          }
+        }
+      }
+
+      // 无论API是否成功，都要从Redux状态中移除标签页
+      dispatch(closeTab(tabId));
+      
+      return { tabId, sessionId };
+    } catch (error: any) {
+      console.error('closeTabWithCleanup: 关闭标签页失败', error);
+      return rejectWithValue({
+        tabId: params.tabId,
+        error: error.response?.data?.message || error.message || '关闭标签页失败'
+      });
+    }
+  }
+);
+
 // 初始状态
 const initialState: WorkspaceState = {
   tabs: [],
@@ -145,12 +187,20 @@ const workspaceSlice = createSlice({
       }
     },
 
-    // 关闭标签页
+    // 关闭标签页（同步操作，异步清理由组件层处理）
     closeTab: (state, action: PayloadAction<string>) => {
       const tabId = action.payload;
       const tabIndex = state.tabs.findIndex(tab => tab.id === tabId);
       
       if (tabIndex === -1) return;
+
+      // 获取要关闭的标签页信息，用于后续清理
+      const tabToClose = state.tabs[tabIndex];
+      console.log('Redux closeTab: 准备关闭标签页', {
+        tabId,
+        sessionId: tabToClose.sessionId,
+        connectionStatus: tabToClose.connectionStatus
+      });
 
       state.tabs.splice(tabIndex, 1);
 
@@ -333,6 +383,36 @@ const workspaceSlice = createSlice({
         }
         state.error = payload.error;
       });
+
+    // 关闭标签页（包含会话清理）
+    builder
+      .addCase(closeTabWithCleanup.pending, (state, action) => {
+        const { tabId } = action.meta.arg;
+        const tab = state.tabs.find(t => t.id === tabId);
+        if (tab) {
+          tab.connectionStatus = 'disconnecting';
+        }
+        state.loading = true;
+      })
+      .addCase(closeTabWithCleanup.fulfilled, (state, action) => {
+        const { tabId } = action.payload;
+        console.log('closeTabWithCleanup.fulfilled: 标签页清理完成', tabId);
+        state.loading = false;
+        state.error = null;
+        // 注意：实际的标签页移除是在action内部通过dispatch(closeTab)完成的
+      })
+      .addCase(closeTabWithCleanup.rejected, (state, action) => {
+        const payload = action.payload as { tabId: string; error: string };
+        console.error('closeTabWithCleanup.rejected: 标签页清理失败', payload);
+        
+        const tab = state.tabs.find(t => t.id === payload.tabId);
+        if (tab) {
+          tab.connectionStatus = 'error';
+          tab.error = payload.error;
+        }
+        state.loading = false;
+        state.error = payload.error;
+      });
   }
 });
 
@@ -352,5 +432,7 @@ export const {
   reorderTabs,
   duplicateTab
 } = workspaceSlice.actions;
+
+// 异步actions已在定义时导出
 
 export default workspaceSlice.reducer;

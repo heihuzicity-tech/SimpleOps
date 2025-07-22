@@ -27,6 +27,7 @@ type SSHService struct {
 	db              *gorm.DB
 	auditService    *AuditService
 	recordingService *RecordingService
+	timeoutService  *SessionTimeoutService // 🆕 会话超时管理服务
 	sessions        map[string]*SSHSession // 内存中的SSH连接
 	sessionsMu      sync.RWMutex
 	redisSession    *RedisSessionService // Redis会话管理
@@ -98,13 +99,27 @@ func NewSSHService(db *gorm.DB) *SSHService {
 		logrus.Info("SSH服务创建时，GlobalRecordingService 已正确初始化")
 	}
 	
-	return &SSHService{
+	// 🆕 初始化超时管理服务
+	timeoutService := NewSessionTimeoutService(db)
+	
+	service := &SSHService{
 		db:              db,
 		auditService:    NewAuditService(db),
 		recordingService: GlobalRecordingService,
+		timeoutService:  timeoutService,
 		sessions:        make(map[string]*SSHSession),
 		redisSession:    redisSessionService,
 	}
+	
+	// 🆕 设置超时回调 (简化版，仅处理超时，不处理警告)
+	timeoutService.SetTimeoutCallback(service.handleSessionTimeout)
+	
+	// 🆕 启动超时管理服务
+	if err := timeoutService.Start(); err != nil {
+		logrus.WithError(err).Error("Failed to start timeout service")
+	}
+	
+	return service
 }
 
 // CreateSession 创建SSH会话
@@ -310,10 +325,14 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 
 	// 更新操作审计记录的SessionID和ResourceID（补充中间件记录）
 	// 中间件已经记录了操作日志，这里需要更新完整的会话标识信息
-	go s.auditService.UpdateOperationLogSessionID(
+	resourceInfo := fmt.Sprintf("SSH连接到 %s (%s:%d) 使用凭证 %s", 
+		asset.Name, asset.Address, asset.Port, credential.Username)
+	go s.auditService.UpdateOperationLogWithResourceInfo(
 		userID,
 		"/api/v1/ssh/sessions",
 		sessionID,
+		asset.ID, // 设置resource_id为asset的ID
+		resourceInfo,
 		time.Now(),
 	)
 
@@ -459,9 +478,64 @@ func (s *SSHService) CloseSessionWithReason(sessionID string, reason string) err
 
 // cleanupSessionFromAllSources 统一清理所有数据源中的会话
 func (s *SSHService) cleanupSessionFromAllSources(sessionID string) {
-	now := time.Now()
+	// 🆕 首先清理超时配置
+	if s.timeoutService != nil {
+		if err := s.timeoutService.DeleteTimeout(sessionID); err != nil {
+			logrus.WithError(err).WithField("session_id", sessionID).Warn("Failed to delete timeout configuration")
+		}
+	}
 	
-	// 🎬 停止会话录制
+	s.cleanupSessionFromAllSourcesWithRetry(sessionID, 3)
+}
+
+// cleanupSessionFromAllSourcesWithRetry 带重试机制的会话清理
+func (s *SSHService) cleanupSessionFromAllSourcesWithRetry(sessionID string, maxRetries int) error {
+	now := time.Now()
+	var lastError error
+	
+	logrus.WithField("session_id", sessionID).Info("开始清理会话，所有数据源")
+	
+	// Step 1: 停止会话录制（独立处理，失败不影响后续清理）
+	s.cleanupRecording(sessionID)
+	
+	// Step 2: 使用重试机制清理数据源
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		logrus.WithFields(logrus.Fields{
+			"session_id": sessionID,
+			"attempt":    attempt,
+			"max_retries": maxRetries,
+		}).Info("尝试清理会话数据源")
+		
+		if attempt > 1 {
+			// 指数退避延迟
+			delay := time.Duration(attempt*100) * time.Millisecond
+			time.Sleep(delay)
+		}
+		
+		// 原子清理操作
+		err := s.atomicCleanupSession(sessionID, now)
+		if err == nil {
+			logrus.WithField("session_id", sessionID).Info("会话清理成功完成")
+			return nil
+		}
+		
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"session_id": sessionID,
+			"attempt":    attempt,
+		}).Warn("会话清理失败，准备重试")
+		
+		lastError = err
+	}
+	
+	// 所有重试失败后，使用强制清理
+	logrus.WithField("session_id", sessionID).Error("所有清理重试失败，使用强制清理")
+	s.forceCleanupSession(sessionID, now)
+	
+	return fmt.Errorf("session cleanup failed after %d attempts: %w", maxRetries, lastError)
+}
+
+// cleanupRecording 清理录制资源
+func (s *SSHService) cleanupRecording(sessionID string) {
 	if s.recordingService != nil {
 		logrus.WithField("session_id", sessionID).Info("准备停止会话录制")
 		if err := s.recordingService.StopRecording(sessionID); err != nil {
@@ -472,54 +546,186 @@ func (s *SSHService) cleanupSessionFromAllSources(sessionID string) {
 	} else {
 		logrus.WithField("session_id", sessionID).Warn("录制服务未初始化，跳过录制停止")
 	}
-	
-	// 1. 从Redis中删除会话
-	if s.redisSession != nil {
-		if err := s.redisSession.CloseSession(sessionID, "closed"); err != nil {
-			logrus.WithError(err).WithField("session_id", sessionID).Error("Failed to close session in Redis")
-		} else {
-			logrus.WithField("session_id", sessionID).Info("成功从Redis中清理会话")
-		}
-	}
+}
 
-	// 2. 更新数据库中的会话状态
+// atomicCleanupSession 原子清理会话（事务处理）
+func (s *SSHService) atomicCleanupSession(sessionID string, endTime time.Time) error {
+	// 开始数据库事务
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
+	}
+	
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			logrus.WithField("session_id", sessionID).Error("会话清理事务发生panic，已回滚")
+		}
+	}()
+	
+	// 1. 更新数据库中的会话状态（在事务中）
+	// 计算会话持续时间
+	var sessionRecord models.SessionRecord
+	if err := tx.Where("session_id = ?", sessionID).First(&sessionRecord).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to retrieve session record before update: %w", err)
+	}
+	
+	duration := endTime.Sub(sessionRecord.StartTime)
+	
+	// 构建更新数据，包含完整的结束时间和持续时间
 	updates := map[string]interface{}{
 		"status":     "closed",
-		"end_time":   now,
-		"updated_at": now,
+		"end_time":   endTime,
+		"updated_at": endTime,
+		"duration":   int(duration.Seconds()), // 持续时间（秒）
 	}
-	if err := s.db.Model(&models.SessionRecord{}).Where("session_id = ?", sessionID).Updates(updates).Error; err != nil {
-		logrus.WithError(err).WithField("session_id", sessionID).Error("Failed to update session status in database")
-	} else {
-		logrus.WithField("session_id", sessionID).Info("成功在数据库中更新会话状态")
+	
+	// 执行数据库更新，确保事务完整性
+	result := tx.Model(&models.SessionRecord{}).Where("session_id = ? AND status != ?", sessionID, "closed").Updates(updates)
+	if result.Error != nil {
+		tx.Rollback()
+		logrus.WithError(result.Error).WithField("session_id", sessionID).Error("数据库会话状态更新失败")
+		return fmt.Errorf("failed to update session status in database: %w", result.Error)
+	}
+	
+	// 验证更新是否成功
+	if result.RowsAffected == 0 {
+		// 检查会话是否已经是closed状态
+		var existingRecord models.SessionRecord
+		if err := tx.Where("session_id = ?", sessionID).First(&existingRecord).Error; err != nil {
+			tx.Rollback()
+			return fmt.Errorf("no session record found for session_id: %s", sessionID)
+		}
 		
-		// 🔧 修复：移除全局广播，改为精确通知相关用户
-		// 获取会话的用户信息来进行精确通知
-		var sessionRecord models.SessionRecord
-		if err := s.db.Where("session_id = ?", sessionID).First(&sessionRecord).Error; err == nil {
-			if GlobalWebSocketService != nil {
-				// 只向会话所属用户发送结束通知
-				endMsg := WSMessage{
-					Type:      SessionEnd,
-					Data:      map[string]interface{}{
-						"session_id": sessionID,
-						"status":     "closed",
-						"end_time":   now,
-						"reason":     "session_cleanup",
-					},
-					Timestamp: now,
-					SessionID: sessionID,
-				}
-				
-				// 精确发送给会话所属用户，不进行全局广播
-				GlobalWebSocketService.SendMessageToUser(sessionRecord.UserID, endMsg)
-				
-				logrus.WithFields(logrus.Fields{
-					"session_id": sessionID,
-					"user_id":    sessionRecord.UserID,
-				}).Info("已向会话用户发送结束通知")
+		if existingRecord.Status == "closed" {
+			logrus.WithField("session_id", sessionID).Info("会话已处于关闭状态，跳过更新")
+			// 继续事务，不返回错误
+		} else {
+			tx.Rollback()
+			return fmt.Errorf("failed to update session record, unexpected status: %s", existingRecord.Status)
+		}
+	} else {
+		logrus.WithFields(logrus.Fields{
+			"session_id": sessionID,
+			"duration":   duration.String(),
+			"end_time":   endTime.Format("2006-01-02 15:04:05"),
+		}).Info("数据库会话状态更新成功")
+	}
+	
+	// 2. 重新获取更新后的会话信息用于通知
+	var updatedSessionRecord models.SessionRecord
+	if err := tx.Where("session_id = ?", sessionID).First(&updatedSessionRecord).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to retrieve updated session record: %w", err)
+	}
+	
+	// 提交数据库事务
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	
+	logrus.WithField("session_id", sessionID).Info("数据库会话状态更新成功")
+	
+	// 3. 清理Redis（数据库成功后）
+	redisErr := s.cleanupRedisSession(sessionID)
+	if redisErr != nil {
+		// Redis失败不影响整体结果，但要记录错误
+		logrus.WithError(redisErr).WithField("session_id", sessionID).Warn("Redis清理失败，但数据库更新成功")
+	}
+	
+	// 4. 发送WebSocket通知
+	s.sendSessionEndNotification(updatedSessionRecord, endTime)
+	
+	return nil
+}
+
+// cleanupRedisSession 清理Redis会话
+func (s *SSHService) cleanupRedisSession(sessionID string) error {
+	if s.redisSession == nil {
+		logrus.WithField("session_id", sessionID).Info("Redis未配置，跳过Redis清理")
+		return nil
+	}
+	
+	if err := s.redisSession.CloseSession(sessionID, "closed"); err != nil {
+		return fmt.Errorf("failed to close session in Redis: %w", err)
+	}
+	
+	logrus.WithField("session_id", sessionID).Info("成功从Redis中清理会话")
+	return nil
+}
+
+// sendSessionEndNotification 发送会话结束通知
+func (s *SSHService) sendSessionEndNotification(sessionRecord models.SessionRecord, endTime time.Time) {
+	if GlobalWebSocketService == nil {
+		logrus.WithField("session_id", sessionRecord.SessionID).Warn("WebSocket服务未初始化，跳过结束通知")
+		return
+	}
+	
+	// 只向会话所属用户发送结束通知
+	endMsg := WSMessage{
+		Type: SessionEnd,
+		Data: map[string]interface{}{
+			"session_id": sessionRecord.SessionID,
+			"status":     "closed",
+			"end_time":   endTime,
+			"reason":     "session_cleanup",
+		},
+		Timestamp: endTime,
+		SessionID: sessionRecord.SessionID,
+	}
+	
+	// 精确发送给会话所属用户，不进行全局广播
+	GlobalWebSocketService.SendMessageToUser(sessionRecord.UserID, endMsg)
+	
+	logrus.WithFields(logrus.Fields{
+		"session_id": sessionRecord.SessionID,
+		"user_id":    sessionRecord.UserID,
+	}).Info("已向会话用户发送结束通知")
+}
+
+// forceCleanupSession 强制清理会话（最后的保障机制）
+func (s *SSHService) forceCleanupSession(sessionID string, endTime time.Time) {
+	logrus.WithField("session_id", sessionID).Warn("执行强制会话清理")
+	
+	// 先获取原始会话记录计算持续时间
+	var sessionRecord models.SessionRecord
+	duration := int64(0)
+	if err := s.db.Where("session_id = ?", sessionID).First(&sessionRecord).Error; err == nil {
+		duration = int64(endTime.Sub(sessionRecord.StartTime).Seconds())
+	}
+	
+	// 强制更新数据库状态（忽略事务）
+	updates := map[string]interface{}{
+		"status":     "closed",
+		"end_time":   endTime,
+		"updated_at": endTime,
+		"duration":   duration, // 确保包含持续时间
+	}
+	
+	result := s.db.Model(&models.SessionRecord{}).Where("session_id = ? AND status != ?", sessionID, "closed").Updates(updates)
+	if result.Error != nil {
+		logrus.WithError(result.Error).WithField("session_id", sessionID).Error("强制数据库更新失败")
+	} else if result.RowsAffected == 0 {
+		// 检查是否已经是closed状态
+		var existingRecord models.SessionRecord
+		if err := s.db.Where("session_id = ?", sessionID).First(&existingRecord).Error; err == nil {
+			if existingRecord.Status == "closed" {
+				logrus.WithField("session_id", sessionID).Info("会话已处于关闭状态，无需强制更新")
+			} else {
+				logrus.WithField("session_id", sessionID).Warn("强制更新未影响任何记录")
 			}
 		}
+	} else {
+		logrus.WithFields(logrus.Fields{
+			"session_id": sessionID,
+			"duration":   duration,
+		}).Info("强制数据库更新成功")
+	}
+	
+	// 强制清理Redis
+	if err := s.cleanupRedisSession(sessionID); err != nil {
+		logrus.WithError(err).WithField("session_id", sessionID).Error("强制Redis清理失败")
 	}
 }
 
@@ -546,9 +752,18 @@ func (s *SSHService) WriteToSession(sessionID string, data []byte) error {
 		return fmt.Errorf("failed to write to session: %w", err)
 	}
 
-	// 更新最后活动时间
+	// 🆕 更新会话活动时间
 	session.LastActive = time.Now()
 	session.UpdatedAt = time.Now()
+	
+	// 🆕 更新超时管理服务中的活动时间
+	if s.timeoutService != nil {
+		go func() {
+			if err := s.timeoutService.UpdateActivity(sessionID); err != nil {
+				logrus.WithError(err).WithField("session_id", sessionID).Debug("Failed to update session activity")
+			}
+		}()
+	}
 
 	return nil
 }
@@ -677,7 +892,14 @@ func (s *SSHService) recordSessionToDB(session *SSHSession, asset models.Asset, 
 	}
 
 	// 保存到数据库
-	return s.db.Create(sessionRecord).Error
+	if err := s.db.Create(sessionRecord).Error; err != nil {
+		return err
+	}
+
+	// 🆕 创建默认超时配置（可选，基于系统配置）
+	s.createDefaultTimeoutConfig(session.ID)
+
+	return nil
 }
 
 // Close 关闭SSH会话连接
@@ -727,6 +949,102 @@ func (session *SSHSession) IsConnectionAlive() bool {
 		return false
 	}
 	return true
+}
+
+// 🆕 超时服务相关方法
+
+// createDefaultTimeoutConfig 创建默认超时配置
+func (s *SSHService) createDefaultTimeoutConfig(sessionID string) {
+	if s.timeoutService == nil {
+		return
+	}
+	
+	// 从系统配置获取默认超时设置
+	defaultTimeoutMinutes := config.GlobalConfig.Session.Timeout / 60 // 转换为分钟
+	if defaultTimeoutMinutes <= 0 {
+		// 如果系统未配置超时，则不创建超时配置（无限制模式）
+		logrus.WithField("session_id", sessionID).Debug("System timeout not configured, skipping timeout config creation")
+		return
+	}
+	
+	// 创建默认超时配置
+	req := &models.SessionTimeoutCreateRequest{
+		SessionID:      sessionID,
+		TimeoutMinutes: defaultTimeoutMinutes,
+		Policy:         models.TimeoutPolicyFixed, // 默认使用固定超时策略
+		IdleMinutes:    30,                        // 默认空闲时间30分钟
+		MaxExtensions:  3,                         // 默认最多延期3次
+	}
+	
+	go func() {
+		if _, err := s.timeoutService.CreateTimeout(req); err != nil {
+			logrus.WithError(err).WithField("session_id", sessionID).Debug("Failed to create default timeout config")
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"session_id":       sessionID,
+				"timeout_minutes":  defaultTimeoutMinutes,
+				"policy":          models.TimeoutPolicyFixed,
+			}).Debug("Created default timeout configuration")
+		}
+	}()
+}
+
+// handleSessionTimeout 处理会话超时回调
+func (s *SSHService) handleSessionTimeout(sessionID string) {
+	logrus.WithField("session_id", sessionID).Info("Session timeout triggered, forcing cleanup")
+	
+	// 强制关闭会话
+	if session, err := s.GetSession(sessionID); err == nil {
+		// 更新会话状态为超时
+		session.Status = "timeout"
+		
+		// 发送超时通知给前端
+		s.sendTimeoutNotification(sessionID)
+		
+		// 执行会话清理
+		go func() {
+			time.Sleep(5 * time.Second) // 给前端5秒时间显示超时消息
+			s.cleanupSessionFromAllSources(sessionID)
+		}()
+	} else {
+		// 会话在内存中不存在，直接清理数据库和Redis
+		s.forceCleanupSession(sessionID, time.Now())
+	}
+}
+
+// 🔄 已移除 handleSessionWarning 方法，因为告警功能已简化
+
+// sendTimeoutNotification 发送超时通知
+func (s *SSHService) sendTimeoutNotification(sessionID string) {
+	if GlobalWebSocketService == nil {
+		return
+	}
+	
+	// 获取会话信息
+	session, err := s.GetSession(sessionID)
+	if err != nil {
+		logrus.WithError(err).WithField("session_id", sessionID).Error("Failed to get session for timeout notification")
+		return
+	}
+	
+	// 发送超时消息
+	timeoutMsg := WSMessage{
+		Type: SessionTimeout,
+		Data: map[string]interface{}{
+			"session_id": sessionID,
+			"message":    "您的会话已超时，将在5秒后自动断开连接",
+			"countdown":  5,
+		},
+	}
+	
+	GlobalWebSocketService.SendMessageToUser(session.UserID, timeoutMsg)
+}
+
+// 🔄 已移除 sendWarningNotification 方法，因为告警功能已简化
+
+// GetTimeoutService 获取超时服务实例（用于外部调用）
+func (s *SSHService) GetTimeoutService() *SessionTimeoutService {
+	return s.timeoutService
 }
 
 // UpdateActivity 更新活动时间
@@ -845,16 +1163,42 @@ func (s *SSHService) HealthCheckSessions() int {
 // SyncSessionStatusToDB 强制同步会话状态到数据库
 func (s *SSHService) SyncSessionStatusToDB(sessionID, status, reason string) {
 	now := time.Now()
-	updates := map[string]interface{}{
-		"status":     status,
-		"end_time":   now,
-		"updated_at": now,
+	
+	// 先获取原始会话记录计算持续时间
+	var sessionRecord models.SessionRecord
+	duration := int64(0)
+	if err := s.db.Where("session_id = ?", sessionID).First(&sessionRecord).Error; err == nil {
+		duration = int64(now.Sub(sessionRecord.StartTime).Seconds())
 	}
 	
-	if err := s.db.Model(&models.SessionRecord{}).Where("session_id = ?", sessionID).Updates(updates).Error; err != nil {
-		log.Printf("Failed to sync session %s status to database: %v", sessionID, err)
+	updates := map[string]interface{}{
+		"status":     status,
+		"updated_at": now,
+		"duration":   duration,
+	}
+	
+	// 只有在状态为closed时才设置end_time
+	if status == "closed" {
+		updates["end_time"] = now
+	}
+	
+	result := s.db.Model(&models.SessionRecord{}).Where("session_id = ? AND status != ?", sessionID, status).Updates(updates)
+	if result.Error != nil {
+		logrus.WithError(result.Error).WithFields(logrus.Fields{
+			"session_id": sessionID,
+			"status":     status,
+		}).Error("同步会话状态到数据库失败")
+	} else if result.RowsAffected == 0 {
+		logrus.WithFields(logrus.Fields{
+			"session_id": sessionID,
+			"status":     status,
+		}).Info("会话状态无需更新或已是目标状态")
 	} else {
-		log.Printf("Successfully synced session %s status '%s' to database", sessionID, status)
+		logrus.WithFields(logrus.Fields{
+			"session_id": sessionID,
+			"status":     status,
+			"duration":   duration,
+		}).Info("成功同步会话状态到数据库")
 		
 		// 🚀 立即广播状态变更，确保监控界面实时更新
 		if GlobalWebSocketService != nil && status == "closed" {
@@ -865,6 +1209,7 @@ func (s *SSHService) SyncSessionStatusToDB(sessionID, status, reason string) {
 					"status":     status,
 					"end_time":   now,
 					"reason":     reason,
+					"duration":   duration,
 				},
 				Timestamp: now,
 				SessionID: sessionID,
@@ -873,7 +1218,7 @@ func (s *SSHService) SyncSessionStatusToDB(sessionID, status, reason string) {
 			data, _ := json.Marshal(endMsg)
 			GlobalWebSocketService.manager.broadcast <- data
 			
-			log.Printf("Broadcasted session end event for %s", sessionID)
+			logrus.WithField("session_id", sessionID).Info("已广播会话结束事件")
 		}
 	}
 }

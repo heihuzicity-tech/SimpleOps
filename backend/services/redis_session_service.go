@@ -193,35 +193,198 @@ func (r *RedisSessionService) GetActiveSessionsByUser(userID uint) ([]*RedisSess
 
 // CloseSession 关闭会话
 func (r *RedisSessionService) CloseSession(sessionID string, reason string) error {
-	key := r.getSessionKey(sessionID)
-	activeKey := "bastion:active_sessions"
+	return r.CloseSessionWithVerification(sessionID, reason, true)
+}
 
-	// 获取会话数据以记录日志
+// CloseSessionWithVerification 带验证的会话关闭
+func (r *RedisSessionService) CloseSessionWithVerification(sessionID string, reason string, verify bool) error {
+	logrus.WithFields(logrus.Fields{
+		"session_id": sessionID,
+		"reason":     reason,
+		"verify":     verify,
+	}).Info("开始关闭Redis会话")
+	
+	// Step 1: 获取会话信息用于清理
+	sessionData, err := r.getSessionForCleanup(sessionID)
+	if err != nil && verify {
+		return fmt.Errorf("failed to get session info for cleanup: %w", err)
+	}
+	
+	// Step 2: 使用Redis事务确保原子性
+	txf := func(tx *redis.Tx) error {
+		// 在事务中监视会话键
+		sessionKey := r.getSessionKey(sessionID)
+		
+		// 开始管道操作
+		pipe := tx.TxPipeline()
+		
+		// 删除主会话数据
+		pipe.Del(r.ctx, sessionKey)
+		
+		// 从活跃会话集合中删除
+		activeSetKey := "bastion:active_sessions"
+		pipe.SRem(r.ctx, activeSetKey, sessionID)
+		
+		// 删除用户-会话索引（如果有的话）
+		if sessionData != nil {
+			userSessionKey := fmt.Sprintf("session:user:%d:%s", sessionData.UserID, sessionID)
+			pipe.Del(r.ctx, userSessionKey)
+		}
+		
+		// 执行管道
+		_, err := pipe.Exec(r.ctx)
+		return err
+	}
+	
+	// 执行事务，最多重试3次
+	for i := 0; i < 3; i++ {
+		sessionKey := r.getSessionKey(sessionID)
+		err := r.client.Watch(r.ctx, txf, sessionKey)
+		
+		if err == nil {
+			logrus.WithFields(logrus.Fields{
+				"session_id": sessionID,
+				"attempt":    i + 1,
+				"reason":     reason,
+			}).Info("成功关闭Redis会话")
+			
+			// 记录会话关闭日志
+			if sessionData != nil {
+				logrus.WithFields(logrus.Fields{
+					"session_id": sessionID,
+					"user_id":    sessionData.UserID,
+					"asset_name": sessionData.AssetName,
+					"reason":     reason,
+					"duration":   time.Since(sessionData.StartTime).Seconds(),
+				}).Info("Session closed in Redis with details")
+			}
+			
+			// 验证清理结果
+			if verify {
+				return r.verifySessionCleanup(sessionID)
+			}
+			return nil
+		}
+		
+		if err == redis.TxFailedErr {
+			logrus.WithField("session_id", sessionID).Warnf("Redis事务冲突，重试关闭会话 (尝试: %d)", i+1)
+			continue
+		}
+		
+		logrus.WithError(err).WithField("session_id", sessionID).Errorf("关闭Redis会话失败 (尝试: %d)", i+1)
+		
+		// 非事务错误，使用强制清理
+		if i == 2 {
+			logrus.WithField("session_id", sessionID).Warn("所有事务尝试失败，使用强制清理")
+			return r.forceCleanupSession(sessionID, sessionData)
+		}
+	}
+	
+	return fmt.Errorf("failed to close session after 3 attempts: %s", sessionID)
+}
+
+// getSessionForCleanup 获取会话信息用于清理
+func (r *RedisSessionService) getSessionForCleanup(sessionID string) (*RedisSessionData, error) {
 	sessionData, err := r.GetSession(sessionID)
 	if err != nil {
-		logrus.WithError(err).Warn("Session not found when closing")
+		logrus.WithError(err).WithField("session_id", sessionID).Warn("会话在Redis中不存在，可能已被清理")
+		return nil, nil
 	}
+	
+	logrus.WithField("session_id", sessionID).Debug("获取到待清理会话信息")
+	return sessionData, nil
+}
 
-	// 删除会话
-	err = r.client.Del(r.ctx, key).Err()
+// verifySessionCleanup 验证会话清理结果
+func (r *RedisSessionService) verifySessionCleanup(sessionID string) error {
+	// 检查主会话键是否已删除
+	sessionKey := r.getSessionKey(sessionID)
+	exists, err := r.client.Exists(r.ctx, sessionKey).Result()
 	if err != nil {
-		return fmt.Errorf("failed to delete session from Redis: %w", err)
+		return fmt.Errorf("failed to verify session cleanup: %w", err)
 	}
-
-	// 从活跃集合中移除
-	r.client.SRem(r.ctx, activeKey, sessionID)
-
-	if sessionData != nil {
-		logrus.WithFields(logrus.Fields{
-			"session_id": sessionID,
-			"user_id":    sessionData.UserID,
-			"asset_name": sessionData.AssetName,
-			"reason":     reason,
-			"duration":   time.Since(sessionData.StartTime).Seconds(),
-		}).Info("Session closed in Redis")
+	
+	if exists > 0 {
+		return fmt.Errorf("session still exists in Redis after cleanup: %s", sessionID)
 	}
-
+	
+	// 检查活跃会话集合
+	activeSetKey := "bastion:active_sessions"
+	isMember, err := r.client.SIsMember(r.ctx, activeSetKey, sessionID).Result()
+	if err != nil {
+		logrus.WithError(err).WithField("session_id", sessionID).Warn("无法验证活跃会话集合清理状态")
+	} else if isMember {
+		logrus.WithField("session_id", sessionID).Warn("会话仍在活跃会话集合中")
+	}
+	
+	logrus.WithField("session_id", sessionID).Info("验证通过: 会话已从Redis中完全清理")
 	return nil
+}
+
+// forceCleanupSession 强制清理会话（忽略错误）
+func (r *RedisSessionService) forceCleanupSession(sessionID string, sessionData *RedisSessionData) error {
+	logrus.WithField("session_id", sessionID).Warn("执行强制Redis会话清理")
+	
+	var errors []string
+	
+	// 强制删除主会话键
+	sessionKey := r.getSessionKey(sessionID)
+	if err := r.client.Del(r.ctx, sessionKey).Err(); err != nil {
+		errors = append(errors, fmt.Sprintf("删除主会话键失败: %v", err))
+	}
+	
+	// 强制从活跃会话集合中删除
+	activeSetKey := "bastion:active_sessions"
+	if err := r.client.SRem(r.ctx, activeSetKey, sessionID).Err(); err != nil {
+		errors = append(errors, fmt.Sprintf("从活跃集合删除失败: %v", err))
+	}
+	
+	// 强制删除用户索引
+	if sessionData != nil {
+		userSessionKey := fmt.Sprintf("session:user:%d:%s", sessionData.UserID, sessionID)
+		if err := r.client.Del(r.ctx, userSessionKey).Err(); err != nil {
+			errors = append(errors, fmt.Sprintf("删除用户索引失败: %v", err))
+		}
+	}
+	
+	if len(errors) > 0 {
+		logrus.WithField("session_id", sessionID).Warnf("强制清理完成，但有部分错误: %v", errors)
+		return fmt.Errorf("partial cleanup errors: %v", errors)
+	}
+	
+	logrus.WithField("session_id", sessionID).Info("强制清理成功")
+	return nil
+}
+
+// BatchCleanupSessions 批量清理会话
+func (r *RedisSessionService) BatchCleanupSessions(sessionIDs []string) map[string]error {
+	results := make(map[string]error)
+	
+	logrus.WithField("count", len(sessionIDs)).Info("开始批量清理Redis会话")
+	
+	for _, sessionID := range sessionIDs {
+		// 使用非验证模式进行批量清理，提高性能
+		err := r.CloseSessionWithVerification(sessionID, "batch_cleanup", false)
+		results[sessionID] = err
+		
+		if err != nil {
+			logrus.WithError(err).WithField("session_id", sessionID).Error("批量清理失败")
+		}
+	}
+	
+	successCount := 0
+	for _, err := range results {
+		if err == nil {
+			successCount++
+		}
+	}
+	
+	logrus.WithFields(logrus.Fields{
+		"success": successCount,
+		"total":   len(sessionIDs),
+	}).Info("批量清理完成")
+	
+	return results
 }
 
 // CleanupExpiredSessions 清理过期会话

@@ -551,6 +551,12 @@ type SessionRecord struct {
 	TerminationReason string    `json:"termination_reason" gorm:"size:255"` // 终止原因
 	TerminatedBy *uint          `json:"terminated_by" gorm:"index"`        // 终止人
 	TerminatedAt *time.Time     `json:"terminated_at"`                     // 终止时间
+	
+	// 🆕 会话超时管理字段
+	TimeoutMinutes *int       `json:"timeout_minutes" gorm:"index;comment:会话超时时间(分钟)，null表示无限制"`
+	LastActivity   *time.Time `json:"last_activity" gorm:"comment:最后活动时间，用于超时计算"`
+	CloseReason    string     `json:"close_reason" gorm:"size:100;comment:会话关闭原因"` // normal_exit, timeout, forced_close, network_error, etc.
+	
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
@@ -685,6 +691,14 @@ type SessionRecordResponse struct {
 	EndTime      *time.Time `json:"end_time"`
 	Duration     int64      `json:"duration"`
 	RecordPath   string     `json:"record_path"`
+	
+	// 🆕 超时管理响应字段
+	TimeoutMinutes *int       `json:"timeout_minutes,omitempty"` // 超时时间(分钟)
+	LastActivity   *time.Time `json:"last_activity,omitempty"`   // 最后活动时间
+	CloseReason    string     `json:"close_reason,omitempty"`    // 关闭原因
+	RemainingTime  *int64     `json:"remaining_time,omitempty"`  // 剩余时间(秒) - 动态计算
+	IsExpiringSoon bool       `json:"is_expiring_soon"`          // 是否即将过期
+	
 	CreatedAt    time.Time  `json:"created_at"`
 }
 
@@ -773,7 +787,7 @@ func (o *OperationLog) ToResponse() *OperationLogResponse {
 }
 
 func (s *SessionRecord) ToResponse() *SessionRecordResponse {
-	return &SessionRecordResponse{
+	response := &SessionRecordResponse{
 		ID:           s.ID,
 		SessionID:    s.SessionID,
 		UserID:       s.UserID,
@@ -789,8 +803,20 @@ func (s *SessionRecord) ToResponse() *SessionRecordResponse {
 		EndTime:      s.EndTime,
 		Duration:     s.Duration,
 		RecordPath:   s.RecordPath,
+		TimeoutMinutes: s.TimeoutMinutes,
+		LastActivity:   s.LastActivity,
+		CloseReason:    s.CloseReason,
 		CreatedAt:    s.CreatedAt,
 	}
+	
+	// 动态计算剩余时间和是否即将过期（仅对活跃会话）
+	if s.Status == "active" && s.TimeoutMinutes != nil && *s.TimeoutMinutes > 0 {
+		remaining, expiring := s.CalculateRemainingTime()
+		response.RemainingTime = &remaining
+		response.IsExpiringSoon = expiring
+	}
+	
+	return response
 }
 
 func (c *CommandLog) ToResponse() *CommandLogResponse {
@@ -824,6 +850,91 @@ func (s *SessionRecord) CalculateDuration() int64 {
 		return int64(s.EndTime.Sub(s.StartTime).Seconds())
 	}
 	return int64(time.Since(s.StartTime).Seconds())
+}
+
+// ======================== 会话超时管理辅助方法 ========================
+
+// HasTimeout 检查会话是否设置了超时
+func (s *SessionRecord) HasTimeout() bool {
+	return s.TimeoutMinutes != nil && *s.TimeoutMinutes > 0
+}
+
+// IsExpired 检查会话是否已超时
+func (s *SessionRecord) IsExpired() bool {
+	if !s.HasTimeout() {
+		return false
+	}
+	
+	// 使用LastActivity或StartTime计算
+	baseTime := s.StartTime
+	if s.LastActivity != nil {
+		baseTime = *s.LastActivity
+	}
+	
+	timeoutDuration := time.Duration(*s.TimeoutMinutes) * time.Minute
+	return time.Since(baseTime) > timeoutDuration
+}
+
+// CalculateRemainingTime 计算剩余超时时间
+func (s *SessionRecord) CalculateRemainingTime() (int64, bool) {
+	if !s.HasTimeout() {
+		return 0, false
+	}
+	
+	// 使用LastActivity或StartTime计算
+	baseTime := s.StartTime
+	if s.LastActivity != nil {
+		baseTime = *s.LastActivity
+	}
+	
+	timeoutDuration := time.Duration(*s.TimeoutMinutes) * time.Minute
+	elapsed := time.Since(baseTime)
+	remaining := timeoutDuration - elapsed
+	
+	if remaining <= 0 {
+		return 0, true // 已超时
+	}
+	
+	remainingSeconds := int64(remaining.Seconds())
+	isExpiringSoon := remaining <= 5*time.Minute // 5分钟内即将过期
+	
+	return remainingSeconds, isExpiringSoon
+}
+
+// UpdateActivity 更新会话活动时间
+func (s *SessionRecord) UpdateActivity() {
+	now := time.Now()
+	s.LastActivity = &now
+	s.UpdatedAt = now
+}
+
+// SetTimeout 设置会话超时时间
+func (s *SessionRecord) SetTimeout(minutes int) {
+	if minutes <= 0 {
+		s.TimeoutMinutes = nil // 无限制
+	} else {
+		s.TimeoutMinutes = &minutes
+	}
+}
+
+// CloseWithReason 带原因关闭会话
+func (s *SessionRecord) CloseWithReason(reason string) {
+	now := time.Now()
+	s.Status = "closed"
+	s.EndTime = &now
+	s.CloseReason = reason
+	s.Duration = int64(now.Sub(s.StartTime).Seconds())
+	s.UpdatedAt = now
+}
+
+// TimeoutClose 超时关闭会话
+func (s *SessionRecord) TimeoutClose() {
+	now := time.Now()
+	s.Status = "timeout"
+	s.EndTime = &now
+	s.CloseReason = "session_timeout"
+	s.Duration = int64(now.Sub(s.StartTime).Seconds())
+	s.UpdatedAt = now
 }
 
 // ======================== 实时监控相关模型 ========================

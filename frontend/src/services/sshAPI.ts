@@ -64,5 +64,74 @@ export const sshAPI = {
     const token = localStorage.getItem('token');
     const hostWithPort = port === '80' || port === '443' ? host : `${host}:${port}`;
     return `${protocol}//${hostWithPort}/api/v1/ws/ssh/sessions/${sessionId}/ws?token=${token}`;
+  },
+
+  // ===== 超时管理API =====
+  
+  // 设置会话超时
+  async setSessionTimeout(sessionId: string, timeoutMinutes: number): Promise<void> {
+    await apiClient.post(`/ssh/sessions/${sessionId}/timeout`, {
+      timeout_minutes: timeoutMinutes
+    });
+  },
+
+  // 获取会话超时配置
+  async getSessionTimeout(sessionId: string): Promise<{
+    session_id: string;
+    timeout_minutes: number;
+    last_activity: string;
+    timeout_at: string;
+    is_warned: boolean;
+  }> {
+    const response = await apiClient.get(`/ssh/sessions/${sessionId}/timeout`);
+    return response.data.data;
+  },
+
+  // 更新会话超时配置
+  async updateSessionTimeout(sessionId: string, timeoutMinutes: number): Promise<void> {
+    await apiClient.put(`/ssh/sessions/${sessionId}/timeout`, {
+      timeout_minutes: timeoutMinutes
+    });
+  },
+
+  // 取消会话超时
+  async removeSessionTimeout(sessionId: string): Promise<void> {
+    await apiClient.delete(`/ssh/sessions/${sessionId}/timeout`);
+  },
+
+  // 延长会话时间
+  async extendSession(sessionId: string, additionalMinutes?: number): Promise<void> {
+    await apiClient.post(`/ssh/sessions/${sessionId}/extend`, {
+      additional_minutes: additionalMinutes
+    });
+  },
+
+  // 更新会话活动时间
+  async updateSessionActivity(sessionId: string): Promise<void> {
+    await apiClient.post(`/ssh/sessions/${sessionId}/activity`);
+  },
+
+  // 获取会话状态（包含剩余时间）
+  async getSessionStatus(sessionId: string): Promise<{
+    session_id: string;
+    is_active: boolean;
+    timeout_minutes: number;
+    minutes_remaining: number;
+    last_activity: string;
+    timeout_at: string;
+  }> {
+    const response = await apiClient.get(`/ssh/sessions/${sessionId}/status`);
+    return response.data.data;
+  },
+
+  // 获取超时统计信息
+  async getTimeoutStats(): Promise<{
+    total_sessions: number;
+    active_sessions: number;
+    expiring_soon: number;
+    expired_today: number;
+  }> {
+    const response = await apiClient.get('/ssh/sessions/timeout-stats');
+    return response.data.data;
   }
 };
