@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Select, Button, message, Row, Col, InputNumber } from 'antd';
+import { Modal, Form, Select, Button, message, Row, Col, InputNumber, Divider } from 'antd';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
 import { fetchAssets } from '../../store/assetSlice';
 import { fetchCredentials } from '../../store/credentialSlice';
 import { createSession } from '../../store/sshSessionSlice';
 import { SSHSessionRequest } from '../../types/ssh';
+import SessionTimeoutConfig from './SessionTimeoutConfig';
 
 interface SSHConnectionModalProps {
   open: boolean;
@@ -56,6 +57,7 @@ const SSHConnectionModal: React.FC<SSHConnectionModalProps> = ({
         protocol: 'ssh',
         width: values.width || 80,
         height: values.height || 24,
+        timeout_minutes: values.timeoutMinutes || 30,
       };
 
       const result = await dispatch(createSession(sessionRequest));
@@ -89,6 +91,7 @@ const SSHConnectionModal: React.FC<SSHConnectionModalProps> = ({
         initialValues={{
           width: 80,
           height: 24,
+          timeoutMinutes: 30,
         }}
       >
         <Form.Item
@@ -165,6 +168,15 @@ const SSHConnectionModal: React.FC<SSHConnectionModalProps> = ({
             </Form.Item>
           </Col>
         </Row>
+
+        <Divider />
+
+        <Form.Item
+          name="timeoutMinutes"
+          label="会话超时设置"
+        >
+          <SessionTimeoutConfig />
+        </Form.Item>
 
         <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
           <Button

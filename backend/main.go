@@ -89,6 +89,24 @@ func main() {
 	// 初始化WebSocket服务
 	services.InitWebSocketService()
 
+	// 初始化会话超时管理服务
+	timeoutService := services.NewSessionTimeoutService(utils.GetDB())
+	if err := timeoutService.Start(); err != nil {
+		logrus.Fatalf("Failed to start session timeout service: %v", err)
+	}
+	
+	// 将超时服务实例保存到全局变量或通过依赖注入
+	services.GlobalSessionTimeoutService = timeoutService
+	
+	// 设置超时回调，当会话超时时自动断开SSH连接
+	timeoutService.SetTimeoutCallback(func(sessionID string) {
+		logrus.WithField("session_id", sessionID).Info("Session timeout callback triggered")
+		// 这里可以调用SSH服务的断开方法
+		// 在SSH服务集成超时管理后会自动处理
+	})
+	
+	logrus.Info("Session timeout service initialized and started")
+
 	// 确保录制服务完全初始化后再创建SSH服务
 	if services.GlobalRecordingService == nil {
 		logrus.Fatal("录制服务初始化失败")
@@ -122,6 +140,16 @@ func main() {
 	// 等待信号
 	sig := <-sigChan
 	logrus.Infof("Received signal: %v", sig)
+
+	// 优雅关闭服务
+	logrus.Info("Shutting down services...")
+	
+	// 关闭超时管理服务
+	if services.GlobalSessionTimeoutService != nil {
+		if err := services.GlobalSessionTimeoutService.Stop(); err != nil {
+			logrus.Errorf("Failed to stop session timeout service: %v", err)
+		}
+	}
 
 	// 关闭数据库连接
 	utils.CloseDatabase()

@@ -96,7 +96,7 @@ const WorkspaceStandalone: React.FC = () => {
   }, [assets, handleHostSelect]);
 
   // 处理凭证选择 - 使用现有的简单逻辑
-  const handleCredentialSelect = useCallback(async (credentialId: number) => {
+  const handleCredentialSelect = useCallback(async (credentialId: number, timeoutMinutes?: number) => {
     if (!selectedAsset || connecting) return;
 
     setCredentialSelectorVisible(false);
@@ -115,7 +115,8 @@ const WorkspaceStandalone: React.FC = () => {
       const response = await dispatch(createSession({
         asset_id: selectedAsset.id,
         credential_id: credentialId,
-        protocol: selectedAsset.protocol || 'ssh'
+        protocol: selectedAsset.protocol || 'ssh',
+        timeout_minutes: timeoutMinutes
       })).unwrap();
 
       // 创建新标签页，使用时间戳确保唯一性
@@ -148,7 +149,30 @@ const WorkspaceStandalone: React.FC = () => {
   }, []);
 
   // 标签页关闭处理
-  const handleTabClose = useCallback((tabId: string) => {
+  const handleTabClose = useCallback(async (tabId: string) => {
+    // 查找要关闭的标签页
+    const targetTab = tabs.find(tab => tab.id === tabId);
+    if (!targetTab) return;
+
+    try {
+      // 调用后端API关闭会话
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (token && targetTab.sessionId) {
+        await fetch(`/api/v1/ssh/sessions/${targetTab.sessionId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        console.log(`会话 ${targetTab.sessionId} 已关闭`);
+      }
+    } catch (error) {
+      console.warn('关闭会话失败:', error);
+      // 即使后端调用失败，也要关闭前端标签页
+    }
+
+    // 更新标签页状态
     setTabs(prev => {
       const newTabs = prev.filter(tab => tab.id !== tabId);
       
@@ -163,9 +187,7 @@ const WorkspaceStandalone: React.FC = () => {
       
       return newTabs;
     });
-    
-    // 连接已关闭，但不显示提示消息
-  }, [activeTabId]);
+  }, [activeTabId, tabs]);
 
 
 
@@ -276,6 +298,80 @@ const WorkspaceStandalone: React.FC = () => {
       document.title = originalTitle;
     };
   }, []);
+
+  // 页面卸载时批量清理所有活跃会话
+  useEffect(() => {
+    const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
+      // 如果有活跃会话，批量清理
+      if (tabs.length > 0) {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        if (token) {
+          // 使用 sendBeacon 确保在页面卸载时仍能发送请求
+          const sessionsToClose = tabs.map(tab => tab.sessionId).filter(Boolean);
+          
+          for (const sessionId of sessionsToClose) {
+            try {
+              // 使用 fetch 的 keepalive 选项确保请求完成
+              fetch(`/api/v1/ssh/sessions/${sessionId}`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                keepalive: true // 关键：页面卸载后仍保持请求活跃
+              }).catch(err => {
+                console.warn(`关闭会话 ${sessionId} 失败:`, err);
+              });
+            } catch (error) {
+              console.warn(`批量关闭会话失败:`, error);
+            }
+          }
+          
+          console.log(`页面卸载，批量清理 ${sessionsToClose.length} 个会话`);
+        }
+      }
+    };
+
+    const handleUnload = () => {
+      // 页面完全卸载时的额外清理（备用机制）
+      if (tabs.length > 0) {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        if (token) {
+          const sessionsToClose = tabs.map(tab => tab.sessionId).filter(Boolean);
+          
+          // 使用 sendBeacon 作为最后的保障
+          const cleanupData = new FormData();
+          cleanupData.append('data', JSON.stringify({
+            action: 'cleanup_sessions',
+            sessions: sessionsToClose,
+            timestamp: new Date().toISOString()
+          }));
+          
+          // 添加认证头信息到 FormData（sendBeacon 限制）
+          if (token) {
+            cleanupData.append('authorization', `Bearer ${token}`);
+          }
+          
+          // 尝试使用 sendBeacon 发送清理请求
+          if (navigator.sendBeacon && sessionsToClose.length > 0) {
+            // 注意：sendBeacon 只能发送到同源，且有数据大小限制
+            const cleanupUrl = '/api/v1/ssh/sessions/batch-cleanup';
+            const success = navigator.sendBeacon(cleanupUrl, cleanupData);
+            console.log(`使用 sendBeacon 清理会话${success ? '成功' : '失败'}`);
+          }
+        }
+      }
+    };
+
+    // 监听页面卸载事件
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('unload', handleUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('unload', handleUnload);
+    };
+  }, [tabs]); // 依赖于 tabs 状态
 
   // 渲染空状态
   const renderEmptyState = () => (

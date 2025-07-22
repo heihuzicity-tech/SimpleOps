@@ -2,14 +2,16 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { message as antMessage, Spin, Alert, Button, Space, Modal } from 'antd';
-import { ReloadOutlined, DisconnectOutlined } from '@ant-design/icons';
+import { message as antMessage, Spin, Alert, Button, Space, Modal, notification } from 'antd';
+import { ReloadOutlined, DisconnectOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../../store';
 import { updateConnectionStatus } from '../../store/workspaceSlice';
 import { sshAPI } from '../../services/sshAPI';
 import { WSMessage } from '../../types/ssh';
 import { TabInfo } from '../../types/workspace';
+import { useActivityDetector } from '../../hooks/useActivityDetector';
+import { useSessionTimeout } from '../../hooks/useSessionTimeout';
 
 import '@xterm/xterm/css/xterm.css';
 
@@ -38,6 +40,70 @@ const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
   const [lastError, setLastError] = useState<string | null>(null);
   const maxReconnectAttempts = 5;
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // 超时管理Hook
+  const {
+    status: timeoutStatus,
+    hasTimeout,
+    isExpiring,
+    remainingMinutes,
+    formatRemainingTime,
+    extendSession,
+    updateActivity
+  } = useSessionTimeout({
+    sessionId: tab.sessionId || '',
+    onTimeoutWarning: (minutesLeft) => {
+      // 显示超时警告通知
+      notification.warning({
+        key: `timeout-warning-${tab.id}`,
+        message: '会话即将超时',
+        description: `会话将在${minutesLeft}分钟后自动断开，如需继续使用请点击延长会话。`,
+        placement: 'topRight',
+        duration: 0,
+        btn: (
+          <Space>
+            <Button size="small" onClick={() => {
+              extendSession(30);
+              notification.destroy(`timeout-warning-${tab.id}`);
+            }}>
+              延长30分钟
+            </Button>
+            <Button size="small" type="link" onClick={() => {
+              notification.destroy(`timeout-warning-${tab.id}`);
+            }}>
+              忽略
+            </Button>
+          </Space>
+        )
+      });
+    },
+    onTimeout: () => {
+      // 会话超时，显示通知并断开连接
+      notification.error({
+        message: '会话已超时',
+        description: '会话已自动断开，请重新建立连接。',
+        placement: 'topRight'
+      });
+      handleDisconnect();
+    },
+    onError: (error) => {
+      console.warn('Session timeout error:', error);
+    }
+  });
+
+  // 活动检测Hook
+  const { triggerActivity } = useActivityDetector({
+    sessionId: tab.sessionId || '',
+    onActivity: (activity) => {
+      // 有活动时更新服务端的活动时间
+      if (activity.isActive) {
+        updateActivity();
+      }
+    },
+    throttleMs: 2000, // 2秒节流
+    enableMouseTracking: true,
+    enableKeyboardTracking: true
+  });
 
   // 更新连接状态
   const updateStatus = useCallback((status: WorkspaceConnectionStatus, error?: string) => {
@@ -250,8 +316,11 @@ const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
         data
       };
       websocket.current.send(JSON.stringify(message));
+      
+      // 触发活动检测
+      triggerActivity('keyboard');
     }
-  }, []);
+  }, [triggerActivity]);
 
   // 处理终端大小调整
   const handleResize = useCallback(() => {
@@ -286,12 +355,39 @@ const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 
   // 手动断开
   const handleDisconnect = useCallback(() => {
+    console.log('用户手动断开连接，会话ID:', tab.sessionId);
     if (websocket.current) {
+      // 发送关闭通知消息给后端
+      try {
+        const closeMessage: WSMessage = {
+          type: 'close',
+          data: { reason: '用户主动关闭标签页' }
+        };
+        websocket.current.send(JSON.stringify(closeMessage));
+      } catch (error) {
+        console.warn('发送关闭通知失败:', error);
+      }
       websocket.current.close(1000, '用户主动断开');
     }
     updateStatus('disconnected');
     onDisconnect?.();
-  }, [updateStatus, onDisconnect]);
+  }, [updateStatus, onDisconnect, tab.sessionId]);
+
+  // 页面卸载事件处理
+  const handleBeforeUnload = useCallback(() => {
+    console.log('页面即将卸载，准备清理会话:', tab.sessionId);
+    if (websocket.current && websocket.current.readyState === WebSocket.OPEN) {
+      try {
+        const closeMessage: WSMessage = {
+          type: 'close',
+          data: { reason: '页面卸载' }
+        };
+        websocket.current.send(JSON.stringify(closeMessage));
+      } catch (error) {
+        console.warn('页面卸载时发送关闭通知失败:', error);
+      }
+    }
+  }, [tab.sessionId]);
 
   // 初始化
   useEffect(() => {
@@ -308,6 +404,9 @@ const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 
     // 窗口大小调整监听
     window.addEventListener('resize', handleResize);
+    
+    // 页面卸载事件监听
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     // 建立连接
     connectWebSocket();
@@ -315,16 +414,29 @@ const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
     return () => {
       disposable?.dispose();
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       
       if (websocket.current) {
-        websocket.current.close();
+        // 组件卸载时主动发送关闭通知
+        try {
+          if (websocket.current.readyState === WebSocket.OPEN) {
+            const closeMessage: WSMessage = {
+              type: 'close',
+              data: { reason: '组件卸载' }
+            };
+            websocket.current.send(JSON.stringify(closeMessage));
+          }
+        } catch (error) {
+          console.warn('组件卸载时发送关闭通知失败:', error);
+        }
+        websocket.current.close(1000, '组件卸载');
       }
       
       if (terminal.current) {
         terminal.current.dispose();
       }
     };
-  }, [tab.sessionId, initTerminal, sendInput, handleResize, connectWebSocket]);
+  }, [tab.sessionId, initTerminal, sendInput, handleResize, connectWebSocket, handleBeforeUnload]);
 
   // 处理标签页激活时的大小调整
   useEffect(() => {
@@ -406,6 +518,35 @@ const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 
   return (
     <div style={{ height: '100%', width: '100%', position: 'relative' }}>
+      {/* 超时状态显示 */}
+      {hasTimeout && isExpiring && (
+        <div style={{
+          position: 'absolute',
+          top: '8px',
+          right: '8px',
+          zIndex: 1000,
+          background: 'rgba(255, 193, 7, 0.9)',
+          color: '#000',
+          padding: '4px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px'
+        }}>
+          <ClockCircleOutlined />
+          <span>剩余 {formatRemainingTime(remainingMinutes)}</span>
+          <Button 
+            size="small" 
+            type="link" 
+            style={{ padding: '0 4px', height: 'auto', fontSize: '12px' }}
+            onClick={() => extendSession(30)}
+          >
+            延长
+          </Button>
+        </div>
+      )}
+      
       <div
         style={{
           height: '100%',

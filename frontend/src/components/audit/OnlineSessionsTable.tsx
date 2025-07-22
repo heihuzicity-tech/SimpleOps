@@ -345,6 +345,15 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
     fetchActiveSessions();
   }, [fetchActiveSessions]);
 
+  // 定时刷新会话列表（主要为了更新超时状态）
+  useEffect(() => {
+    const timer = setInterval(() => {
+      fetchActiveSessions();
+    }, 30000); // 每30秒刷新一次
+
+    return () => clearInterval(timer);
+  }, [fetchActiveSessions]);
+
   // WebSocket连接管理和重连后状态同步
   useEffect(() => {
     if (!wsConnected) {
@@ -516,6 +525,50 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
       render: (time: string) => (
         <span>{dayjs(time).format('YYYY-MM-DD HH:mm:ss')}</span>
       ),
+    },
+    {
+      title: '会话超时',
+      key: 'session_timeout',
+      width: 120,
+      responsive: ['lg'],
+      render: (_, record) => {
+        // 从会话记录中获取超时信息
+        const timeoutMinutes = record.timeout_minutes;
+        const lastActivity = record.last_activity;
+        
+        if (!timeoutMinutes || timeoutMinutes === 0) {
+          return <Tag color="blue">无限制</Tag>;
+        }
+
+        // 计算剩余时间
+        const now = dayjs();
+        const lastActivityTime = dayjs(lastActivity || record.start_time);
+        const timeoutTime = lastActivityTime.add(timeoutMinutes, 'minute');
+        const remainingMinutes = timeoutTime.diff(now, 'minute');
+
+        if (remainingMinutes <= 0) {
+          return <Tag color="red">已超时</Tag>;
+        } else if (remainingMinutes <= 5) {
+          return (
+            <Tag color="orange">
+              剩余 {remainingMinutes}分钟
+            </Tag>
+          );
+        } else if (remainingMinutes <= 15) {
+          return (
+            <Tag color="yellow">
+              剩余 {remainingMinutes < 60 ? `${remainingMinutes}分钟` : `${Math.floor(remainingMinutes / 60)}小时${remainingMinutes % 60}分钟`}
+            </Tag>
+          );
+        } else {
+          const hours = Math.floor(remainingMinutes / 60);
+          const minutes = remainingMinutes % 60;
+          const timeStr = hours > 0 
+            ? (minutes > 0 ? `${hours}小时${minutes}分钟` : `${hours}小时`)
+            : `${remainingMinutes}分钟`;
+          return <Tag color="green">剩余 {timeStr}</Tag>;
+        }
+      },
     },
     {
       title: '操作',

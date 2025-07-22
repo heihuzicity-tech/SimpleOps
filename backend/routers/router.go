@@ -152,9 +152,21 @@ func SetupRouter() *gin.Engine {
 				ssh.GET("/sessions/:id", sshController.GetSessionInfo)
 				ssh.DELETE("/sessions/:id", sshController.CloseSession)
 				ssh.POST("/sessions/:id/resize", sshController.ResizeSession)
+				ssh.POST("/sessions/batch-cleanup", sshController.BatchCleanupSessions) // 用户批量清理会话（页面卸载时）
 				ssh.POST("/sessions/health-check", middleware.RequirePermission("admin"), sshController.HealthCheckSessions)
-			ssh.POST("/sessions/force-cleanup", middleware.RequirePermission("admin"), sshController.ForceCleanupSessions)
+				ssh.POST("/sessions/force-cleanup", middleware.RequirePermission("admin"), sshController.ForceCleanupSessions)
 				ssh.POST("/keypair", sshController.GenerateKeyPair)
+				
+				// 🆕 会话超时管理路由
+				ssh.POST("/sessions/:id/timeout", sshController.CreateSessionTimeout)     // 创建超时配置
+				ssh.GET("/sessions/:id/timeout", sshController.GetSessionTimeout)        // 获取超时配置
+				ssh.PUT("/sessions/:id/timeout", sshController.UpdateSessionTimeout)     // 更新超时配置
+				ssh.DELETE("/sessions/:id/timeout", sshController.DeleteSessionTimeout)  // 删除超时配置
+				ssh.POST("/sessions/:id/timeout/extend", sshController.ExtendSessionTimeout) // 延长超时时间
+				ssh.POST("/sessions/:id/activity", sshController.UpdateSessionActivity)  // 更新活动时间
+				
+				// 🆕 超时管理统计（管理员权限）
+				ssh.GET("/timeout/stats", middleware.RequirePermission("admin"), sshController.GetTimeoutStats) // 获取超时服务统计
 			}
 
 			// 审计管理路由（需要审计权限）

@@ -47,6 +47,8 @@ type WebSocketConnection struct {
 	sessionID    string
 	userID       uint
 	mu           sync.Mutex
+	lastPing     time.Time // 最后一次ping时间
+	isActive     bool      // 连接是否活跃
 }
 
 // NewSSHController 创建SSH控制器实例
@@ -342,14 +344,29 @@ func (sc *SSHController) handleWebSocketConnection(wsConn *WebSocketConnection) 
 		// 🚀 立即同步清理所有数据源中的会话状态
 		log.Printf("WebSocket disconnected for session %s, synchronizing cleanup across all data sources", wsConn.sessionID)
 		
-		// 同步处理，确保立即生效
-		if err := sc.sshService.CloseSessionWithReason(wsConn.sessionID, "用户关闭标签页"); err != nil {
-			log.Printf("Failed to cleanup SSH session %s: %v", wsConn.sessionID, err)
+		// 多重清理机制，确保会话状态正确更新
+		maxRetries := 3
+		cleaned := false
+		
+		for i := 0; i < maxRetries && !cleaned; i++ {
+			if i > 0 {
+				log.Printf("WebSocket cleanup retry %d/%d for session %s", i+1, maxRetries, wsConn.sessionID)
+				time.Sleep(time.Duration(i*100) * time.Millisecond) // 递增延迟
+			}
 			
-			// 如果CloseSessionWithReason失败，则强制同步数据库状态
-			sc.sshService.SyncSessionStatusToDB(wsConn.sessionID, "closed", "用户关闭标签页(强制清理)")
-		} else {
-			log.Printf("Successfully cleaned up SSH session %s on WebSocket disconnect", wsConn.sessionID)
+			if err := sc.sshService.CloseSessionWithReason(wsConn.sessionID, "用户关闭标签页"); err != nil {
+				log.Printf("Attempt %d: Failed to cleanup SSH session %s: %v", i+1, wsConn.sessionID, err)
+				
+				if i == maxRetries-1 {
+					// 最后一次尝试失败，使用强制清理
+					log.Printf("All cleanup attempts failed for session %s, using force cleanup", wsConn.sessionID)
+					sc.sshService.SyncSessionStatusToDB(wsConn.sessionID, "closed", "用户关闭标签页(强制清理)")
+					cleaned = true
+				}
+			} else {
+				log.Printf("Successfully cleaned up SSH session %s on WebSocket disconnect (attempt %d)", wsConn.sessionID, i+1)
+				cleaned = true
+			}
 		}
 		
 		// 🔧 修复：精确通知相关用户，避免全局广播误杀
@@ -715,7 +732,12 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 				}
 
 			case "ping":
-				// 处理心跳
+				// 处理心跳，更新最后ping时间
+				wsConn.mu.Lock()
+				wsConn.lastPing = time.Now()
+				wsConn.isActive = true
+				wsConn.mu.Unlock()
+				
 				pongMessage := TerminalMessage{
 					Type: "pong",
 					Data: "pong",
@@ -729,6 +751,44 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 					log.Printf("Failed to send pong: %v", err)
 					return
 				}
+				
+				log.Printf("Heartbeat received for session %s", wsConn.sessionID)
+
+			case "close":
+				// 处理前端主动关闭消息
+				reason := "用户主动关闭"
+				if message.Data != "" {
+					// 尝试解析关闭原因
+					var closeData map[string]interface{}
+					if err := json.Unmarshal([]byte(message.Data), &closeData); err == nil {
+						if r, ok := closeData["reason"].(string); ok && r != "" {
+							reason = r
+						}
+					}
+				}
+				
+				log.Printf("Received close message from frontend for session %s, reason: %s", wsConn.sessionID, reason)
+				
+				// 主动清理会话，使用收到的关闭原因
+				if err := sc.sshService.CloseSessionWithReason(wsConn.sessionID, reason); err != nil {
+					log.Printf("Failed to close session %s on frontend request: %v", wsConn.sessionID, err)
+					// 即使清理失败也要断开WebSocket连接
+				} else {
+					log.Printf("Successfully closed session %s on frontend request", wsConn.sessionID)
+				}
+				
+				// 发送确认消息给前端
+				ackMessage := TerminalMessage{
+					Type: "close_ack",
+					Data: "Session closed successfully",
+				}
+				
+				wsConn.mu.Lock()
+				wsConn.conn.WriteJSON(ackMessage)
+				wsConn.mu.Unlock()
+				
+				// 关闭WebSocket连接
+				return
 			}
 		}
 	}
@@ -938,6 +998,91 @@ func (sc *SSHController) HealthCheckSessions(c *gin.Context) {
 // @Failure      403  {object}  map[string]interface{}  "权限不足"
 // @Failure      500  {object}  map[string]interface{}  "服务器错误"
 // @Router       /ssh/sessions/force-cleanup [post]
+// BatchCleanupSessions 批量清理用户会话（页面卸载时调用）
+func (sc *SSHController) BatchCleanupSessions(c *gin.Context) {
+	// 获取当前用户
+	userInterface, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "User not found",
+		})
+		return
+	}
+
+	user := userInterface.(*models.User)
+
+	// 解析请求体
+	var request struct {
+		Action    string   `json:"action"`
+		Sessions  []string `json:"sessions"`
+		Timestamp string   `json:"timestamp"`
+	}
+
+	// 尝试解析JSON请求
+	if err := c.ShouldBindJSON(&request); err != nil {
+		// JSON解析失败，尝试解析FormData（来自sendBeacon）
+		if dataStr := c.PostForm("data"); dataStr != "" {
+			if jsonErr := json.Unmarshal([]byte(dataStr), &request); jsonErr != nil {
+				log.Printf("解析FormData中的JSON失败: %v", jsonErr)
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "Invalid request format",
+				})
+				return
+			}
+			
+			// 从FormData中获取认证信息（如果有）
+			if auth := c.PostForm("authorization"); auth != "" {
+				c.Header("Authorization", auth)
+			}
+		} else {
+			log.Printf("解析批量清理请求失败: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Invalid request format",
+			})
+			return
+		}
+	}
+
+	// 验证用户只能清理自己的会话
+	var validSessions []string
+	for _, sessionID := range request.Sessions {
+		// 检查会话是否属于当前用户
+		session, err := sc.sshService.GetSession(sessionID)
+		if err != nil {
+			log.Printf("获取会话信息失败 %s: %v", sessionID, err)
+			continue
+		}
+
+		if session.UserID == user.ID {
+			validSessions = append(validSessions, sessionID)
+		} else {
+			log.Printf("用户 %d 尝试清理不属于自己的会话 %s (实际用户: %d)", 
+				user.ID, sessionID, session.UserID)
+		}
+	}
+
+	// 执行批量清理
+	successCount := 0
+	for _, sessionID := range validSessions {
+		if err := sc.sshService.CloseSessionWithReason(sessionID, "页面卸载批量清理"); err != nil {
+			log.Printf("批量清理会话失败 %s: %v", sessionID, err)
+		} else {
+			successCount++
+		}
+	}
+
+	log.Printf("用户 %s 页面卸载，批量清理 %d/%d 个会话", 
+		user.Username, successCount, len(request.Sessions))
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("Successfully cleaned up %d/%d sessions", 
+			successCount, len(request.Sessions)),
+		"cleaned_count": successCount,
+		"requested_count": len(request.Sessions),
+	})
+}
+
 func (sc *SSHController) ForceCleanupSessions(c *gin.Context) {
 	// 检查管理员权限
 	userInterface, exists := c.Get("user")
@@ -1004,4 +1149,227 @@ func (sc *SSHController) broadcastToMonitorClients(message services.WSMessage) {
 			}
 		}
 	}
+}
+
+// 🆕 会话超时管理控制器方法
+
+// CreateSessionTimeout 创建会话超时配置
+func (sc *SSHController) CreateSessionTimeout(c *gin.Context) {
+	sessionID := c.Param("id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		return
+	}
+
+	var req models.SessionTimeoutCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	// 设置会话ID
+	req.SessionID = sessionID
+
+	// 获取超时服务
+	timeoutService := sc.sshService.GetTimeoutService()
+	if timeoutService == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		return
+	}
+
+	// 创建超时配置
+	timeout, err := timeoutService.CreateTimeout(&req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create timeout configuration: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Timeout configuration created successfully",
+		"data":    timeout.ToResponse(),
+	})
+}
+
+// GetSessionTimeout 获取会话超时配置
+func (sc *SSHController) GetSessionTimeout(c *gin.Context) {
+	sessionID := c.Param("id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		return
+	}
+
+	// 获取超时服务
+	timeoutService := sc.sshService.GetTimeoutService()
+	if timeoutService == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		return
+	}
+
+	// 获取超时配置
+	timeout, err := timeoutService.GetTimeout(sessionID)
+	if err != nil {
+		if err.Error() == "timeout configuration not found: record not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Timeout configuration not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get timeout configuration: " + err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Timeout configuration retrieved successfully",
+		"data":    timeout.ToResponse(),
+	})
+}
+
+// UpdateSessionTimeout 更新会话超时配置
+func (sc *SSHController) UpdateSessionTimeout(c *gin.Context) {
+	sessionID := c.Param("id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		return
+	}
+
+	var req models.SessionTimeoutUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	// 获取超时服务
+	timeoutService := sc.sshService.GetTimeoutService()
+	if timeoutService == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		return
+	}
+
+	// 更新超时配置
+	timeout, err := timeoutService.UpdateTimeout(sessionID, &req)
+	if err != nil {
+		if err.Error() == "timeout configuration not found: record not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Timeout configuration not found"})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to update timeout configuration: " + err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Timeout configuration updated successfully",
+		"data":    timeout.ToResponse(),
+	})
+}
+
+// DeleteSessionTimeout 删除会话超时配置
+func (sc *SSHController) DeleteSessionTimeout(c *gin.Context) {
+	sessionID := c.Param("id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		return
+	}
+
+	// 获取超时服务
+	timeoutService := sc.sshService.GetTimeoutService()
+	if timeoutService == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		return
+	}
+
+	// 删除超时配置
+	err := timeoutService.DeleteTimeout(sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete timeout configuration: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Timeout configuration deleted successfully"})
+}
+
+// ExtendSessionTimeout 延长会话超时时间
+func (sc *SSHController) ExtendSessionTimeout(c *gin.Context) {
+	sessionID := c.Param("id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		return
+	}
+
+	var req models.SessionTimeoutExtendRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	// 获取超时服务
+	timeoutService := sc.sshService.GetTimeoutService()
+	if timeoutService == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		return
+	}
+
+	// 延长超时时间
+	timeout, err := timeoutService.ExtendTimeout(sessionID, &req)
+	if err != nil {
+		if err.Error() == "timeout configuration not found: record not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Timeout configuration not found"})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to extend timeout: " + err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Timeout configuration updated successfully",
+		"data":    timeout.ToResponse(),
+	})
+}
+
+// UpdateSessionActivity 更新会话活动时间
+func (sc *SSHController) UpdateSessionActivity(c *gin.Context) {
+	sessionID := c.Param("id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		return
+	}
+
+	// 获取超时服务
+	timeoutService := sc.sshService.GetTimeoutService()
+	if timeoutService == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		return
+	}
+
+	// 更新活动时间
+	err := timeoutService.UpdateActivity(sessionID)
+	if err != nil {
+		// 如果没有超时配置，这不算错误（某些会话可能没有配置超时）
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Activity updated (no timeout configuration found)",
+			"warning": true,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Activity updated successfully"})
+}
+
+// GetTimeoutStats 获取超时服务统计信息（管理员权限）
+func (sc *SSHController) GetTimeoutStats(c *gin.Context) {
+	// 获取超时服务
+	timeoutService := sc.sshService.GetTimeoutService()
+	if timeoutService == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		return
+	}
+
+	// 获取统计信息
+	stats, err := timeoutService.GetStats()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get timeout stats: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Timeout statistics retrieved successfully",
+		"data":    stats,
+	})
 }

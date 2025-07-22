@@ -821,6 +821,47 @@ func (a *AuditService) UpdateOperationLogSessionID(userID uint, path, sessionID 
 	return nil
 }
 
+// UpdateOperationLogWithResourceInfo 更新操作日志的SessionID和ResourceID以及详细信息
+func (a *AuditService) UpdateOperationLogWithResourceInfo(userID uint, path, sessionID string, resourceID uint, resourceInfo string, timestamp time.Time) error {
+	if sessionID == "" {
+		return fmt.Errorf("sessionID cannot be empty")
+	}
+
+	// 构建更新字段
+	updates := map[string]interface{}{
+		"session_id":  sessionID,
+		"resource_id": resourceID,
+	}
+	
+	// 如果有资源信息，更新message字段
+	if resourceInfo != "" {
+		updates["message"] = resourceInfo
+	}
+
+	// 更新最近创建的相关操作日志记录
+	result := a.db.Model(&models.OperationLog{}).
+		Where("user_id = ? AND url = ? AND (session_id = '' OR session_id IS NULL) AND created_at >= ?", 
+			userID, path, timestamp.Add(-1*time.Minute)).
+		Updates(updates)
+
+	if result.Error != nil {
+		logrus.WithError(result.Error).
+			WithField("sessionID", sessionID).
+			WithField("resourceID", resourceID).
+			Error("Failed to update operation log with resource info")
+		return result.Error
+	}
+
+	if result.RowsAffected > 0 {
+		logrus.WithField("sessionID", sessionID).
+			WithField("resourceID", resourceID).
+			WithField("rowsAffected", result.RowsAffected).
+			Debug("Successfully updated operation log with resource info")
+	}
+
+	return nil
+}
+
 // CleanupAuditLogs 清理过期的审计日志
 func (a *AuditService) CleanupAuditLogs() error {
 	retentionDays := config.GlobalConfig.Audit.RetentionDays
