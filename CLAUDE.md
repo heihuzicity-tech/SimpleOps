@@ -41,10 +41,12 @@ ALL Kiro SPECS commands MUST start with `/kiro` prefix for precise recognition a
 /kiro save-progress           # Manually save current task progress
 ```
 
-#### Change Management
+#### Change Management & Problem Resolution
 ```bash
-# Intelligent change (recommended)
+# Intelligent change and problem resolution
 /kiro change [feature_name] [description]    # Smart change analysis and handling
+/kiro fix [feature_name] [problem_description] # Fix bugs and problems with task sync
+/kiro fix [problem_description]              # Fix problems (auto-detect current feature)
 /kiro undo [feature_name]                    # Undo recent changes
 
 # Professional change commands
@@ -87,6 +89,7 @@ Solves AI forgetfulness of database tables, tech stack, etc.
 
 **File Location**: `.specs/project-info.md`
 **Auto-reference**: AI automatically uses this info for feature suggestions
+**Session Loading**: Every `/kiro` command auto-loads this file for context continuity
 
 ## Session Recovery Mechanism
 
@@ -157,11 +160,12 @@ Solves context exhaustion during task execution.
 **Objective**: Transform ideas into structured requirements
 
 **Process**:
-1. Check project info exists (prompt `/kiro save-info` if missing)
-2. Execute safety checks (backup DB, create git branch)
-3. Collect requirements via structured Q&A in Chinese
-4. Generate requirements document
-5. Request approval: "需求看起来如何？如果满意，我们可以进入设计阶段。"
+1. **Auto-load context**: Read `.specs/project-info.md` for existing project knowledge
+2. Check project info exists (prompt `/kiro save-info` if missing)
+3. Execute safety checks (backup DB, create git branch)
+4. Collect requirements via structured Q&A in Chinese
+5. Generate requirements document
+6. Request approval: "需求看起来如何？如果满意，我们可以进入设计阶段。"
 
 **Output**: `.specs/{feature_name}/requirements.md`
 ```markdown
@@ -456,26 +460,53 @@ This feature consists of [X] major modules and is estimated to take [Y] working 
 - **Requirements unclear**: Point out issues, ask clarification questions
 - **Design changes needed**: Explain necessity, analyze impact, suggest revision
 - **Data operations**: Mandatory confirmation flow for dangerous operations
+- **Problem fixing**: Use `/kiro fix` to maintain task synchronization and progress tracking
 
-## Change Management Workflow
+## Change Management & Problem Resolution Workflow
 
 ### Intelligent Change Processing
 **Core concept**: User expresses ideas, AI determines document updates
 
-**Simplified command**: `/kiro change [feature] [description]`
+**Change command**: `/kiro change [feature] [description]`
+**Fix command**: `/kiro fix [feature] [problem_description]` or `/kiro fix [problem_description]`
 
-**AI Flow**:
-1. **Analyze change type**: Requirements/Design/Tasks level impact
+### Fix Command Processing Flow
+1. **Auto-detect current feature** (if feature_name omitted)
+2. **Identify affected tasks**: Analyze which completed tasks are impacted
+3. **Mark problem tasks**: Change status from `[x]` to `[!]` (has issues)
+4. **Generate fix sub-tasks**: Create specific fix actions under affected tasks
+5. **Update progress tracking**: Recalculate completion statistics
+6. **Sync task document**: Ensure `.specs/{feature_name}/tasks.md` reflects current state
+7. **Add to change log**: Record problem description, fix actions, and timeline
+
+### AI Processing Options
+1. **Analyze impact type**: Requirements/Design/Tasks level impact
 2. **Processing options**: 
    - A: One-click intelligent update (recommended)
    - B: Step-by-step confirmation
    - C: View impact analysis only
 3. **Execute update**: Backup → Update docs → Recalculate progress → Report
 
-### Scenario Examples
+### Command Usage Scenarios
+
+#### Change vs Fix Commands
+**Use `/kiro change` for:**
+- New feature requirements
+- Business logic modifications  
+- Design specification changes
+- Feature scope expansions
+
+**Use `/kiro fix` for:**
+- Bug fixes after testing
+- User-reported problems
+- Performance issues
+- Incorrect functionality corrections
+
+#### Scenario Examples
 - **Requirements change**: Pause task, analyze impact, confirm execution
 - **Design adjustment**: Record change, assess technical impact, sync updates
 - **Task reorganization**: Status snapshot, reorganization plan, recalculate progress
+- **Problem fix**: Mark affected tasks as `[!]`, add fix sub-tasks, update progress
 
 ### Synchronization Commands
 - `/kiro sync-all [feature]`: Full document consistency check and update
@@ -514,10 +545,18 @@ This feature consists of [X] major modules and is estimated to take [Y] working 
 
 ## Command Processing Rules
 1. **Immediate Recognition**: Detect `/kiro` → Switch to SPECS mode
-2. **Parameter Parsing**: Extract feature_name, task_id, parameters
-3. **Context Loading**: Auto-load relevant SPECS documents
-4. **Action Execution**: Perform requested action
-5. **Status Reporting**: Provide clear feedback
+2. **Auto Context Loading**: Check and load `.specs/project-info.md` if exists
+3. **Parameter Parsing**: Extract feature_name, task_id, parameters
+4. **Document Loading**: Auto-load relevant SPECS documents
+5. **Action Execution**: Perform requested action
+6. **Status Reporting**: Provide clear feedback
+
+### Auto Context Loading Protocol
+**Every `/kiro` command MUST first execute:**
+1. **Check project root**: Verify current directory contains `.specs/` folder
+2. **Load project info**: Auto-read `.specs/project-info.md` if exists
+3. **Load current context**: Check for active features and progress files
+4. **Directory safety**: Ensure operations happen in project root directory
 
 ## Usage Examples
 
@@ -534,6 +573,12 @@ This feature consists of [X] major modules and is estimated to take [Y] working 
 # → Intelligent analysis → Impact assessment → Document updates
 ```
 
+### Problem Fixing
+```bash
+/kiro fix "Login page redirects to wrong dashboard after successful authentication"
+# → Auto-detect feature → Mark related tasks as [!] → Add fix sub-tasks → Update progress
+```
+
 ### Session Recovery
 ```bash
 /kiro resume  # Auto-detect and resume interrupted task
@@ -547,6 +592,7 @@ This feature consists of [X] major modules and is estimated to take [Y] working 
 - File operation toolset dependent
 - User instruction triggered
 - Long-term collaboration support
+- **Context continuity**: Auto-load project info across sessions
 
 ### Recommendations
 - Write workflow state to tasks.md
@@ -554,6 +600,14 @@ This feature consists of [X] major modules and is estimated to take [Y] working 
 - Use clear command formats
 - Keep documents synchronized
 - Careful phase review
+- **Ensure project-info.md exists**: Critical for cross-session context continuity
+
+### Session Continuity Protocol
+**For new sessions:**
+1. First `/kiro` command auto-detects project root
+2. Auto-loads `.specs/project-info.md` for context
+3. Scans for active features in `.specs/` subdirectories
+4. Provides session startup summary with available features
 
 ### Common Mistakes to Avoid
 - ❌ Skipping phases
