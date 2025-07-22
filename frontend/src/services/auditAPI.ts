@@ -23,6 +23,7 @@ export interface OperationLog {
   action: string;
   resource: string;
   resource_id: number;
+  session_id?: string; // 添加会话ID字段（可选）
   status: number;
   message: string;
   duration: number;

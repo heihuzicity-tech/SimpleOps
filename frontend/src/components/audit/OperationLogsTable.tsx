@@ -500,8 +500,18 @@ const OperationLogsTable: React.FC<OperationLogsTableProps> = ({ className }) =>
                 <Tag color="cyan">{selectedLog.resource}</Tag>
               </Col>
               <Col span={12}>
-                <Text strong>资源ID：</Text>
-                <Text>{selectedLog.resource_id || '-'}</Text>
+                <Text strong>{selectedLog.session_id ? '会话ID' : '资源ID'}：</Text>
+                <Text>
+                  {(() => {
+                    try {
+                      return selectedLog.session_id || 
+                             (selectedLog.resource_id ? selectedLog.resource_id.toString() : '-');
+                    } catch (error) {
+                      console.error('Error accessing log fields:', error);
+                      return '-';
+                    }
+                  })()}
+                </Text>
               </Col>
               <Col span={12}>
                 <Text strong>请求方法：</Text>

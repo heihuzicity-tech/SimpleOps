@@ -516,6 +516,7 @@ type OperationLog struct {
 	Action       string         `json:"action" gorm:"size:50;not null"`
 	Resource     string         `json:"resource" gorm:"size:50"`
 	ResourceID   uint           `json:"resource_id" gorm:"index"`
+	SessionID    string         `json:"session_id" gorm:"size:100;index"` // 新增：完整会话标识符
 	Status       int            `json:"status" gorm:"not null"`
 	Message      string         `json:"message" gorm:"type:text"`
 	RequestData  string         `json:"request_data" gorm:"type:text"`
@@ -660,6 +661,7 @@ type OperationLogResponse struct {
 	Action     string    `json:"action"`
 	Resource   string    `json:"resource"`
 	ResourceID uint      `json:"resource_id"`
+	SessionID  string    `json:"session_id"` // 添加会话ID字段
 	Status     int       `json:"status"`
 	Message    string    `json:"message"`
 	Duration   int64     `json:"duration"`
@@ -762,6 +764,7 @@ func (o *OperationLog) ToResponse() *OperationLogResponse {
 		Action:     o.Action,
 		Resource:   o.Resource,
 		ResourceID: o.ResourceID,
+		SessionID:  o.SessionID, // 添加SessionID字段映射
 		Status:     o.Status,
 		Message:    o.Message,
 		Duration:   o.Duration,
