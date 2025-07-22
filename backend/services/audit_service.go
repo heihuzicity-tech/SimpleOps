@@ -115,7 +115,7 @@ func (a *AuditService) GetLoginLogs(req *models.LoginLogListRequest) ([]*models.
 // ======================== 操作日志相关 ========================
 
 // RecordOperationLog 记录操作日志
-func (a *AuditService) RecordOperationLog(userID uint, username, ip, method, url, action, resource string, resourceID uint, status int, message string, requestData, responseData interface{}, duration int64, isSystemOperation bool) error {
+func (a *AuditService) RecordOperationLog(userID uint, username, ip, method, url, action, resource string, resourceID uint, sessionID string, status int, message string, requestData, responseData interface{}, duration int64, isSystemOperation bool) error {
 	if !config.GlobalConfig.Audit.EnableOperationLog {
 		return nil
 	}
@@ -146,6 +146,7 @@ func (a *AuditService) RecordOperationLog(userID uint, username, ip, method, url
 		Action:       action,
 		Resource:     resource,
 		ResourceID:   resourceID,
+		SessionID:    sessionID, // 新增：记录完整会话标识符
 		Status:       status,
 		Message:      message,
 		RequestData:  reqData,
@@ -578,8 +579,10 @@ func (a *AuditService) LogMiddleware() gin.HandlerFunc {
 
 		// 获取请求数据
 		var requestData interface{}
+		var requestBody []byte
 		if c.Request.Method != "GET" && c.Request.ContentLength > 0 {
 			if body, err := c.GetRawData(); err == nil {
+				requestBody = body
 				json.Unmarshal(body, &requestData)
 				// 重新设置请求体供后续处理
 				c.Request.Body = utils.ResetRequestBody(c.Request, body)
@@ -610,8 +613,11 @@ func (a *AuditService) LogMiddleware() gin.HandlerFunc {
 		// 获取客户端IP
 		ip := c.ClientIP()
 
-		// 解析操作类型和资源
-		action, resource := a.parseActionAndResource(c.Request.Method, c.Request.URL.Path)
+		// 解析操作类型、资源和资源ID
+		action, resource, resourceID := a.parseResourceInfo(c.Request.Method, c.Request.URL.Path, string(requestBody))
+		
+		// 提取SessionID（主要用于SSH会话）
+		sessionID := a.extractSessionIDFromContext(c, resource)
 
 		// 获取响应数据
 		var responseData interface{}
@@ -637,7 +643,8 @@ func (a *AuditService) LogMiddleware() gin.HandlerFunc {
 			c.Request.URL.Path,
 			action,
 			resource,
-			0, // ResourceID 需要从路径中解析
+			resourceID, // 智能解析的ResourceID
+			sessionID,  // 完整会话标识符
 			c.Writer.Status(),
 			"",
 			requestData,
@@ -648,12 +655,18 @@ func (a *AuditService) LogMiddleware() gin.HandlerFunc {
 	}
 }
 
-// parseActionAndResource 解析操作类型和资源
+// parseActionAndResource 解析操作类型和资源（保持向后兼容）
 func (a *AuditService) parseActionAndResource(method, path string) (string, string) {
+	action, resource, _ := a.parseResourceInfo(method, path, "")
+	return action, resource
+}
+
+// parseResourceInfo 解析操作类型、资源和资源ID
+func (a *AuditService) parseResourceInfo(method, path, requestBody string) (string, string, uint) {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
 	if len(parts) < 3 {
-		return "unknown", "unknown"
+		return "unknown", "unknown", 0
 	}
 
 	// 对于 /api/v1/assets/ 格式，资源名称在第3个位置（索引2）
@@ -664,28 +677,104 @@ func (a *AuditService) parseActionAndResource(method, path string) (string, stri
 		// /api/v1/audit/operation-logs -> operation-logs
 		resource = parts[3]
 	}
+	
+	// 处理SSH会话特殊情况：ssh/sessions -> session
+	if len(parts) >= 4 && parts[2] == "ssh" && parts[3] == "sessions" {
+		resource = "session"
+	}
 
-	// 特殊路径处理：根据路径内容判断实际操作类型
+	// 简化：ResourceID统一设为0，不进行复杂解析
+	resourceID := uint(0)
+
+	// 简化：使用标准HTTP方法映射
+	action := a.determineAction(method, path)
+	
+	return action, resource, resourceID
+}
+
+// determineAction 确定操作类型
+func (a *AuditService) determineAction(method, path string) string {
+	// 特殊路径处理
 	if strings.Contains(path, "/delete") {
-		return "delete", resource
+		return "delete"
 	}
 	if strings.Contains(path, "/archive") {
-		return "archive", resource
+		return "archive"
+	}
+	if strings.Contains(path, "test-connection") {
+		return "test"
 	}
 	
 	// 标准HTTP方法处理
 	switch method {
 	case "GET":
-		return "read", resource
+		return "read"
 	case "POST":
-		return "create", resource
+		return "create"
 	case "PUT":
-		return "update", resource
+		return "update"
 	case "DELETE":
-		return "delete", resource
+		return "delete"
+	case "PATCH":
+		return "update"
 	default:
-		return "unknown", resource
+		return "unknown"
 	}
+}
+
+
+// extractSessionIDFromContext 从Gin上下文中提取SessionID
+func (a *AuditService) extractSessionIDFromContext(c *gin.Context, resource string) string {
+	// 只对session类型的资源提取SessionID
+	if resource != "session" {
+		return ""
+	}
+	
+	// 尝试从响应中提取SessionID (针对SSH会话创建)
+	if c.Writer.Status() >= 200 && c.Writer.Status() < 300 {
+		// 这里需要从响应体中解析SessionID，但由于响应已经写入，
+		// 我们采用延迟更新的方式，先返回空，后续通过UpdateOperationLogSessionID更新
+		return ""
+	}
+	
+	// 从请求参数或路径中提取SessionID（针对会话操作）
+	if sessionID := c.Param("sessionId"); sessionID != "" {
+		return sessionID
+	}
+	if sessionID := c.Query("sessionId"); sessionID != "" {
+		return sessionID
+	}
+	
+	return ""
+}
+
+// UpdateOperationLogSessionID 更新操作日志的SessionID
+func (a *AuditService) UpdateOperationLogSessionID(userID uint, path, sessionID string, timestamp time.Time) error {
+	if sessionID == "" {
+		return fmt.Errorf("sessionID cannot be empty")
+	}
+
+	// 更新最近创建的相关操作日志记录
+	// 查找最近1分钟内的相关记录并更新SessionID（不更新ResourceID）
+	result := a.db.Model(&models.OperationLog{}).
+		Where("user_id = ? AND url = ? AND (session_id = '' OR session_id IS NULL) AND created_at >= ?", 
+			userID, path, timestamp.Add(-1*time.Minute)).
+		Update("session_id", sessionID)
+
+	if result.Error != nil {
+		logrus.WithError(result.Error).
+			WithField("sessionID", sessionID).
+			Error("Failed to update operation log session ID")
+		return result.Error
+	}
+
+	if result.RowsAffected > 0 {
+		logrus.WithField("sessionID", sessionID).
+			WithField("rowsAffected", result.RowsAffected).
+			Debug("Successfully updated operation log session ID")
+	}
+
+	return nil
 }
 
 // CleanupAuditLogs 清理过期的审计日志
@@ -749,6 +838,7 @@ func (a *AuditService) DeleteSessionRecord(sessionID, username, ip, reason strin
 		"delete",
 		"session_record",
 		uint(sessionRecord.ID),
+		sessionID, // 记录被删除的会话ID
 		200,
 		fmt.Sprintf("删除会话记录: %s, 原因: %s", sessionID, reason),
 		nil,
@@ -814,6 +904,7 @@ func (a *AuditService) BatchDeleteSessionRecords(sessionIDs []string, username, 
 			"batch_delete",
 			"session_record",
 			uint(record.ID),
+			record.SessionID, // 记录被删除的会话ID
 			200,
 			fmt.Sprintf("批量删除会话记录: %s, 原因: %s", record.SessionID, reason),
 			nil,

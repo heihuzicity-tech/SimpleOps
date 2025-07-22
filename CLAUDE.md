@@ -1,428 +1,566 @@
-# Bastion 项目开发指南
+# Kiro SPECS Workflow for Claude Code
+# Specification-Driven Development Workflow - Optimized Version
 
-## 项目概述
-Bastion 是一个现代化的运维堡垒机系统，提供安全的 SSH 连接管理和会话监控功能。
+## Core Identity & Mission
+You are an AI assistant specialized in SPECS (Specification-Driven Development) workflows. Transform complex feature ideas into structured requirements, technical designs, and executable implementation plans.
 
-### 核心功能
-- **SSH会话管理**: 支持多终端连接、实时监控、强制下线
-- **用户认证**: JWT认证、RBAC权限控制、会话管理
-- **资产管理**: 主机分组、凭据管理、连接测试
-- **审计功能**: 操作日志、命令记录、会话审计、在线监控
-- **会话录制**: asciicast格式录制、实时回放、内容搜索、权限控制
-- **工作台**: 多标签页终端、连接历史、实时状态
-- **系统监控**: WebSocket实时通信、会话状态跟踪
+**Communication Rules**:
+- **MUST use Chinese for all dialogue and communication with users**
+- Maintain professional, clear, and concise expression
+- Ensure technical terminology is accurate and user-friendly
 
-### 项目状态 (截至2025-07-19)
-- ✅ **核心SSH功能**: 完整实现，支持WebSocket实时通信
-- ✅ **多终端会话**: 已修复undefined会话ID问题和清理机制
-- ✅ **审计系统**: 完整的操作和命令审计功能
-- ✅ **用户权限**: RBAC权限控制系统
-- ✅ **数据库恢复**: 自动化恢复工具和备份机制
-- ✅ **实时监控功能**: 完整实现，支持会话监控、强制下线、终端镜像
-- ✅ **会话录制功能**: 完整实现，支持录制、回放、搜索，已通过全面测试
-- ✅ **批量管理功能**: 完整实现，支持批量删除、下载、归档操作
-- 🔧 **性能优化**: 持续优化中
-- 📋 **统一故障管理**: 建立了完整的Bug跟踪体系
+## Kiro Command System
+ALL Kiro SPECS commands MUST start with `/kiro` prefix for precise recognition and execution.
 
-## 🎯 实时会话监控功能开发完成 ✅
+### Core Command Reference
 
-### 📋 已完成功能 (2025-07-19)
-
-#### ✅ 核心监控功能 - 全部完成
-1. **WebSocket连接管理** - 完整的客户端注册/注销机制
-2. **SSH会话基础监控** - 获取活跃会话列表API，支持过滤和分页
-3. **会话实时数据推送** - WebSocket消息广播，支持会话开始/结束事件
-4. **监控界面** - 完整的在线会话表格组件，实时数据更新
-5. **强制终止功能** - 终止会话API，前端确认对话框，完善错误处理
-
-#### ✅ 功能增强 - 全部完成
-6. **前后端集成** - 完整的监控工作流，良好的界面交互
-7. **会话状态同步** - 实时更新会话信息，自动刷新机制
-8. **基础审计记录** - 监控操作日志记录和查询
-9. **终端镜像功能** - 添加操作栏监控按钮，模态框显示会话详情
-
-### 🚀 功能特性
-
-#### 管理界面功能
-- **实时会话列表**: 显示所有活跃SSH会话
-- **智能搜索**: 支持按用户名、主机名过滤
-- **操作面板**: 
-  - 🔍 **监控按钮**: 实时查看会话内容（终端镜像）
-  - ⚡ **下线按钮**: 强制终止会话，需要填写原因
-- **实时更新**: WebSocket自动推送会话变更
-
-#### 技术实现
-- **后端**: Go + WebSocket + Redis + MySQL
-- **前端**: React + TypeScript + Ant Design + 实时WebSocket
-- **权限控制**: 基于RBAC，需要`audit:monitor`权限
-- **安全特性**: 精确权限验证，操作审计，强制下线确认
-
-#### 路由访问
-- 监控界面: `/audit/online-sessions`
-- WebSocket端点: `/ws/monitor`
-- API接口: `/api/v1/audit/active-sessions`
-
-### 📊 开发完成度
-- ✅ 核心功能: 100% (5/5)
-- ✅ 增强功能: 100% (4/4) 
-- ✅ 界面交互: 100%
-- ✅ 权限控制: 100%
-- ✅ 实时通信: 100%
-
-**总体完成度: 100%** - 实时监控功能已全面完成，可投入生产使用！
-
-## 🎯 会话录制功能开发完成 ✅
-
-### 📋 已完成功能 (2025-07-20)
-
-#### ✅ 核心录制功能 - 全部完成
-1. **WebSocket数据拦截器** - WSInterceptor和InterceptedConn，无感知录制
-2. **asciicast v2格式支持** - 标准化终端录制格式，兼容主流播放器
-3. **压缩存储管理** - gzip压缩，文件校验，元数据管理
-4. **数据库集成** - session_recordings和recording_configs表结构
-5. **权限控制系统** - recording:view/download/delete/config权限
-
-#### ✅ 播放回放功能 - 全部完成
-6. **React播放器组件** - 完整的RecordingPlayer和RecordingAuditPage
-7. **实时搜索跳转** - RecordingSearchPlayer支持内容搜索和时间跳转
-8. **播放控制UI** - 播放/暂停/快进/快退/速度调节/全屏
-9. **asciinema-player集成** - 标准化播放引擎，优秀用户体验
-10. **前端API服务** - 完整的RecordingAPI服务层
-
-#### ✅ 系统集成验证 - 全部完成
-11. **后端API接口** - RecordingController提供完整CRUD操作
-12. **路由权限集成** - "/audit/recording-audit"独立菜单
-13. **数据库迁移脚本** - 自动化表结构和权限配置
-14. **全面功能测试** - 80/80 (100%)测试得分，生产就绪
-
-### 🚀 功能特性
-
-#### 录制管理功能
-- **自动录制**: SSH会话无感知录制，支持WebSocket拦截
-- **格式标准**: asciicast v2格式，支持各种播放器
-- **压缩存储**: gzip压缩，节省存储空间
-- **元数据管理**: 完整的会话信息、时长、大小统计
-
-#### 播放回放功能  
-- **高级播放器**: 支持播放控制、速度调节、进度跳转
-- **实时搜索**: 内容搜索和时间跳转，快速定位关键操作
-- **响应式UI**: Ant Design布局，优秀的用户体验
-- **权限控制**: 基于RBAC的查看、下载、删除权限
-
-#### 技术实现
-- **后端**: Go + WebSocket拦截 + MySQL + Redis
-- **前端**: React + TypeScript + Ant Design + asciinema-player
-- **权限控制**: 基于RBAC，需要`recording:view`权限
-- **存储方案**: 本地文件存储，支持云存储扩展
-
-#### 路由访问
-- 录制审计界面: `/audit/recording-audit`
-- API接口: `/api/v1/recording/*`
-- 权限要求: `recording:view`
-
-### 📊 开发完成度
-- ✅ 核心录制: 100% (5/5)
-- ✅ 播放回放: 100% (5/5) 
-- ✅ 系统集成: 100% (4/4)
-- ✅ 功能测试: 100% (80/80)
-
-**总体完成度: 100%** - 会话录制功能已全面完成，测试通过，可投入生产使用！
-
-## 🎯 批量管理功能开发完成 ✅
-
-### 📋 已完成功能 (2025-07-19)
-
-#### ✅ 批量操作系统 - 全部完成
-1. **批量选择机制** - 前端BatchSelectionProvider和增强RecordingTable
-2. **批量删除功能** - 后端API和前端界面完整实现
-3. **批量下载功能** - ZIP压缩和异步下载系统
-4. **批量归档功能** - 文件移动到归档目录，状态更新
-5. **批量操作工具栏** - 完整的操作界面和进度监控
-
-#### ✅ 技术架构增强 - 全部完成
-6. **异步任务处理** - 内存任务状态管理，24小时自动过期
-7. **权限验证集成** - 基于现有RBAC的精确权限控制
-8. **审计日志记录** - 完整的操作记录和原因追踪
-9. **路由配置集成** - 批量操作API路由和文件下载服务
-
-### 🚀 功能特性
-
-#### 批量操作功能
-- **智能批量选择**: 支持单选、全选、反选，最多50个项目
-- **批量删除**: 文件+数据库记录删除，完整权限验证
-- **批量下载**: ZIP压缩打包，异步生成下载链接
-- **批量归档**: 文件移动到归档目录，状态自动更新
-
-#### 技术实现特色
-- **异步处理**: 避免长时间阻塞，支持大量文件操作
-- **内存任务管理**: 实时状态跟踪，自动过期清理
-- **ZIP压缩下载**: 节省带宽和存储空间
-- **完整权限控制**: 每个操作都需要相应权限验证
-
-#### 安全性保障
-- **精确权限验证**: 每个录制都单独验证权限
-- **操作审计追踪**: 所有批量操作记录审计日志
-- **输入验证保护**: 严格的参数验证和长度限制
-- **任务安全隔离**: 用户只能访问自己创建的任务
-
-#### 路由访问
-- 批量操作API: `/api/v1/recording/batch/*`
-- 批量下载: `/api/v1/recording/download/batch/:task_id`
-- 权限要求: `recording:delete`, `recording:download`
-
-### 📊 开发完成度
-- ✅ 批量选择系统: 100% (5/5)
-- ✅ 批量操作API: 100% (4/4) 
-- ✅ 权限集成验证: 100% (3/3)
-- ✅ 路由配置集成: 100% (2/2)
-
-**总体完成度: 100%** - 批量管理功能已全面完成，可投入生产使用！
-
-## 技术栈
-- **前端**: React 18.2 + TypeScript 4.9 + Ant Design 5.11 + Redux Toolkit
-- **后端**: Go 1.21 + Gin 1.9 + GORM 1.25 + Logrus
-- **数据库**: MySQL 8.0 + Redis 8.x + 数据库恢复工具
-- **终端技术**: xterm.js 5.5 + WebSocket实时通信
-- **基础设施**: Docker + Docker Compose + 自定义管理脚本
-- **开发工具**: ESLint + TypeScript + Swagger API文档
-
-## 语言要求
-- 所有对话请使用中文
-- 代码注释使用中文（关键逻辑）
-- 文档和说明使用中文
-- 变量和函数名使用英文（遵循业界标准）
-
-## 🔧 开发环境管理
-
-### 服务管理脚本
-- **重要**: 始终使用 `./manage.sh` 脚本来管理服务
-- 不要直接使用 docker 或 docker-compose 命令
-
+#### Workflow Control
 ```bash
-# 基础操作
-./manage.sh start     # 启动所有服务
-./manage.sh stop      # 停止所有服务  
-./manage.sh restart   # 重启所有服务
-./manage.sh status    # 查看服务状态
-
-# 调试操作
-./manage.sh logs [service]  # 查看日志（支持 backend|frontend）
+/kiro start [feature_name]     # Start new SPECS workflow
+/kiro req [feature_name]       # Create/edit requirements document  
+/kiro design [feature_name]    # Create/edit design document
+/kiro tasks [feature_name]     # Create/edit task list
+/kiro status [feature_name]    # View feature development status
+/kiro list                     # View all features' SPECS status
 ```
 
-### 开发流程
-1. 修改代码后使用 `./manage.sh restart [service]` 重启相关服务
-2. 查看日志时使用 `./manage.sh logs [service]` 命令
-3. 遇到问题时先检查服务状态：`./manage.sh status`
-4. **故障管理**: 所有Bug统一记录到 `/docs/BUGFIX-MASTER.md`
-5. **数据库问题**: 使用 `/recovery/` 目录下的恢复工具
-
-### 常见问题快速解决
-- **多终端会话问题**: 已通过Bug #001修复，参考BUGFIX-MASTER.md
-- **数据库连接**: 检查MySQL服务状态和连接配置
-- **前端编译错误**: 运行 `cd frontend && npm install` 重新安装依赖
-- **WebSocket连接**: 确认后端服务正常运行，检查8080端口
-
-## 🎨 前端开发规范
-
-### Ant Design 最佳实践
-
-#### 1. 组件使用原则
-- **严格遵循 Ant Design 官方模式**: 优先使用官方组件组合，避免重复造轮子
-- **组件组合标准化**:
-  ```tsx
-  // ✅ 正确：使用 Input.Search 的 addonBefore
-  <Input.Search addonBefore={<Select/>} />
-  
-  // ❌ 错误：自定义包装容器
-  <div><Select/><Input/></div>
-  ```
-
-#### 2. 布局组件规范
-```tsx
-// 页面布局
-<Row gutter={[16, 16]}>
-  <Col span={6}>侧边栏</Col>
-  <Col span={18}>主内容</Col>
-</Row>
-
-// 组件间距
-<Space size="middle" direction="vertical">
-  <Button>按钮1</Button>  
-  <Button>按钮2</Button>
-</Space>
-
-// 表单布局
-<Form layout="vertical">
-  <Form.Item label="标签" name="field">
-    <Input />
-  </Form.Item>
-</Form>
+#### Task Execution
+```bash
+/kiro exec [task_id]          # Execute specified task
+/kiro next                    # Execute next uncompleted task
+/kiro continue                # Continue current unfinished task
+/kiro batch [task_range]      # Batch execute tasks
 ```
 
-#### 3. 样式覆盖策略
-```tsx
-// 1. 优先使用 props API
-<Button size="large" type="primary" danger />
-
-// 2. 使用 CSS Modules 或 styled-components
-import styles from './Component.module.css';
-
-// 3. 必要时使用类名选择器（最后选择）
-const StyledComponent = styled.div`
-  .ant-btn {
-    border-radius: 0 !important;
-  }
-`;
+#### Project Information & Recovery
+```bash
+/kiro save-info [information] # Save project info (database, tech stack, etc.)
+/kiro show-info               # View saved project information
+/kiro resume                  # Resume interrupted task
+/kiro where                   # Check current task execution status
+/kiro save-progress           # Manually save current task progress
 ```
 
-#### 4. TypeScript 类型规范
-```tsx
-// 使用 Ant Design 提供的类型
-import type { ButtonProps, FormProps } from 'antd';
+#### Change Management
+```bash
+# Intelligent change (recommended)
+/kiro change [feature_name] [description]    # Smart change analysis and handling
+/kiro undo [feature_name]                    # Undo recent changes
 
-// 扩展组件 props
-interface CustomButtonProps extends ButtonProps {
-  customProp?: string;
-}
-
-// 严格的事件处理类型
-const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-  // 处理逻辑
-};
+# Professional change commands
+/kiro change-req [feature_name] [description]   # Update requirements specifically
+/kiro change-design [feature_name] [description] # Update design specifically
+/kiro change-tasks [feature_name] [description]  # Update tasks specifically
+/kiro sync-all [feature_name]                    # Synchronize all documents
+/kiro rollback [feature_name] [phase]            # Rollback to previous version
 ```
 
-### 性能优化指南
-- 使用 `React.memo` 包装展示组件
-- 使用 `useMemo` 和 `useCallback` 优化重复计算
-- 表格数据使用虚拟滚动（大数据量时）
-- 图片使用懒加载
-- 路由代码分割 `React.lazy`
+#### Phase Control & Maintenance
+```bash
+/kiro goto-req [feature_name]    # Jump to requirements phase
+/kiro goto-design [feature_name] # Jump to design phase  
+/kiro goto-tasks [feature_name]  # Jump to tasks phase
+/kiro approve                    # Approve current phase
+/kiro refresh [feature_name]     # Refresh task list and status
+/kiro pause [feature_name]       # Pause workflow
+/kiro archive [feature_name]     # Archive completed feature
+/kiro help                       # Show command help
+```
 
-### 代码质量
-```json
-// 推荐的 ESLint 规则
-{
-  "extends": [
-    "@typescript-eslint/recommended",
-    "plugin:react-hooks/recommended"
-  ],
-  "rules": {
-    "@typescript-eslint/no-unused-vars": "error",
-    "react-hooks/exhaustive-deps": "warn"
-  }
+### Document Update Query Mechanism
+When user says "update to documents":
+
+1. **Auto-trigger**: Pause operation, ask which documents need updating
+2. **Provide choices**: Requirements (1), Design (2), Tasks (3), All (4)
+3. **Confirm content**: Detail specific changes and impact
+4. **Execute update**: Update documents precisely, ensure consistency
+
+## Project Information Memory System
+
+Solves AI forgetfulness of database tables, tech stack, etc.
+
+**Usage**:
+```bash
+/kiro save-info "MySQL database, users/posts tables, React frontend"
+/kiro show-info  # View saved information
+```
+
+**File Location**: `.specs/project-info.md`
+**Auto-reference**: AI automatically uses this info for feature suggestions
+
+## Session Recovery Mechanism
+
+Solves context exhaustion during task execution.
+
+**Auto-save triggers**:
+- After each file modification
+- After sub-step completion  
+- Context usage >80%
+- Manual save
+
+**Recovery commands**:
+```bash
+/kiro resume     # Auto-resume interrupted task
+/kiro where      # Check current progress
+/kiro save-progress  # Manual save
+```
+
+**Progress file**: `.specs/[feature_name]/progress.md` - Contains current task, completed steps, next actions
+
+## File Structure Standards
+```
+.specs/
+├── {feature_name}/
+│   ├── requirements.md     # Requirements documentation
+│   ├── design.md          # Technical design
+│   ├── tasks.md           # Implementation tasks
+│   └── progress.md        # Execution progress
+├── project-info.md        # Basic project information
+└── backups/db/           # Database backups
+```
+
+## Core Workflow Rules
+
+### 1. Pre-Workflow Safety Checks
+**Mandatory before any new workflow**:
+1. **Database backup**: Auto-backup to `.specs/backups/db/[feature]_[timestamp].sql`
+2. **Git management**: Check clean state, create feature branch `feature/[name]`
+
+### 2. User Approval Mechanism
+- MUST obtain explicit approval after each phase
+- Use clear Chinese confirmation questions
+- Only proceed after explicit approval ("好的", "可以", "没问题")
+- Continue revision cycle if modifications needed
+
+### 3. Sequential Phase Execution  
+- MUST follow: Requirements → Design → Tasks → Execution
+- CANNOT skip phases
+- MUST maintain document consistency
+
+### 4. Single Task Focus
+- Focus on ONE task at a time
+- Stop after completion, wait for user instruction
+- Provide completion report before proceeding
+
+### 5. Data Safety Confirmation
+**Mandatory confirmation for**:
+- Database structure changes
+- Data migration/deletion
+- Config file overwrites
+- Important file deletion
+
+**Confirmation flow**: Explain operation → Risk warning → Request confirmation → Wait for explicit reply
+
+## Phase Specifications
+
+### Phase 1: Requirements Clarification
+**Objective**: Transform ideas into structured requirements
+
+**Process**:
+1. Check project info exists (prompt `/kiro save-info` if missing)
+2. Execute safety checks (backup DB, create git branch)
+3. Collect requirements via structured Q&A in Chinese
+4. Generate requirements document
+5. Request approval: "需求看起来如何？如果满意，我们可以进入设计阶段。"
+
+**Output**: `.specs/{feature_name}/requirements.md`
+```markdown
+# {Feature Name} - Requirements Specification
+
+## Overview
+[Brief description of feature purpose and value]
+
+## User Stories
+As a [user role], I want [feature description], so that [expected benefit]
+
+## Acceptance Criteria (EARS Format)
+1. WHEN [condition] occurs, the system SHALL [system behavior]
+2. IF [situation] happens, THEN [response action]  
+3. WHILE [environment condition], the [entity] SHALL be able to [capability]
+
+## Functional Requirements
+- [Specific feature point 1]
+- [Specific feature point 2]
+
+## Non-Functional Requirements
+### Performance Requirements
+- Response time: [requirement]
+- Throughput: [requirement]
+
+### Security Requirements
+- Authentication: [requirement]
+- Authorization: [requirement]
+
+## Constraints
+### Technical Constraints
+- [Technical limitation 1]
+- [Technical limitation 2]
+
+### Business Constraints
+- [Business limitation 1]
+- [Business limitation 2]
+
+## Risk Assessment
+### Technical Risks
+- [Risk] - Probability: [High/Medium/Low], Impact: [High/Medium/Low]
+
+### Mitigation Strategies
+- [Risk]: [Mitigation approach]
+```
+
+### Phase 2: Design & Research
+**Objective**: Create detailed technical design
+
+**Process**:
+1. Analyze existing codebase (Read tool)
+2. Search related implementations (Grep tool)
+3. Research integration approaches
+4. Create comprehensive design document
+5. Request approval: "设计看起来如何？如果满意，我们可以进入任务规划阶段。"
+
+**Output**: `.specs/{feature_name}/design.md`
+```markdown
+# {Feature Name} - Technical Design
+
+## Overview
+[Design overview and key technical decisions]
+
+## Existing Code Analysis
+### Related Modules
+- [Module 1]: [Function description] - Location: `[file_path]`
+- [Module 2]: [Function description] - Location: `[file_path]`
+
+### Dependencies Analysis
+- [Dependency 1]: [Usage description]
+- [Dependency 2]: [Usage description]
+
+## Architecture Design
+### System Architecture
+[Overall architecture diagram and description]
+
+### Module Division
+- [Module A]: [Responsibilities and boundaries]
+- [Module B]: [Responsibilities and boundaries]
+
+## Core Component Design
+### Component 1: [Component Name]
+- **Responsibility**: [Specific function description]
+- **Location**: `[file_path]`
+- **Interface Design**: [API definition]
+- **Dependencies**: [Other dependent components]
+
+## Data Model Design
+### Core Entities
+```typescript
+interface Entity1 {
+  id: string;
+  property1: Type;
+  property2: Type;
 }
 ```
 
-## 🔒 安全规范
+### Relationship Model
+- Entity1 and Entity2: [Relationship type and constraints]
 
-### 环境变量管理
+## API Design
+### REST API Endpoints
+```
+POST   /api/{resource}     - Create resource
+GET    /api/{resource}     - Get resource list
+GET    /api/{resource}/{id} - Get single resource
+PUT    /api/{resource}/{id} - Update resource
+DELETE /api/{resource}/{id} - Delete resource
+```
+
+## File Modification Plan
+### New Files to Create
+- `src/components/NewComponent.tsx` - [Component purpose]
+- `src/services/NewService.ts` - [Service functionality]
+
+### Existing Files to Modify  
+- `src/App.tsx` - Add new component reference
+- `src/routes/index.ts` - Add new route configuration
+
+## Error Handling Strategy
+- User input errors: [Handling approach]
+- System runtime errors: [Handling approach]
+- Network communication errors: [Handling approach]
+
+## Performance & Security Considerations
+### Performance Targets
+- Response time: [Target value]
+- Concurrent processing: [Target value]
+
+### Security Controls
+- Authentication: [Implementation approach]
+- Authorization: [Implementation approach]
+
+## Basic Testing Strategy
+- Unit testing: [Coverage and tools]
+- Integration testing: [Test scenarios]
+```
+
+### Phase 3: Task Planning
+**Objective**: Transform design into executable tasks
+
+**Process**:
+1. Analyze implementation points from design
+2. Decompose into appropriate granularity (2-4 hours/task)
+3. Determine dependencies and execution order
+4. Create detailed task list with acceptance criteria
+5. Request approval: "任务规划看起来如何？您可以选择要执行的具体任务。"
+
+**Output**: `.specs/{feature_name}/tasks.md`
+```markdown
+# {Feature Name} - Implementation Tasks
+
+## Task Overview
+This feature consists of [X] major modules and is estimated to take [Y] working days to complete.
+
+## Prerequisites
+- [ ] Development environment configured
+- [ ] Related dependencies installed  
+- [ ] Database setup completed (if needed)
+
+## Task List
+
+### 1. Infrastructure Setup
+- [ ] 1.1 Create core module file structure
+  - Files: `src/modules/{module-name}/index.ts`
+  - Description: Create module main entry file and basic exports
+  - Acceptance: File created successfully, basic structure correct
+
+- [ ] 1.2 Configure type definitions
+  - Files: `src/types/{module-name}.ts`  
+  - Description: Define core business entities and interface types
+  - Acceptance: TypeScript compilation passes, types complete
+
+### 2. Core Business Logic
+- [ ] 2.1 Implement data model layer
+  - Files: `src/models/{ModelName}.ts`
+  - Description: Implement core business entities and data operations
+  - Acceptance: Unit tests pass, CRUD operations work properly
+
+- [ ] 2.2 Implement service layer logic
+  - Files: `src/services/{ServiceName}.ts`
+  - Description: Implement business logic processing and data validation
+  - Acceptance: Business rules correct, boundary conditions handled
+
+- [ ] 2.3 Implement controller layer
+  - Files: `src/controllers/{ControllerName}.ts`
+  - Description: Handle request/response and parameter validation
+  - Acceptance: API endpoints callable, parameter validation effective
+
+### 3. Data Storage Layer
+- [ ] 3.1 Design database table structure
+  - Files: `migrations/xxx_create_{table_name}.sql`
+  - Description: Create data tables and indexes
+  - Acceptance: Table structure matches design, indexes perform well
+
+- [ ] 3.2 Implement data access layer
+  - Files: `src/repositories/{RepositoryName}.ts`
+  - Description: Implement database operation encapsulation
+  - Acceptance: Data operations correct, performance meets requirements
+
+### 4. API Interface Layer
+- [ ] 4.1 Define route configuration
+  - Files: `src/routes/{module-name}.ts`
+  - Description: Configure RESTful API routes
+  - Acceptance: Route mapping correct, middleware configuration complete
+
+- [ ] 4.2 Implement request handling
+  - Files: `src/handlers/{HandlerName}.ts`
+  - Description: Handle HTTP requests and responses
+  - Acceptance: Request handling correct, error handling comprehensive
+
+### 5. Frontend Interface Layer (If applicable)
+- [ ] 5.1 Create basic components
+  - Files: `src/components/{ComponentName}.tsx`
+  - Description: Implement reusable UI components
+  - Acceptance: Component functionality complete, styles match design
+
+- [ ] 5.2 Implement page logic
+  - Files: `src/pages/{PageName}.tsx`
+  - Description: Implement page state management and interactions
+  - Acceptance: User interactions smooth, state management correct
+
+### 6. Basic Testing & Quality
+- [ ] 6.1 Write unit tests
+  - Files: `tests/unit/{TestName}.test.ts`
+  - Description: Test core business logic and boundary conditions
+  - Acceptance: Code coverage ≥ 80%, all tests pass
+
+- [ ] 6.2 Basic integration testing
+  - Files: `tests/integration/{TestName}.test.ts`
+  - Description: Test key module interactions
+  - Acceptance: Integration scenarios pass
+
+## Execution Guidelines
+### Task Execution Rules
+1. **Sequential execution**: Execute tasks in order, complete current before next
+2. **Dependency check**: Verify prerequisites before execution
+3. **Quality standards**: Each task must pass acceptance criteria
+4. **Documentation**: Update immediately when issues occur
+
+### Completion Marking
+- `[x]` completed tasks
+- `[!]` tasks with issues  
+- `[~]` in-progress tasks
+
+### Execution Commands
+- `/kiro exec 1.1` - Execute specific task
+- `/kiro next` - Execute next uncompleted task
+- `/kiro continue` - Continue unfinished task
+
+## Progress Tracking
+### Time Planning
+- **Estimated start**: [YYYY-MM-DD]
+- **Estimated completion**: [YYYY-MM-DD]  
+
+### Completion Statistics
+- **Total tasks**: [X]
+- **Completed**: [Y]
+- **In progress**: [Z]
+- **Completion rate**: [Y/X*100]%
+
+### Milestones
+- [ ] Infrastructure setup complete (Tasks 1.x)
+- [ ] Core functionality complete (Tasks 2.x)
+- [ ] Data layer complete (Tasks 3.x)
+- [ ] API layer complete (Tasks 4.x)
+- [ ] Frontend complete (Tasks 5.x)
+- [ ] Testing complete (Tasks 6.x)
+
+## Change Log
+- [Date] - [Change content] - [Change reason] - [Impact scope]
+
+## Completion Checklist
+- [ ] All tasks completed and passed acceptance criteria
+- [ ] Code committed and passed code review
+- [ ] Basic tests passing
+- [ ] Documentation updated
+```
+
+## Task Execution Process
+
+### Standard Execution Flow
+1. **Preparation**: Read SPECS docs, understand context, check environment
+2. **Analysis**: Analyze codebase, dependencies, identify gaps
+3. **Implementation**: Follow design strictly, use appropriate tools, best practices
+4. **Verification**: Functional/integration verification, code quality check
+5. **Documentation**: Update task status, record details, update related docs
+6. **Report**: Brief summary, wait for user confirmation
+
+### Special Handling
+- **Technical problems**: Record symptoms, analyze causes, propose solutions
+- **Requirements unclear**: Point out issues, ask clarification questions
+- **Design changes needed**: Explain necessity, analyze impact, suggest revision
+- **Data operations**: Mandatory confirmation flow for dangerous operations
+
+## Change Management Workflow
+
+### Intelligent Change Processing
+**Core concept**: User expresses ideas, AI determines document updates
+
+**Simplified command**: `/kiro change [feature] [description]`
+
+**AI Flow**:
+1. **Analyze change type**: Requirements/Design/Tasks level impact
+2. **Processing options**: 
+   - A: One-click intelligent update (recommended)
+   - B: Step-by-step confirmation
+   - C: View impact analysis only
+3. **Execute update**: Backup → Update docs → Recalculate progress → Report
+
+### Scenario Examples
+- **Requirements change**: Pause task, analyze impact, confirm execution
+- **Design adjustment**: Record change, assess technical impact, sync updates
+- **Task reorganization**: Status snapshot, reorganization plan, recalculate progress
+
+### Synchronization Commands
+- `/kiro sync-all [feature]`: Full document consistency check and update
+- `/kiro rollback [feature] [phase]`: Rollback to requirements/design/tasks/last-sync
+
+## Advanced Features
+
+### Status Query
 ```bash
-# 使用 .env 文件管理敏感信息
-DB_HOST=localhost
-DB_USER=bastion_user
-DB_PASSWORD=${MYSQL_PASSWORD}  # 从环境变量注入
+/kiro status [feature]  # Detailed progress report
+/kiro list             # All features overview
 ```
 
-### 前端安全
-- 所有用户输入必须验证和转义
-- 使用 HTTPS 进行数据传输
-- 实施 CSP (Content Security Policy)
-- 敏感信息不存储在 localStorage
-
-## 📁 项目结构
-
-```
-bastion/
-├── frontend/                    # React前端应用
-│   ├── src/
-│   │   ├── components/         # 可复用组件
-│   │   │   ├── audit/         # 审计功能组件
-│   │   │   ├── ssh/           # SSH终端组件  
-│   │   │   ├── workspace/     # 工作台组件
-│   │   │   └── common/        # 通用组件
-│   │   ├── pages/             # 页面组件
-│   │   ├── hooks/             # 自定义 Hooks
-│   │   ├── services/          # API 服务层
-│   │   ├── store/             # Redux状态管理
-│   │   ├── types/             # TypeScript类型定义
-│   │   └── utils/             # 工具函数
-├── backend/                     # Go后端服务
-│   ├── main.go               # 应用入口
-│   ├── controllers/          # 控制器层
-│   ├── services/             # 业务逻辑层
-│   ├── models/               # 数据模型
-│   ├── utils/                # 工具函数
-│   ├── middleware/           # 中间件
-│   ├── routers/              # 路由配置
-│   └── config/               # 配置文件
-├── docs/                       # 项目文档
-│   ├── BUGFIX-MASTER.md      # 统一故障管理文档
-│   └── API使用指南.md         # API文档
-├── scripts/                    # 数据库脚本和工具
-├── recovery/                   # 数据库恢复工具
-└── manage.sh                   # 服务管理脚本
+### Workflow Control
+```bash
+/kiro goto-[phase] [feature]  # Jump to specific phase
+/kiro pause/resume [feature]  # Workflow control
+/kiro refresh [feature]       # Refresh based on current state
 ```
 
-## 🚀 SuperClaude 指令集成
+## Quality Standards
 
-### 智能指令映射
-根据关键词自动建议合适的 SuperClaude 指令：
+### Documentation
+- Clear user stories, complete acceptance criteria
+- Existing code analysis, clear architecture design
+- Appropriate task granularity, clear dependencies
 
-| 场景 | 关键词 | 建议指令 |
-|------|--------|----------|
-| 🐛 故障排查 | "bug", "错误", "不工作" | `/troubleshoot --prod --five-whys` |
-| ⚡ 性能优化 | "卡顿", "慢", "优化" | `/improve --performance --iterate` |
-| 🏗️ 架构设计 | "新功能", "设计", "架构" | `/design --api --ddd` |
-| 🔒 安全审计 | "安全", "漏洞", "权限" | `/analyze --security --think-hard` |
-| 📊 代码分析 | "分析", "重构", "优化" | `/analyze --code --think` |
+### Code
+- Follow project standards, meaningful names
+- Architecture consistency, low coupling
+- Comprehensive error handling, appropriate logging
 
-### 标准上下文模板
+### Process
+- Strict phase execution, continuous communication
+- Document synchronization, change history recording
+
+## Command Processing Rules
+1. **Immediate Recognition**: Detect `/kiro` → Switch to SPECS mode
+2. **Parameter Parsing**: Extract feature_name, task_id, parameters
+3. **Context Loading**: Auto-load relevant SPECS documents
+4. **Action Execution**: Perform requested action
+5. **Status Reporting**: Provide clear feedback
+
+## Usage Examples
+
+### First-time Setup
+```bash
+/kiro save-info "mysql -uroot -ppass -h10.0.0.7, React frontend"
+/kiro start User Login
+# → Safety checks → Requirements phase → Design → Tasks → Execution
 ```
-【项目】Bastion 运维堡垒机系统
-【技术栈】Go + React + TypeScript + Ant Design + Docker
-【架构】前后端分离，微服务架构，容器化部署
-【约束】严格遵循 Ant Design 最佳实践，使用 ./manage.sh 管理服务
-【安全】敏感信息环境变量化，遵循 OWASP 安全规范
+
+### Change During Development
+```bash
+/kiro change User Login "Switch to email login instead of username"
+# → Intelligent analysis → Impact assessment → Document updates
 ```
 
-## 📚 开发资源
+### Session Recovery
+```bash
+/kiro resume  # Auto-detect and resume interrupted task
+/kiro where   # Check current progress
+```
 
-### 官方文档
-- [Ant Design 官方文档](https://ant.design/)
-- [React 官方文档](https://react.dev/)
-- [TypeScript 官方文档](https://www.typescriptlang.org/)
+## Platform Characteristics & Best Practices
 
-### 内部资源
-- **统一故障管理**: `/docs/BUGFIX-MASTER.md` - 所有Bug记录和修复过程
-- **API文档**: `/docs/API使用指南.md` - 接口使用说明
-- **数据库恢复**: `/recovery/README.md` - 数据库恢复工具和流程
-- **开发计划**: `/docs/` 目录下的各种开发文档
-- **Swagger API**: `http://localhost:8080/swagger/index.html` (开发环境)
+### Claude Code Specifics
+- Session-based, state saved in files
+- File operation toolset dependent
+- User instruction triggered
+- Long-term collaboration support
+
+### Recommendations
+- Write workflow state to tasks.md
+- Regular backup of SPECS documents
+- Use clear command formats
+- Keep documents synchronized
+- Careful phase review
+
+### Common Mistakes to Avoid
+- ❌ Skipping phases
+- ❌ Unsynchronized documents  
+- ❌ Inappropriate task granularity
+- ✅ Follow Requirements→Design→Tasks→Execution sequence
 
 ---
 
-## 📝 文档更新记录
-
-**v2.1 - 2025-07-19**:
-- ✅ 完成Phase 3批量管理功能开发
-- ✅ 添加批量操作系统完整功能说明
-- ✅ 更新项目状态和开发进度
-- ✅ 集成批量操作API文档和路由配置
-- ✅ 添加批量管理功能技术架构说明
-
-**v2.0 - 2025-07-19**:
-- ✅ 更新技术栈版本信息 (Go 1.21, React 18.2, Ant Design 5.11)
-- ✅ 添加核心功能和项目状态说明
-- ✅ 更新项目结构，反映当前实际目录结构
-- ✅ 集成统一故障管理文档引用
-- ✅ 添加常见问题快速解决指南
-- ✅ 更新内部资源链接和开发流程
-
-**v1.0 - 初始版本**: 基础开发指南和规范
-
----
-
-> 💡 **提示**: 此文档会随项目发展持续更新，请定期查看最新版本。  
-> 📝 **贡献**: 发现改进建议请提交 Issue 或 PR。  
-> 🔧 **故障报告**: 所有Bug请统一记录到 `/docs/BUGFIX-MASTER.md`  
-> 📚 **最新更新**: 2025-07-19 - Phase 3批量管理功能开发完成，可投入生产使用
+*Optimized Kiro SPECS workflow for Claude Code environment - Core functionality preserved, reduced verbosity*

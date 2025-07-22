@@ -316,22 +316,13 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		clientIP,
 	)
 
-	// 记录操作日志
-	go s.auditService.RecordOperationLog(
+	// 更新操作审计记录的SessionID和ResourceID（补充中间件记录）
+	// 中间件已经记录了操作日志，这里需要更新完整的会话标识信息
+	go s.auditService.UpdateOperationLogSessionID(
 		userID,
-		user.Username,
-		clientIP,
-		"POST",
 		"/api/v1/ssh/sessions",
-		"create",
-		"session",
-		0,
-		201,
-		"SSH session created successfully",
-		request,
-		nil,
-		0,
-		false, // isSystemOperation=false，SSH会话创建是正常业务操作
+		sessionID,
+		time.Now(),
 	)
 
 	return &SSHSessionResponse{
@@ -458,6 +449,7 @@ func (s *SSHService) CloseSessionWithReason(sessionID string, reason string) err
 			"delete",
 			"session",
 			0,
+			sessionID, // 记录关闭的会话ID
 			200,
 			"SSH session closed successfully",
 			nil,
