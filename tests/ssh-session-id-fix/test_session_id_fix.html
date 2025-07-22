@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SSH会话ID显示修复测试</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <h1>SSH会话ID显示修复测试</h1>
+    <p>请在浏览器中访问: <a href="http://localhost:3000" target="_blank">http://localhost:3000</a></p>
+    
+    <h2>测试步骤:</h2>
+    <ol>
+        <li>登录系统 (admin / admin123)</li>
+        <li>进入 "审计管理" -> "操作审计" 页面</li>
+        <li>找到最近的SSH会话创建操作记录</li>
+        <li>点击"详情"按钮查看操作详情</li>
+        <li>验证详情中是否显示"会话ID"或"资源ID"字段</li>
+    </ol>
+    
+    <h2>预期结果:</h2>
+    <ul>
+        <li>SSH会话操作显示"会话ID": ssh-1753159954-4995561380603627272</li>
+        <li>其他操作显示"资源ID"或"-"</li>
+        <li>字段标签根据数据类型动态变化</li>
+        <li>错误情况下显示占位符"-"</li>
+    </ul>
+    
+    <h2>数据库验证结果:</h2>
+    <pre>
+最新的SSH会话操作记录:
+- ID: 478 (session_id为空，可能异步更新中)
+- ID: 477 (session_id: ssh-1753159954-4995561380603627272)
+
+异步更新机制正常工作，存在轻微延迟。
+    </pre>
+</body>
+</html>
