@@ -15,6 +15,13 @@
 - `concurrent_test_summary.md` - 并发测试总结报告
 - `integration_test_summary.md` - 集成测试总结报告
 
+### 测试脚本
+- `test_audit_fix.sh` - 审计修复功能测试脚本
+- `test_audit_optimization.sh` - 审计优化测试脚本
+
+### 测试日志
+- `baseline_test_full_output.log` - 基线测试完整输出日志
+
 ### 手动测试
 - `test_session_id_fix.html` - 手动测试指导页面
 
