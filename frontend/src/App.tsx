@@ -23,8 +23,6 @@ import GroupManagePage from './pages/GroupManagePage';
 import TerminalPage from './pages/connect/TerminalPage';
 import WorkspaceStandalone from './pages/connect/WorkspaceStandalone';
 import CompactHostListTest from './pages/test/CompactHostListTest';
-import { StagewiseToolbar } from '@stagewise/toolbar-react';
-import ReactPlugin from '@stagewise-plugins/react';
 
 const { Content } = Layout;
 
@@ -41,11 +39,6 @@ const App: React.FC = () => {
 
   return (
     <div className="App">
-      <StagewiseToolbar
-        config={{
-          plugins: [ReactPlugin],
-        }}
-      />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         {/* 独立的工作台页面 - 对所有已登录用户开放 */}
