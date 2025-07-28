@@ -3,6 +3,7 @@ package controllers
 import (
 	"bastion/models"
 	"bastion/services"
+	"bastion/utils"
 	"net/http"
 	"strconv"
 
@@ -39,7 +40,7 @@ func NewCommandPolicyController(policyService *services.CommandPolicyService) *C
 func (c *CommandPolicyController) GetCommands(ctx *gin.Context) {
 	var req models.CommandListRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
@@ -53,19 +54,11 @@ func (c *CommandPolicyController) GetCommands(ctx *gin.Context) {
 
 	commands, total, err := c.policyService.GetCommands(&req)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "获取命令列表失败"})
+		utils.RespondWithInternalError(ctx, err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"total":     total,
-			"page":      req.Page,
-			"page_size": req.PageSize,
-			"data":      commands,
-		},
-	})
+	utils.RespondWithPagination(ctx, commands, req.Page, req.PageSize, total)
 }
 
 // CreateCommand 创建命令
@@ -81,17 +74,17 @@ func (c *CommandPolicyController) GetCommands(ctx *gin.Context) {
 func (c *CommandPolicyController) CreateCommand(ctx *gin.Context) {
 	var req models.CommandCreateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
 	command, err := c.policyService.CreateCommand(&req)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, command)
+	utils.RespondWithData(ctx, command)
 }
 
 // UpdateCommand 更新命令
@@ -108,23 +101,23 @@ func (c *CommandPolicyController) CreateCommand(ctx *gin.Context) {
 func (c *CommandPolicyController) UpdateCommand(ctx *gin.Context) {
 	id, err := strconv.ParseUint(ctx.Param("id"), 10, 32)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的命令ID"})
+		utils.RespondWithError(ctx, http.StatusBadRequest, "无效的命令ID")
 		return
 	}
 
 	var req models.CommandUpdateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
 	command, err := c.policyService.UpdateCommand(uint(id), &req)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, command)
+	utils.RespondWithData(ctx, command)
 }
 
 // DeleteCommand 删除命令
@@ -140,16 +133,16 @@ func (c *CommandPolicyController) UpdateCommand(ctx *gin.Context) {
 func (c *CommandPolicyController) DeleteCommand(ctx *gin.Context) {
 	id, err := strconv.ParseUint(ctx.Param("id"), 10, 32)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的命令ID"})
+		utils.RespondWithError(ctx, http.StatusBadRequest, "无效的命令ID")
 		return
 	}
 
 	if err := c.policyService.DeleteCommand(uint(id)); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+	utils.RespondWithSuccess(ctx, "删除成功")
 }
 
 // 命令组管理接口
@@ -170,7 +163,7 @@ func (c *CommandPolicyController) DeleteCommand(ctx *gin.Context) {
 func (c *CommandPolicyController) GetCommandGroups(ctx *gin.Context) {
 	var req models.CommandGroupListRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
@@ -184,19 +177,11 @@ func (c *CommandPolicyController) GetCommandGroups(ctx *gin.Context) {
 
 	groups, total, err := c.policyService.GetCommandGroups(&req)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "获取命令组列表失败"})
+		utils.RespondWithInternalError(ctx, err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"total":     total,
-			"page":      req.Page,
-			"page_size": req.PageSize,
-			"data":      groups,
-		},
-	})
+	utils.RespondWithPagination(ctx, groups, req.Page, req.PageSize, total)
 }
 
 // CreateCommandGroup 创建命令组
@@ -212,17 +197,17 @@ func (c *CommandPolicyController) GetCommandGroups(ctx *gin.Context) {
 func (c *CommandPolicyController) CreateCommandGroup(ctx *gin.Context) {
 	var req models.CommandGroupCreateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
 	group, err := c.policyService.CreateCommandGroup(&req)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, group)
+	utils.RespondWithData(ctx, group)
 }
 
 // UpdateCommandGroup 更新命令组
@@ -239,23 +224,23 @@ func (c *CommandPolicyController) CreateCommandGroup(ctx *gin.Context) {
 func (c *CommandPolicyController) UpdateCommandGroup(ctx *gin.Context) {
 	id, err := strconv.ParseUint(ctx.Param("id"), 10, 32)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的命令组ID"})
+		utils.RespondWithError(ctx, http.StatusBadRequest, "无效的命令组ID")
 		return
 	}
 
 	var req models.CommandGroupUpdateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
 	group, err := c.policyService.UpdateCommandGroup(uint(id), &req)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, group)
+	utils.RespondWithData(ctx, group)
 }
 
 // DeleteCommandGroup 删除命令组
@@ -271,16 +256,16 @@ func (c *CommandPolicyController) UpdateCommandGroup(ctx *gin.Context) {
 func (c *CommandPolicyController) DeleteCommandGroup(ctx *gin.Context) {
 	id, err := strconv.ParseUint(ctx.Param("id"), 10, 32)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的命令组ID"})
+		utils.RespondWithError(ctx, http.StatusBadRequest, "无效的命令组ID")
 		return
 	}
 
 	if err := c.policyService.DeleteCommandGroup(uint(id)); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+	utils.RespondWithSuccess(ctx, "删除成功")
 }
 
 // 策略管理接口
@@ -301,7 +286,7 @@ func (c *CommandPolicyController) DeleteCommandGroup(ctx *gin.Context) {
 func (c *CommandPolicyController) GetPolicies(ctx *gin.Context) {
 	var req models.PolicyListRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
@@ -315,7 +300,7 @@ func (c *CommandPolicyController) GetPolicies(ctx *gin.Context) {
 
 	policies, total, err := c.policyService.GetPolicies(&req)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "获取策略列表失败"})
+		utils.RespondWithInternalError(ctx, err)
 		return
 	}
 
@@ -375,15 +360,7 @@ func (c *CommandPolicyController) GetPolicies(ctx *gin.Context) {
 		responses = append(responses, resp)
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"total":     total,
-			"page":      req.Page,
-			"page_size": req.PageSize,
-			"data":      responses,
-		},
-	})
+	utils.RespondWithPagination(ctx, responses, req.Page, req.PageSize, total)
 }
 
 // CreatePolicy 创建策略
@@ -399,17 +376,17 @@ func (c *CommandPolicyController) GetPolicies(ctx *gin.Context) {
 func (c *CommandPolicyController) CreatePolicy(ctx *gin.Context) {
 	var req models.PolicyCreateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
 	policy, err := c.policyService.CreatePolicy(&req)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, policy)
+	utils.RespondWithData(ctx, policy)
 }
 
 // UpdatePolicy 更新策略
@@ -426,23 +403,23 @@ func (c *CommandPolicyController) CreatePolicy(ctx *gin.Context) {
 func (c *CommandPolicyController) UpdatePolicy(ctx *gin.Context) {
 	id, err := strconv.ParseUint(ctx.Param("id"), 10, 32)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的策略ID"})
+		utils.RespondWithError(ctx, http.StatusBadRequest, "无效的策略ID")
 		return
 	}
 
 	var req models.PolicyUpdateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
 	policy, err := c.policyService.UpdatePolicy(uint(id), &req)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, policy)
+	utils.RespondWithData(ctx, policy)
 }
 
 // DeletePolicy 删除策略
@@ -458,16 +435,16 @@ func (c *CommandPolicyController) UpdatePolicy(ctx *gin.Context) {
 func (c *CommandPolicyController) DeletePolicy(ctx *gin.Context) {
 	id, err := strconv.ParseUint(ctx.Param("id"), 10, 32)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的策略ID"})
+		utils.RespondWithError(ctx, http.StatusBadRequest, "无效的策略ID")
 		return
 	}
 
 	if err := c.policyService.DeletePolicy(uint(id)); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+	utils.RespondWithSuccess(ctx, "删除成功")
 }
 
 // BindPolicyUsers 绑定用户到策略
@@ -484,22 +461,22 @@ func (c *CommandPolicyController) DeletePolicy(ctx *gin.Context) {
 func (c *CommandPolicyController) BindPolicyUsers(ctx *gin.Context) {
 	id, err := strconv.ParseUint(ctx.Param("id"), 10, 32)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的策略ID"})
+		utils.RespondWithError(ctx, http.StatusBadRequest, "无效的策略ID")
 		return
 	}
 
 	var req models.PolicyBindUsersRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
 	if err := c.policyService.BindPolicyUsers(uint(id), req.UserIDs); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "绑定成功"})
+	utils.RespondWithSuccess(ctx, "绑定成功")
 }
 
 // BindPolicyCommands 绑定命令/命令组到策略
@@ -516,22 +493,22 @@ func (c *CommandPolicyController) BindPolicyUsers(ctx *gin.Context) {
 func (c *CommandPolicyController) BindPolicyCommands(ctx *gin.Context) {
 	id, err := strconv.ParseUint(ctx.Param("id"), 10, 32)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的策略ID"})
+		utils.RespondWithError(ctx, http.StatusBadRequest, "无效的策略ID")
 		return
 	}
 
 	var req models.PolicyBindCommandsRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
 	if err := c.policyService.BindPolicyCommands(uint(id), req.CommandIDs, req.CommandGroupIDs); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "绑定成功"})
+	utils.RespondWithSuccess(ctx, "绑定成功")
 }
 
 // 拦截日志接口
@@ -556,7 +533,7 @@ func (c *CommandPolicyController) BindPolicyCommands(ctx *gin.Context) {
 func (c *CommandPolicyController) GetInterceptLogs(ctx *gin.Context) {
 	var req models.InterceptLogListRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.RespondWithValidationError(ctx, err)
 		return
 	}
 
@@ -570,7 +547,7 @@ func (c *CommandPolicyController) GetInterceptLogs(ctx *gin.Context) {
 
 	logs, total, err := c.policyService.GetInterceptLogs(&req)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "获取拦截日志失败"})
+		utils.RespondWithInternalError(ctx, err)
 		return
 	}
 
@@ -601,15 +578,7 @@ func (c *CommandPolicyController) GetInterceptLogs(ctx *gin.Context) {
 		responses = append(responses, resp)
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"total":     total,
-			"page":      req.Page,
-			"page_size": req.PageSize,
-			"data":      responses,
-		},
-	})
+	utils.RespondWithPagination(ctx, responses, req.Page, req.PageSize, total)
 }
 
 // 响应结构体定义
