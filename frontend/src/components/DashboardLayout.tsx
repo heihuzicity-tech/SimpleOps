@@ -14,6 +14,7 @@ import {
   GlobalOutlined,
   FolderOutlined,
   VideoCameraOutlined,
+  SecurityScanOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -132,6 +133,22 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       );
     }
 
+    // 访问控制功能 - 管理员功能
+    if (hasAdminPermission(user)) {
+      items.push({
+        key: '/access-control',
+        icon: <SecurityScanOutlined />,
+        label: '访问控制',
+        children: [
+          {
+            key: '/access-control/command-filter',
+            icon: <CodeOutlined />,
+            label: '命令过滤',
+          },
+        ],
+      });
+    }
+
     // 审计功能 - 所有用户都可以查看
     items.push({
       key: '/audit',
@@ -224,6 +241,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     // 如果是远程连接子页面，需要展开远程连接菜单
     if (currentPath.startsWith('/connect/')) {
       openKeys = ['/connect'];
+    }
+    
+    // 如果是访问控制子页面，需要展开访问控制菜单
+    if (currentPath.startsWith('/access-control/')) {
+      openKeys = ['/access-control'];
     }
 
     return { selectedKeys, openKeys };

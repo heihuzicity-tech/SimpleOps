@@ -292,3 +292,180 @@ export const CommandRisk = {
   MEDIUM: 'medium',
   HIGH: 'high',
 } as const;
+
+// 命令过滤特殊的分页响应类型（后端返回格式不同）
+export interface CommandFilterPaginatedResponse<T = any> {
+  data: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages?: number;
+}
+
+// 命令策略相关类型
+export interface Command {
+  id: number;
+  name: string;
+  type: 'exact' | 'regex';
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommandGroup {
+  id: number;
+  name: string;
+  description?: string;
+  is_preset: boolean;
+  command_count?: number;
+  created_at: string;
+  updated_at: string;
+  commands?: Command[];
+}
+
+export interface CommandPolicy {
+  id: number;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  priority: number;
+  user_count?: number;
+  command_count?: number;
+  created_at: string;
+  updated_at: string;
+  users?: UserBasicInfo[];
+  commands?: PolicyCommand[];
+}
+
+export interface UserBasicInfo {
+  id: number;
+  username: string;
+  email?: string;
+}
+
+export interface PolicyCommand {
+  id: number;
+  type: 'command' | 'command_group';
+  command?: CommandResponse;
+  command_group?: CommandGroupResponse;
+}
+
+export interface CommandResponse {
+  id: number;
+  name: string;
+  type: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommandGroupResponse {
+  id: number;
+  name: string;
+  description?: string;
+  is_preset: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommandInterceptLog {
+  id: number;
+  session_id: string;
+  user_id: number;
+  username: string;
+  asset_id: number;
+  asset_name?: string;
+  asset_addr?: string;
+  command: string;
+  policy_id: number;
+  policy_name: string;
+  policy_type: string;
+  intercept_time: string;
+  alert_level?: string;
+  alert_sent: boolean;
+}
+
+// 命令策略相关请求类型
+export interface CommandListRequest {
+  page?: number;
+  page_size?: number;
+  name?: string;
+  type?: string;
+}
+
+export interface CommandCreateRequest {
+  name: string;
+  type: 'exact' | 'regex';
+  description?: string;
+}
+
+export interface CommandUpdateRequest {
+  name?: string;
+  type?: 'exact' | 'regex';
+  description?: string;
+}
+
+export interface CommandGroupListRequest {
+  page?: number;
+  page_size?: number;
+  name?: string;
+  is_preset?: boolean;
+}
+
+export interface CommandGroupCreateRequest {
+  name: string;
+  description?: string;
+  command_ids: number[];
+}
+
+export interface CommandGroupUpdateRequest {
+  name?: string;
+  description?: string;
+  command_ids?: number[];
+}
+
+export interface PolicyListRequest {
+  page?: number;
+  page_size?: number;
+  name?: string;
+  enabled?: boolean;
+}
+
+export interface PolicyCreateRequest {
+  name: string;
+  description?: string;
+  enabled: boolean;
+  priority: number;
+}
+
+export interface PolicyUpdateRequest {
+  name?: string;
+  description?: string;
+  enabled?: boolean;
+  priority?: number;
+}
+
+export interface PolicyBindUsersRequest {
+  user_ids: number[];
+}
+
+export interface PolicyBindCommandsRequest {
+  command_ids: number[];
+  command_group_ids: number[];
+}
+
+export interface InterceptLogListRequest {
+  page?: number;
+  page_size?: number;
+  session_id?: string;
+  user_id?: number;
+  asset_id?: number;
+  policy_id?: number;
+  start_time?: string;
+  end_time?: string;
+}
+
+export const CommandType = {
+  EXACT: 'exact',
+  REGEX: 'regex',
+} as const;

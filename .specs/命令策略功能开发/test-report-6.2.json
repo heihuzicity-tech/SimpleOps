@@ -1,0 +1,491 @@
+{
+  "match_results": {
+    "total_patterns": 11,
+    "total_tests": 47,
+    "passed": 43,
+    "failed": 4,
+    "details": [
+      {
+        "pattern": "rm.*",
+        "passed": 3,
+        "failed": 1,
+        "tests": [
+          {
+            "command": "rm file.txt",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "基础rm命令",
+            "test_string": "rm file.txt"
+          },
+          {
+            "command": "rm -rf /tmp",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "rm命令带参数",
+            "test_string": "rm -rf /tmp"
+          },
+          {
+            "command": "remove file.txt",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "不是rm命令",
+            "test_string": "remove file.txt"
+          },
+          {
+            "command": "format file.txt",
+            "expected": false,
+            "actual": true,
+            "passed": false,
+            "description": "包含rm但不匹配",
+            "test_string": "format file.txt"
+          }
+        ]
+      },
+      {
+        "pattern": "sudo.*",
+        "passed": 3,
+        "failed": 1,
+        "tests": [
+          {
+            "command": "sudo apt install",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "sudo命令",
+            "test_string": "sudo apt install"
+          },
+          {
+            "command": "sudo -u user command",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "sudo带用户参数",
+            "test_string": "sudo -u user command"
+          },
+          {
+            "command": "su root",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "不是sudo",
+            "test_string": "su root"
+          },
+          {
+            "command": "psudo fake",
+            "expected": false,
+            "actual": true,
+            "passed": false,
+            "description": "拼写错误",
+            "test_string": "psudo fake"
+          }
+        ]
+      },
+      {
+        "pattern": "^ls$",
+        "passed": 2,
+        "failed": 2,
+        "tests": [
+          {
+            "command": "ls",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "精确匹配ls",
+            "test_string": "ls"
+          },
+          {
+            "command": "ls -la",
+            "expected": false,
+            "actual": true,
+            "passed": false,
+            "description": "ls带参数",
+            "test_string": "ls"
+          },
+          {
+            "command": "lsof",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "以ls开头但不是ls",
+            "test_string": "lsof"
+          },
+          {
+            "command": "/bin/ls",
+            "expected": false,
+            "actual": true,
+            "passed": false,
+            "description": "路径形式的ls",
+            "test_string": "ls"
+          }
+        ]
+      },
+      {
+        "pattern": "rm\\s+-[rf]+",
+        "passed": 8,
+        "failed": 0,
+        "tests": [
+          {
+            "command": "rm -rf /tmp",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "危险删除rf参数",
+            "test_string": "rm -rf /tmp"
+          },
+          {
+            "command": "rm -fr /home",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "危险删除fr参数",
+            "test_string": "rm -fr /home"
+          },
+          {
+            "command": "rm -r file",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "递归删除",
+            "test_string": "rm -r file"
+          },
+          {
+            "command": "rm -f file",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "强制删除",
+            "test_string": "rm -f file"
+          },
+          {
+            "command": "rm -rf",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "仅参数",
+            "test_string": "rm -rf"
+          },
+          {
+            "command": "rm -l file",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "安全参数",
+            "test_string": "rm -l file"
+          },
+          {
+            "command": "rm file",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "无参数",
+            "test_string": "rm file"
+          },
+          {
+            "command": "rm --recursive",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "长选项不匹配",
+            "test_string": "rm --recursive"
+          }
+        ]
+      },
+      {
+        "pattern": "cat\\s+/etc/passwd",
+        "passed": 4,
+        "failed": 0,
+        "tests": [
+          {
+            "command": "cat /etc/passwd",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "读取passwd",
+            "test_string": "cat /etc/passwd"
+          },
+          {
+            "command": "cat  /etc/passwd",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "多个空格",
+            "test_string": "cat  /etc/passwd"
+          },
+          {
+            "command": "cat /etc/shadow",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "不同文件",
+            "test_string": "cat /etc/shadow"
+          },
+          {
+            "command": "less /etc/passwd",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "不同命令",
+            "test_string": "less /etc/passwd"
+          }
+        ]
+      },
+      {
+        "pattern": "\\w+\\s+/etc/(passwd|shadow|group)",
+        "passed": 5,
+        "failed": 0,
+        "tests": [
+          {
+            "command": "cat /etc/passwd",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "cat访问passwd",
+            "test_string": "cat /etc/passwd"
+          },
+          {
+            "command": "vim /etc/shadow",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "vim访问shadow",
+            "test_string": "vim /etc/shadow"
+          },
+          {
+            "command": "less /etc/group",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "less访问group",
+            "test_string": "less /etc/group"
+          },
+          {
+            "command": "nano /etc/hosts",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "访问其他文件",
+            "test_string": "nano /etc/hosts"
+          },
+          {
+            "command": "/etc/passwd",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "无命令前缀",
+            "test_string": "/etc/passwd"
+          }
+        ]
+      },
+      {
+        "pattern": "^shutdown",
+        "passed": 3,
+        "failed": 0,
+        "tests": [
+          {
+            "command": "shutdown -h now",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "命令开头",
+            "test_string": "shutdown -h now"
+          },
+          {
+            "command": "sudo shutdown -h now",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "不在开头",
+            "test_string": "sudo shutdown -h now"
+          },
+          {
+            "command": "system shutdown",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "在中间",
+            "test_string": "system shutdown"
+          }
+        ]
+      },
+      {
+        "pattern": "reboot$",
+        "passed": 3,
+        "failed": 0,
+        "tests": [
+          {
+            "command": "sudo reboot",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "命令结尾",
+            "test_string": "sudo reboot"
+          },
+          {
+            "command": "reboot now",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "不在结尾",
+            "test_string": "reboot now"
+          },
+          {
+            "command": "rebooting",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "被包含",
+            "test_string": "rebooting"
+          }
+        ]
+      },
+      {
+        "pattern": "(wget|curl).*http",
+        "passed": 4,
+        "failed": 0,
+        "tests": [
+          {
+            "command": "wget http://example.com",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "wget下载http",
+            "test_string": "wget http://example.com"
+          },
+          {
+            "command": "curl https://api.github.com",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "curl访问https",
+            "test_string": "curl https://api.github.com"
+          },
+          {
+            "command": "wget ftp://server.com",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "wget但非http",
+            "test_string": "wget ftp://server.com"
+          },
+          {
+            "command": "fetch http://test.com",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "不是wget/curl",
+            "test_string": "fetch http://test.com"
+          }
+        ]
+      },
+      {
+        "pattern": "chmod\\s+[0-7]{3,4}\\s+/",
+        "passed": 4,
+        "failed": 0,
+        "tests": [
+          {
+            "command": "chmod 777 /tmp/file",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "修改根目录下文件权限",
+            "test_string": "chmod 777 /tmp/file"
+          },
+          {
+            "command": "chmod 644 /etc/passwd",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "4位权限",
+            "test_string": "chmod 644 /etc/passwd"
+          },
+          {
+            "command": "chmod +x script.sh",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "符号权限",
+            "test_string": "chmod +x script.sh"
+          },
+          {
+            "command": "chmod 777 file.txt",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "相对路径",
+            "test_string": "chmod 777 file.txt"
+          }
+        ]
+      },
+      {
+        "pattern": "find.*-exec.*rm",
+        "passed": 4,
+        "failed": 0,
+        "tests": [
+          {
+            "command": "find /tmp -name '*.log' -exec rm {} \\;",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "find执行rm",
+            "test_string": "find /tmp -name '*.log' -exec rm {} \\;"
+          },
+          {
+            "command": "find . -type f -exec rm -f {} +",
+            "expected": true,
+            "actual": true,
+            "passed": true,
+            "description": "find批量删除",
+            "test_string": "find . -type f -exec rm -f {} +"
+          },
+          {
+            "command": "find /home -name '*.txt'",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "find不执行rm",
+            "test_string": "find /home -name '*.txt'"
+          },
+          {
+            "command": "find . -exec ls {} \\;",
+            "expected": false,
+            "actual": false,
+            "passed": true,
+            "description": "find执行其他命令",
+            "test_string": "find . -exec ls {} \\;"
+          }
+        ]
+      }
+    ]
+  },
+  "performance_results": [
+    {
+      "pattern": "^(sudo\\s+)?(rm|mv|cp)\\s+.*",
+      "avg_time_ms": 0.0012,
+      "status": "✅ 通过"
+    },
+    {
+      "pattern": ".*/?(bin|sbin|usr|etc|var)/.*",
+      "avg_time_ms": 0.0238,
+      "status": "✅ 通过"
+    },
+    {
+      "pattern": "(wget|curl).*\\.(exe|sh|pl|py)$",
+      "avg_time_ms": 0.0008,
+      "status": "✅ 通过"
+    },
+    {
+      "pattern": "chmod\\s+[0-7]{3,4}\\s+.*/(bin|sbin|etc|usr|var)/.*",
+      "avg_time_ms": 0.0004,
+      "status": "✅ 通过"
+    },
+    {
+      "pattern": "find\\s+.*-exec\\s+(rm|mv|cp)\\s+.*",
+      "avg_time_ms": 0.0004,
+      "status": "✅ 通过"
+    }
+  ],
+  "timestamp": "2025-07-28 21:20:47"
+}

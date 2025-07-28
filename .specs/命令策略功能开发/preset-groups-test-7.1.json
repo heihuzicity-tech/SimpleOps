@@ -1,0 +1,442 @@
+{
+  "creation_results": {
+    "created_groups": [
+      {
+        "id": 5,
+        "name": "危险命令-数据库操作",
+        "description": "可能影响数据库的危险命令",
+        "command_count": 8
+      },
+      {
+        "id": 6,
+        "name": "危险命令-进程管理",
+        "description": "可能影响系统进程的命令",
+        "command_count": 7
+      },
+      {
+        "id": 7,
+        "name": "危险命令-用户管理",
+        "description": "用户和权限管理的危险命令",
+        "command_count": 9
+      },
+      {
+        "id": 8,
+        "name": "危险命令-软件包管理",
+        "description": "软件包安装和管理命令",
+        "command_count": 8
+      },
+      {
+        "id": 9,
+        "name": "危险命令-网络安全",
+        "description": "网络安全和渗透相关命令",
+        "command_count": 10
+      },
+      {
+        "id": 10,
+        "name": "危险命令-系统配置",
+        "description": "系统配置和内核相关命令",
+        "command_count": 8
+      }
+    ],
+    "created_commands": [
+      {
+        "id": 79,
+        "name": "mysql",
+        "type": "exact",
+        "description": "MySQL数据库客户端"
+      },
+      {
+        "id": 80,
+        "name": "mysqldump",
+        "type": "exact",
+        "description": "MySQL数据导出"
+      },
+      {
+        "id": 81,
+        "name": "psql",
+        "type": "exact",
+        "description": "PostgreSQL数据库客户端"
+      },
+      {
+        "id": 82,
+        "name": "mongo",
+        "type": "exact",
+        "description": "MongoDB数据库客户端"
+      },
+      {
+        "id": 83,
+        "name": "redis-cli",
+        "type": "exact",
+        "description": "Redis数据库客户端"
+      },
+      {
+        "id": 84,
+        "name": "DROP.*",
+        "type": "regex",
+        "description": "SQL删除语句模式"
+      },
+      {
+        "id": 85,
+        "name": "DELETE.*",
+        "type": "regex",
+        "description": "SQL删除数据模式"
+      },
+      {
+        "id": 86,
+        "name": "TRUNCATE.*",
+        "type": "regex",
+        "description": "SQL清空表模式"
+      },
+      {
+        "id": 87,
+        "name": "kill",
+        "type": "exact",
+        "description": "终止进程"
+      },
+      {
+        "id": 88,
+        "name": "killall",
+        "type": "exact",
+        "description": "批量终止进程"
+      },
+      {
+        "id": 89,
+        "name": "pkill",
+        "type": "exact",
+        "description": "按名称终止进程"
+      },
+      {
+        "id": 90,
+        "name": "systemctl",
+        "type": "exact",
+        "description": "系统服务管理"
+      },
+      {
+        "id": 91,
+        "name": "service",
+        "type": "exact",
+        "description": "服务控制命令"
+      },
+      {
+        "id": 92,
+        "name": "crontab",
+        "type": "exact",
+        "description": "定时任务管理"
+      },
+      {
+        "id": 93,
+        "name": "kill.*-9.*",
+        "type": "regex",
+        "description": "强制终止进程模式"
+      },
+      {
+        "id": 94,
+        "name": "useradd",
+        "type": "exact",
+        "description": "添加用户"
+      },
+      {
+        "id": 95,
+        "name": "userdel",
+        "type": "exact",
+        "description": "删除用户"
+      },
+      {
+        "id": 96,
+        "name": "usermod",
+        "type": "exact",
+        "description": "修改用户"
+      },
+      {
+        "id": 97,
+        "name": "passwd",
+        "type": "exact",
+        "description": "修改密码"
+      },
+      {
+        "id": 98,
+        "name": "su",
+        "type": "exact",
+        "description": "切换用户"
+      },
+      {
+        "id": 99,
+        "name": "sudo",
+        "type": "exact",
+        "description": "以管理员权限执行"
+      },
+      {
+        "id": 100,
+        "name": "chmod",
+        "type": "exact",
+        "description": "修改文件权限"
+      },
+      {
+        "id": 101,
+        "name": "chown",
+        "type": "exact",
+        "description": "修改文件所有者"
+      },
+      {
+        "id": 102,
+        "name": "visudo",
+        "type": "exact",
+        "description": "编辑sudo配置"
+      },
+      {
+        "id": 103,
+        "name": "apt",
+        "type": "exact",
+        "description": "Debian/Ubuntu包管理器"
+      },
+      {
+        "id": 104,
+        "name": "apt-get",
+        "type": "exact",
+        "description": "APT包管理工具"
+      },
+      {
+        "id": 105,
+        "name": "yum",
+        "type": "exact",
+        "description": "RedHat/CentOS包管理器"
+      },
+      {
+        "id": 106,
+        "name": "dnf",
+        "type": "exact",
+        "description": "Fedora包管理器"
+      },
+      {
+        "id": 107,
+        "name": "rpm",
+        "type": "exact",
+        "description": "RPM包管理工具"
+      },
+      {
+        "id": 108,
+        "name": "pip",
+        "type": "exact",
+        "description": "Python包管理器"
+      },
+      {
+        "id": 109,
+        "name": "npm",
+        "type": "exact",
+        "description": "Node.js包管理器"
+      },
+      {
+        "id": 110,
+        "name": "docker",
+        "type": "exact",
+        "description": "Docker容器管理"
+      },
+      {
+        "id": 111,
+        "name": "nmap",
+        "type": "exact",
+        "description": "网络端口扫描"
+      },
+      {
+        "id": 112,
+        "name": "netcat",
+        "type": "exact",
+        "description": "网络连接工具"
+      },
+      {
+        "id": 113,
+        "name": "nc",
+        "type": "exact",
+        "description": "netcat简写"
+      },
+      {
+        "id": 114,
+        "name": "telnet",
+        "type": "exact",
+        "description": "远程登录协议"
+      },
+      {
+        "id": 115,
+        "name": "ftp",
+        "type": "exact",
+        "description": "文件传输协议"
+      },
+      {
+        "id": 116,
+        "name": "ssh",
+        "type": "exact",
+        "description": "安全外壳协议"
+      },
+      {
+        "id": 117,
+        "name": "scp",
+        "type": "exact",
+        "description": "安全复制协议"
+      },
+      {
+        "id": 118,
+        "name": "rsync",
+        "type": "exact",
+        "description": "远程同步工具"
+      },
+      {
+        "id": 119,
+        "name": "curl.*-X.*POST",
+        "type": "regex",
+        "description": "HTTP POST请求模式"
+      },
+      {
+        "id": 120,
+        "name": "wget.*--post-data",
+        "type": "regex",
+        "description": "wget POST请求模式"
+      },
+      {
+        "id": 121,
+        "name": "mount",
+        "type": "exact",
+        "description": "挂载文件系统"
+      },
+      {
+        "id": 122,
+        "name": "umount",
+        "type": "exact",
+        "description": "卸载文件系统"
+      },
+      {
+        "id": 123,
+        "name": "fsck",
+        "type": "exact",
+        "description": "文件系统检查"
+      },
+      {
+        "id": 124,
+        "name": "modprobe",
+        "type": "exact",
+        "description": "加载内核模块"
+      },
+      {
+        "id": 125,
+        "name": "insmod",
+        "type": "exact",
+        "description": "插入内核模块"
+      },
+      {
+        "id": 126,
+        "name": "rmmod",
+        "type": "exact",
+        "description": "删除内核模块"
+      },
+      {
+        "id": 127,
+        "name": "sysctl",
+        "type": "exact",
+        "description": "内核参数配置"
+      },
+      {
+        "id": 128,
+        "name": "echo.*>.*proc",
+        "type": "regex",
+        "description": "修改proc文件系统"
+      }
+    ],
+    "errors": []
+  },
+  "test_results": {
+    "total_commands": 100,
+    "total_groups": 10,
+    "preset_groups": 3,
+    "tests": [
+      {
+        "name": "预设组数量验证",
+        "expected": ">= 3",
+        "actual": 3,
+        "passed": true
+      },
+      {
+        "name": "危险命令覆盖度",
+        "expected": ">= 70%",
+        "actual": "50.0%",
+        "passed": false,
+        "covered_commands": [
+          "mysql",
+          "kill",
+          "sudo",
+          "chmod"
+        ]
+      },
+      {
+        "name": "正则表达式命令数量",
+        "expected": ">= 5",
+        "actual": 57,
+        "passed": true
+      },
+      {
+        "name": "命令组完整性",
+        "expected": "0个空组",
+        "actual": "0个空组",
+        "passed": true,
+        "group_stats": [
+          {
+            "name": "危险命令-用户管理",
+            "command_count": 9,
+            "is_preset": false
+          },
+          {
+            "name": "危险命令-软件包管理",
+            "command_count": 8,
+            "is_preset": false
+          },
+          {
+            "name": "危险命令-网络安全",
+            "command_count": 10,
+            "is_preset": false
+          },
+          {
+            "name": "危险命令-系统配置",
+            "command_count": 8,
+            "is_preset": false
+          },
+          {
+            "name": "危险命令-数据库操作",
+            "command_count": 8,
+            "is_preset": false
+          },
+          {
+            "name": "危险命令-进程管理",
+            "command_count": 7,
+            "is_preset": false
+          },
+          {
+            "name": "危险命令组",
+            "command_count": 2,
+            "is_preset": false
+          },
+          {
+            "name": "危险命令-系统管理",
+            "command_count": 5,
+            "is_preset": true
+          },
+          {
+            "name": "危险命令-文件操作",
+            "command_count": 4,
+            "is_preset": true
+          },
+          {
+            "name": "危险命令-网络操作",
+            "command_count": 3,
+            "is_preset": true
+          }
+        ]
+      }
+    ]
+  },
+  "timestamp": "2025-07-28 21:34:36",
+  "summary": {
+    "created_groups": 6,
+    "created_commands": 50,
+    "total_tests": 4,
+    "passed_tests": 3,
+    "success_rate": 75.0
+  }
+}

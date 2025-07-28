@@ -23,6 +23,7 @@ import GroupManagePage from './pages/GroupManagePage';
 import TerminalPage from './pages/connect/TerminalPage';
 import WorkspaceStandalone from './pages/connect/WorkspaceStandalone';
 import CompactHostListTest from './pages/test/CompactHostListTest';
+import CommandFilterPage from './pages/AccessControl/CommandFilterPage';
 
 const { Content } = Layout;
 
@@ -171,6 +172,14 @@ const App: React.FC = () => {
                   <Route path="/audit/command-audit" element={<CommandAuditPage />} />
                   <Route path="/audit/operation-audit" element={<OperationAuditPage />} />
                   <Route path="/audit/recording-audit" element={<RecordingAuditPage />} />
+                  <Route 
+                    path="/access-control/command-filter" 
+                    element={
+                      <PermissionGuard requiredRole="admin">
+                        <CommandFilterPage />
+                      </PermissionGuard>
+                    } 
+                  />
                   <Route path="/test/compact-host-list" element={<CompactHostListTest />} />
                 </Routes>
               </DashboardLayout>

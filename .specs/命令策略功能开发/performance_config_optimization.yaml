@@ -1,0 +1,71 @@
+# 性能优化的数据库配置建议
+# 基于性能测试结果的优化参数
+
+database:
+  # 增加连接池大小以支持更高并发
+  maxIdleConns: 20      # 从10增加到20
+  maxOpenConns: 200     # 从100增加到200  
+  connMaxLifetime: 1800 # 从3600减少到1800秒(30分钟)
+  
+  # 添加新的性能优化参数
+  maxIdleTime: 300      # 空闲连接最大存活时间（5分钟）
+  
+  # 查询超时配置
+  queryTimeout: 5       # 查询超时时间（秒）
+  
+  # 缓存配置
+  enableQueryCache: true
+  queryCacheTTL: 60     # 查询缓存TTL（秒）
+
+redis:
+  # 优化Redis连接池
+  poolSize: 200         # 从100增加到200
+  minIdleConns: 20      # 从10增加到20
+  maxRetries: 3         # 最大重试次数
+  poolTimeout: 4        # 连接池超时（秒）
+  idleTimeout: 300      # 空闲连接超时（秒）
+
+# 新增缓存层配置
+cache:
+  # 应用层缓存
+  enableLocalCache: true
+  localCacheTTL: 300    # 本地缓存TTL（5分钟）
+  localCacheSize: 10000 # 本地缓存最大条目数
+  
+  # 分布式缓存
+  enableDistributedCache: true
+  distributedCacheTTL: 600 # 分布式缓存TTL（10分钟）
+  
+  # 预加载缓存
+  enableCacheWarmup: true
+  warmupDelay: 30       # 预热延迟（秒）
+
+# 性能监控配置
+performance:
+  # 慢查询监控
+  slowQueryThreshold: 100 # 慢查询阈值（毫秒）
+  enableSlowQueryLog: true
+  
+  # 性能指标收集
+  enableMetrics: true
+  metricsInterval: 10   # 指标收集间隔（秒）
+  
+  # 限流配置
+  rateLimit:
+    enableApiRateLimit: true
+    commandQueryRPS: 100  # 命令查询每秒请求数限制
+    policyQueryRPS: 50    # 策略查询每秒请求数限制
+    
+# 查询优化配置  
+query:
+  # 分页优化
+  defaultPageSize: 10
+  maxPageSize: 100
+  
+  # 批量查询优化
+  batchSize: 50         # 批量查询大小
+  maxBatchQueries: 10   # 最大批量查询数
+  
+  # 预加载控制
+  disablePreload: true  # 禁用自动预加载
+  enableLazyLoading: true # 启用懒加载

@@ -21,6 +21,8 @@ import (
 type SSHController struct {
 	sshService *services.SSHService
 	upgrader   websocket.Upgrader
+	cmdBuffer  map[string]string // sessionID -> 当前输入缓冲区
+	cmdMutex   sync.RWMutex      // 命令缓冲区锁
 }
 
 // WebSocketMessage WebSocket消息结构
@@ -55,6 +57,7 @@ type WebSocketConnection struct {
 func NewSSHController(sshService *services.SSHService) *SSHController {
 	return &SSHController{
 		sshService: sshService,
+		cmdBuffer:  make(map[string]string),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				// 在生产环境中应该检查Origin
@@ -214,6 +217,9 @@ func (sc *SSHController) CloseSession(c *gin.Context) {
 		})
 		return
 	}
+
+	// 清理命令缓冲区
+	sc.clearCommandBuffer(sessionID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -712,6 +718,56 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 						}
 						recorder.WriteRecord(inputRecord)
 						log.Printf("录制输入数据: 会话=%s, 大小=%d", wsConn.sessionID, len(message.Data))
+					}
+				}
+
+				// 🚫 命令策略检查
+				inputData := message.Data
+				
+				// 更新命令缓冲区
+				sc.updateCommandBuffer(wsConn.sessionID, inputData)
+				
+				// 检查是否为命令执行（回车键）
+				if sc.isCommandInput(inputData) {
+					command := sc.getCommandFromBuffer(wsConn.sessionID)
+					if command != "" {
+						// 创建命令策略服务实例来检查命令
+						commandPolicyService := services.NewCommandPolicyService(utils.GetDB())
+						// 检查命令是否被禁止
+						allowed, violation := commandPolicyService.CheckCommand(wsConn.userID, wsConn.sessionID, command)
+						if !allowed && violation != nil {
+							// 命令被拦截，发送红色提示消息
+							blockedMessage := fmt.Sprintf("\r\n\033[31m命令 `%s` 是被禁止的 ...\033[0m\r\n", command)
+							
+							// 创建输出消息发送给前端
+							outputMessage := TerminalMessage{
+								Type: "output",
+								Data: blockedMessage,
+							}
+							
+							wsConn.mu.Lock()
+							wsConn.conn.WriteJSON(outputMessage)
+							wsConn.mu.Unlock()
+							
+							// 记录拦截日志  
+							if session, err := sc.sshService.GetSession(wsConn.sessionID); err == nil {
+								// 获取用户信息
+								var user models.User
+								if err := utils.GetDB().First(&user, wsConn.userID).Error; err == nil {
+									// 创建命令策略服务实例来记录日志
+									commandPolicyService := services.NewCommandPolicyService(utils.GetDB())
+									if err := commandPolicyService.RecordInterceptLog(violation, user.Username, session.AssetID); err != nil {
+										log.Printf("Failed to record intercept log: %v", err)
+									}
+								}
+							}
+							
+							log.Printf("Command blocked for user %d in session %s: %s", wsConn.userID, wsConn.sessionID, command)
+							
+							// 清空命令缓冲区
+							sc.clearCommandBuffer(wsConn.sessionID)
+							return // 不发送命令到SSH会话
+						}
 					}
 				}
 				
@@ -1372,4 +1428,76 @@ func (sc *SSHController) GetTimeoutStats(c *gin.Context) {
 		"message": "Timeout statistics retrieved successfully",
 		"data":    stats,
 	})
+}
+
+// 命令策略检查相关的辅助方法
+
+// isCommandInput 判断是否为命令输入
+func (sc *SSHController) isCommandInput(input string) bool {
+	// 检查是否为回车键（命令执行）
+	return input == "\r" || input == "\n" || input == "\r\n"
+}
+
+// extractCommand 从缓冲区提取完整命令
+func (sc *SSHController) extractCommand(input string) string {
+	// 这个方法在 isCommandInput 返回 true 时调用
+	// 实际上我们需要从之前的输入中构建完整命令
+	// 但由于SSH协议的复杂性，我们采用简化方案
+	// 在实际实现中，可以通过监听所有输入来构建命令缓冲区
+	return ""
+}
+
+// updateCommandBuffer 更新命令缓冲区
+func (sc *SSHController) updateCommandBuffer(sessionID, input string) {
+	sc.cmdMutex.Lock()
+	defer sc.cmdMutex.Unlock()
+	
+	if sc.cmdBuffer == nil {
+		sc.cmdBuffer = make(map[string]string)
+	}
+	
+	// 如果是回车，清空缓冲区
+	if input == "\r" || input == "\n" || input == "\r\n" {
+		delete(sc.cmdBuffer, sessionID)
+		return
+	}
+	
+	// 如果是退格键，删除最后一个字符
+	if input == "\b" || input == "\x7f" {
+		if current, exists := sc.cmdBuffer[sessionID]; exists && len(current) > 0 {
+			sc.cmdBuffer[sessionID] = current[:len(current)-1]
+		}
+		return
+	}
+	
+	// 如果是Ctrl+C或其他控制字符，清空缓冲区
+	if len(input) == 1 && (input[0] < 32 && input[0] != 9) { // 非打印字符（除了Tab）
+		delete(sc.cmdBuffer, sessionID)
+		return
+	}
+	
+	// 累积普通字符
+	sc.cmdBuffer[sessionID] += input
+}
+
+// getCommandFromBuffer 从缓冲区获取命令
+func (sc *SSHController) getCommandFromBuffer(sessionID string) string {
+	sc.cmdMutex.RLock()
+	defer sc.cmdMutex.RUnlock()
+	
+	if sc.cmdBuffer == nil {
+		return ""
+	}
+	
+	return sc.cmdBuffer[sessionID]
+}
+
+// clearCommandBuffer 清空指定会话的命令缓冲区
+func (sc *SSHController) clearCommandBuffer(sessionID string) {
+	sc.cmdMutex.Lock()
+	defer sc.cmdMutex.Unlock()
+	
+	if sc.cmdBuffer != nil {
+		delete(sc.cmdBuffer, sessionID)
+	}
 }

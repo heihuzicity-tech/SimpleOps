@@ -89,6 +89,20 @@ func main() {
 	// 初始化WebSocket服务
 	services.InitWebSocketService()
 
+	// 初始化命令策略服务并验证配置
+	logrus.Info("初始化命令策略服务...")
+	commandPolicyService := services.NewCommandPolicyService(utils.GetDB())
+	if commandPolicyService == nil {
+		logrus.Fatal("命令策略服务初始化失败")
+	}
+	
+	// 验证服务配置
+	if err := commandPolicyService.ValidateService(); err != nil {
+		logrus.Fatalf("命令策略服务配置验证失败: %v", err)
+	}
+	
+	logrus.Info("命令策略服务初始化并验证完成")
+
 	// 初始化会话超时管理服务
 	timeoutService := services.NewSessionTimeoutService(utils.GetDB())
 	if err := timeoutService.Start(); err != nil {

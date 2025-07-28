@@ -33,6 +33,7 @@ func SetupRouter() *gin.Engine {
 	sshService := services.NewSSHService(utils.GetDB())
 	auditService := services.NewAuditService(utils.GetDB())
 	monitorService := services.NewMonitorService(utils.GetDB())
+	commandPolicyService := services.NewCommandPolicyService(utils.GetDB())
 
 	// 创建控制器实例
 	authController := controllers.NewAuthController(authService)
@@ -43,6 +44,7 @@ func SetupRouter() *gin.Engine {
 	auditController := controllers.NewAuditController(auditService)
 	monitorController := controllers.NewMonitorController(monitorService)
 	recordingController := controllers.NewRecordingController()
+	commandPolicyController := controllers.NewCommandPolicyController(commandPolicyService)
 
 	// API 路由组
 	api := router.Group("/api/v1")
@@ -287,6 +289,44 @@ func SetupRouter() *gin.Engine {
 				{
 					deleteGroup.DELETE("", recordingController.DeleteRecording)
 				}
+			}
+
+			// ======================== 命令过滤路由 ========================
+			// 命令过滤管理（需要管理员权限）
+			commandFilter := authenticated.Group("/command-filter")
+			commandFilter.Use(middleware.RequireAdmin())
+			{
+				// 命令管理
+				commands := commandFilter.Group("/commands")
+				{
+					commands.GET("", commandPolicyController.GetCommands)
+					commands.POST("", commandPolicyController.CreateCommand)
+					commands.PUT("/:id", commandPolicyController.UpdateCommand)
+					commands.DELETE("/:id", commandPolicyController.DeleteCommand)
+				}
+
+				// 命令组管理
+				commandGroups := commandFilter.Group("/command-groups")
+				{
+					commandGroups.GET("", commandPolicyController.GetCommandGroups)
+					commandGroups.POST("", commandPolicyController.CreateCommandGroup)
+					commandGroups.PUT("/:id", commandPolicyController.UpdateCommandGroup)
+					commandGroups.DELETE("/:id", commandPolicyController.DeleteCommandGroup)
+				}
+
+				// 策略管理
+				policies := commandFilter.Group("/policies")
+				{
+					policies.GET("", commandPolicyController.GetPolicies)
+					policies.POST("", commandPolicyController.CreatePolicy)
+					policies.PUT("/:id", commandPolicyController.UpdatePolicy)
+					policies.DELETE("/:id", commandPolicyController.DeletePolicy)
+					policies.POST("/:id/bind-users", commandPolicyController.BindPolicyUsers)
+					policies.POST("/:id/bind-commands", commandPolicyController.BindPolicyCommands)
+				}
+
+				// 拦截日志
+				commandFilter.GET("/intercept-logs", commandPolicyController.GetInterceptLogs)
 			}
 		}
 

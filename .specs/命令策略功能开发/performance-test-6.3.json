@@ -1,0 +1,74 @@
+{
+  "baseline": {
+    "命令列表查询": {
+      "avg_ms": 19.02671819999999,
+      "min_ms": 13.738603999999931,
+      "max_ms": 34.328417
+    },
+    "策略列表查询": {
+      "avg_ms": 24.950094600000007,
+      "min_ms": 18.592979999999983,
+      "max_ms": 47.13343700000006
+    },
+    "命令组列表查询": {
+      "avg_ms": 16.998569799999984,
+      "min_ms": 15.583522999999877,
+      "max_ms": 18.858704000000117
+    },
+    "拦截日志查询": {
+      "avg_ms": 12.82284800000002,
+      "min_ms": 11.047103000000114,
+      "max_ms": 15.295579000000004
+    }
+  },
+  "large_data": {
+    "大量命令查询": {
+      "avg_ms": 16.802446800000048,
+      "min_ms": 14.418182000000002,
+      "max_ms": 18.957783000000283
+    },
+    "大量策略查询": {
+      "avg_ms": 26.64676280000009,
+      "min_ms": 21.907425000000202,
+      "max_ms": 32.17598400000021
+    }
+  },
+  "concurrent": {
+    "命令查询并发测试": {
+      "total_requests": 50,
+      "total_duration_ms": 875.9513550000003,
+      "avg_response_time_ms": 69.68881944000007,
+      "min_response_time_ms": 19.541878000000068,
+      "max_response_time_ms": 130.06989199999987,
+      "median_response_time_ms": 63.950962500000095,
+      "p95_response_time_ms": 107.21142784999965,
+      "requests_per_second": 57.08079531425577,
+      "success_rate": 100.0
+    },
+    "策略查询并发测试": {
+      "total_requests": 30,
+      "total_duration_ms": 777.3050110000001,
+      "avg_response_time_ms": 65.91174719999998,
+      "min_response_time_ms": 46.798267999999865,
+      "max_response_time_ms": 93.76536999999985,
+      "median_response_time_ms": 59.94528049999958,
+      "p95_response_time_ms": 91.46690240000001,
+      "requests_per_second": 38.59488820405918,
+      "success_rate": 100.0
+    }
+  },
+  "cache": {
+    "repeated_queries": {
+      "avg_ms": 19.056309549999995,
+      "min_ms": 13.639540999999866,
+      "max_ms": 88.48900399999948,
+      "std_dev": 16.407968702116307
+    }
+  },
+  "test_info": {
+    "timestamp": "2025-07-28 21:25:57",
+    "created_commands": 50,
+    "created_policies": 10,
+    "test_duration": "约5-10分钟"
+  }
+}

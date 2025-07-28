@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "error": "400 Client Error: Bad Request for url: http://localhost:8080/api/v1/command-filter/commands?page=1&page_size=200",
+  "timestamp": "2025-07-28 21:39:04"
+}
