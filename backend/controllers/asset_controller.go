@@ -3,7 +3,7 @@ package controllers
 import (
 	"bastion/models"
 	"bastion/services"
-	"net/http"
+	"bastion/utils"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -37,9 +37,7 @@ func NewAssetController(assetService *services.AssetService) *AssetController {
 func (ac *AssetController) CreateAsset(c *gin.Context) {
 	var request models.AssetCreateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
@@ -47,22 +45,14 @@ func (ac *AssetController) CreateAsset(c *gin.Context) {
 	asset, err := ac.assetService.CreateAsset(&request)
 	if err != nil {
 		if err.Error() == "asset name already exists" {
-			c.JSON(http.StatusConflict, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithConflict(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to create asset",
-			"details": err.Error(),
-		})
+		utils.RespondWithInternalError(c, "Failed to create asset")
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data":    asset,
-	})
+	utils.RespondWithData(c, asset)
 }
 
 // GetAssets 获取资产列表
@@ -86,10 +76,7 @@ func (ac *AssetController) CreateAsset(c *gin.Context) {
 func (ac *AssetController) GetAssets(c *gin.Context) {
 	var request models.AssetListRequest
 	if err := c.ShouldBindQuery(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request parameters",
-			"details": err.Error(),
-		})
+		utils.RespondWithValidationError(c, "Invalid request parameters")
 		return
 	}
 
@@ -104,28 +91,12 @@ func (ac *AssetController) GetAssets(c *gin.Context) {
 	// 调用资产服务
 	assets, total, err := ac.assetService.GetAssets(&request)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to get assets",
-			"details": err.Error(),
-		})
+		utils.RespondWithInternalError(c, "Failed to get assets")
 		return
 	}
 
-	// 计算分页信息
-	totalPages := (total + int64(request.PageSize) - 1) / int64(request.PageSize)
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"assets": assets,
-			"pagination": gin.H{
-				"page":       request.Page,
-				"page_size":  request.PageSize,
-				"total":      total,
-				"total_page": totalPages,
-			},
-		},
-	})
+	// 使用统一的分页响应
+	utils.RespondWithPagination(c, assets, request.Page, request.PageSize, total)
 }
 
 // GetAsset 获取单个资产
@@ -147,9 +118,7 @@ func (ac *AssetController) GetAsset(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid asset ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid asset ID")
 		return
 	}
 
@@ -157,21 +126,14 @@ func (ac *AssetController) GetAsset(c *gin.Context) {
 	asset, err := ac.assetService.GetAsset(uint(id))
 	if err != nil {
 		if err.Error() == "asset not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get asset",
-		})
+		utils.RespondWithInternalError(c, "Failed to get asset")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    asset,
-	})
+	utils.RespondWithData(c, asset)
 }
 
 // UpdateAsset 更新资产
@@ -195,17 +157,13 @@ func (ac *AssetController) UpdateAsset(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid asset ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid asset ID")
 		return
 	}
 
 	var request models.AssetUpdateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
@@ -214,25 +172,16 @@ func (ac *AssetController) UpdateAsset(c *gin.Context) {
 	if err != nil {
 		switch err.Error() {
 		case "asset not found":
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, err.Error())
 		case "asset name already exists":
-			c.JSON(http.StatusConflict, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithConflict(c, err.Error())
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to update asset",
-			})
+			utils.RespondWithInternalError(c, "Failed to update asset")
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    asset,
-	})
+	utils.RespondWithData(c, asset)
 }
 
 // DeleteAsset 删除资产
@@ -254,9 +203,7 @@ func (ac *AssetController) DeleteAsset(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid asset ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid asset ID")
 		return
 	}
 
@@ -264,22 +211,14 @@ func (ac *AssetController) DeleteAsset(c *gin.Context) {
 	err = ac.assetService.DeleteAsset(uint(id))
 	if err != nil {
 		if err.Error() == "asset not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to delete asset",
-			"details": err.Error(),
-		})
+		utils.RespondWithInternalError(c, "Failed to delete asset")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Asset deleted successfully",
-	})
+	utils.RespondWithSuccess(c, "Asset deleted successfully")
 }
 
 // CreateCredential 创建凭证
@@ -300,9 +239,7 @@ func (ac *AssetController) DeleteAsset(c *gin.Context) {
 func (ac *AssetController) CreateCredential(c *gin.Context) {
 	var request models.CredentialCreateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
@@ -310,21 +247,14 @@ func (ac *AssetController) CreateCredential(c *gin.Context) {
 	credential, err := ac.assetService.CreateCredential(&request)
 	if err != nil {
 		if err.Error() == "asset not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to create credential",
-		})
+		utils.RespondWithInternalError(c, "Failed to create credential")
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data":    credential,
-	})
+	utils.RespondWithData(c, credential)
 }
 
 // GetCredentials 获取凭证列表
@@ -348,9 +278,7 @@ func (ac *AssetController) CreateCredential(c *gin.Context) {
 func (ac *AssetController) GetCredentials(c *gin.Context) {
 	var request models.CredentialListRequest
 	if err := c.ShouldBindQuery(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request parameters",
-		})
+		utils.RespondWithValidationError(c, "Invalid request parameters")
 		return
 	}
 
@@ -365,27 +293,12 @@ func (ac *AssetController) GetCredentials(c *gin.Context) {
 	// 调用资产服务
 	credentials, total, err := ac.assetService.GetCredentials(&request)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get credentials",
-		})
+		utils.RespondWithInternalError(c, "Failed to get credentials")
 		return
 	}
 
-	// 计算分页信息
-	totalPages := (total + int64(request.PageSize) - 1) / int64(request.PageSize)
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"credentials": credentials,
-			"pagination": gin.H{
-				"page":       request.Page,
-				"page_size":  request.PageSize,
-				"total":      total,
-				"total_page": totalPages,
-			},
-		},
-	})
+	// 使用统一的分页响应
+	utils.RespondWithPagination(c, credentials, request.Page, request.PageSize, total)
 }
 
 // GetCredential 获取单个凭证
@@ -407,9 +320,7 @@ func (ac *AssetController) GetCredential(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid credential ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid credential ID")
 		return
 	}
 
@@ -417,21 +328,14 @@ func (ac *AssetController) GetCredential(c *gin.Context) {
 	credential, err := ac.assetService.GetCredential(uint(id))
 	if err != nil {
 		if err.Error() == "credential not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get credential",
-		})
+		utils.RespondWithInternalError(c, "Failed to get credential")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    credential,
-	})
+	utils.RespondWithData(c, credential)
 }
 
 // UpdateCredential 更新凭证
@@ -454,17 +358,13 @@ func (ac *AssetController) UpdateCredential(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid credential ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid credential ID")
 		return
 	}
 
 	var request models.CredentialUpdateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
@@ -472,21 +372,14 @@ func (ac *AssetController) UpdateCredential(c *gin.Context) {
 	credential, err := ac.assetService.UpdateCredential(uint(id), &request)
 	if err != nil {
 		if err.Error() == "credential not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to update credential",
-		})
+		utils.RespondWithInternalError(c, "Failed to update credential")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    credential,
-	})
+	utils.RespondWithData(c, credential)
 }
 
 // DeleteCredential 删除凭证
@@ -508,9 +401,7 @@ func (ac *AssetController) DeleteCredential(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid credential ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid credential ID")
 		return
 	}
 
@@ -518,21 +409,14 @@ func (ac *AssetController) DeleteCredential(c *gin.Context) {
 	err = ac.assetService.DeleteCredential(uint(id))
 	if err != nil {
 		if err.Error() == "credential not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to delete credential",
-		})
+		utils.RespondWithInternalError(c, "Failed to delete credential")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Credential deleted successfully",
-	})
+	utils.RespondWithSuccess(c, "Credential deleted successfully")
 }
 
 // TestConnection 测试连接
@@ -553,9 +437,7 @@ func (ac *AssetController) DeleteCredential(c *gin.Context) {
 func (ac *AssetController) TestConnection(c *gin.Context) {
 	var request models.ConnectionTestRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
@@ -564,25 +446,16 @@ func (ac *AssetController) TestConnection(c *gin.Context) {
 	if err != nil {
 		switch err.Error() {
 		case "asset not found", "credential not found":
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, err.Error())
 		case "credential does not belong to the asset":
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithValidationError(c, err.Error())
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to test connection",
-			})
+			utils.RespondWithInternalError(c, "Failed to test connection")
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    result,
-	})
+	utils.RespondWithData(c, result)
 }
 
 // ======================== 资产分组管理 ========================
@@ -591,39 +464,28 @@ func (ac *AssetController) TestConnection(c *gin.Context) {
 func (ac *AssetController) CreateAssetGroup(c *gin.Context) {
 	var request models.AssetGroupCreateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
 	group, err := ac.assetService.CreateAssetGroup(&request)
 	if err != nil {
 		if err.Error() == "asset group name already exists" {
-			c.JSON(http.StatusConflict, gin.H{
-				"error": "资产分组名称已存在",
-			})
+			utils.RespondWithConflict(c, "资产分组名称已存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "创建资产分组失败",
-			})
+			utils.RespondWithInternalError(c, "创建资产分组失败")
 		}
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data":    group,
-	})
+	utils.RespondWithData(c, group)
 }
 
 // GetAssetGroups 获取资产分组列表
 func (ac *AssetController) GetAssetGroups(c *gin.Context) {
 	var request models.AssetGroupListRequest
 	if err := c.ShouldBindQuery(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithValidationError(c, "Invalid request parameters")
 		return
 	}
 
@@ -637,17 +499,12 @@ func (ac *AssetController) GetAssetGroups(c *gin.Context) {
 
 	groups, total, err := ac.assetService.GetAssetGroups(&request)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "获取资产分组列表失败",
-		})
+		utils.RespondWithInternalError(c, "获取资产分组列表失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    groups,
-		"total":   total,
-	})
+	// 使用统一的分页响应
+	utils.RespondWithPagination(c, groups, request.Page, request.PageSize, total)
 }
 
 // GetAssetGroup 获取单个资产分组
@@ -655,30 +512,21 @@ func (ac *AssetController) GetAssetGroup(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid group ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid group ID")
 		return
 	}
 
 	group, err := ac.assetService.GetAssetGroup(uint(id))
 	if err != nil {
 		if err.Error() == "asset group not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "资产分组不存在",
-			})
+			utils.RespondWithNotFound(c, "资产分组不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "获取资产分组失败",
-			})
+			utils.RespondWithInternalError(c, "获取资产分组失败")
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    group,
-	})
+	utils.RespondWithData(c, group)
 }
 
 // UpdateAssetGroup 更新资产分组
@@ -686,42 +534,29 @@ func (ac *AssetController) UpdateAssetGroup(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid group ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid group ID")
 		return
 	}
 
 	var request models.AssetGroupUpdateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
 	group, err := ac.assetService.UpdateAssetGroup(uint(id), &request)
 	if err != nil {
 		if err.Error() == "asset group not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "资产分组不存在",
-			})
+			utils.RespondWithNotFound(c, "资产分组不存在")
 		} else if err.Error() == "asset group name already exists" {
-			c.JSON(http.StatusConflict, gin.H{
-				"error": "资产分组名称已存在",
-			})
+			utils.RespondWithConflict(c, "资产分组名称已存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "更新资产分组失败",
-			})
+			utils.RespondWithInternalError(c, "更新资产分组失败")
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    group,
-	})
+	utils.RespondWithData(c, group)
 }
 
 // DeleteAssetGroup 删除资产分组
@@ -729,34 +564,23 @@ func (ac *AssetController) DeleteAssetGroup(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid group ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid group ID")
 		return
 	}
 
 	err = ac.assetService.DeleteAssetGroup(uint(id))
 	if err != nil {
 		if err.Error() == "asset group not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "资产分组不存在",
-			})
+			utils.RespondWithNotFound(c, "资产分组不存在")
 		} else if err.Error() == "cannot delete asset group with associated assets" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "无法删除有关联资产的分组",
-			})
+			utils.RespondWithValidationError(c, "无法删除有关联资产的分组")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "删除资产分组失败",
-			})
+			utils.RespondWithInternalError(c, "删除资产分组失败")
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "资产分组删除成功",
-	})
+	utils.RespondWithSuccess(c, "资产分组删除成功")
 }
 
 // BatchMoveAssets 批量移动资产到分组（管理员专用）
@@ -777,10 +601,7 @@ func (ac *AssetController) DeleteAssetGroup(c *gin.Context) {
 func (ac *AssetController) BatchMoveAssets(c *gin.Context) {
 	var request models.AssetBatchMoveRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "请求参数格式错误",
-			"details": err.Error(),
-		})
+		utils.RespondWithValidationError(c, "请求参数格式错误")
 		return
 	}
 
@@ -789,18 +610,11 @@ func (ac *AssetController) BatchMoveAssets(c *gin.Context) {
 	if err != nil {
 		switch err.Error() {
 		case "some assets not found or deleted":
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "部分资产不存在或已删除",
-			})
+			utils.RespondWithNotFound(c, "部分资产不存在或已删除")
 		case "target group not found":
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "目标分组不存在",
-			})
+			utils.RespondWithNotFound(c, "目标分组不存在")
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "批量移动资产失败",
-				"details": err.Error(),
-			})
+			utils.RespondWithInternalError(c, "批量移动资产失败")
 		}
 		return
 	}
@@ -813,13 +627,10 @@ func (ac *AssetController) BatchMoveAssets(c *gin.Context) {
 		message = "成功将资产移出所有分组"
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.RespondWithData(c, gin.H{
 		"message": message,
-		"data": gin.H{
-			"moved_count": len(request.AssetIDs),
-			"target_group_id": request.TargetGroupID,
-		},
+		"moved_count": len(request.AssetIDs),
+		"target_group_id": request.TargetGroupID,
 	})
 }
 
@@ -843,24 +654,16 @@ func (ac *AssetController) GetAssetGroupsWithHosts(c *gin.Context) {
 	
 	// 验证资产类型
 	if assetType != "" && assetType != "server" && assetType != "database" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid asset type. Must be 'server' or 'database'",
-		})
+		utils.RespondWithValidationError(c, "Invalid asset type. Must be 'server' or 'database'")
 		return
 	}
 
 	// 调用资产服务
 	groups, err := ac.assetService.GetAssetGroupsWithHosts(assetType)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "获取资产分组列表失败",
-			"details": err.Error(),
-		})
+		utils.RespondWithInternalError(c, "获取资产分组列表失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    groups,
-	})
+	utils.RespondWithData(c, groups)
 }

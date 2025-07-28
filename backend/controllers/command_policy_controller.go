@@ -40,7 +40,7 @@ func NewCommandPolicyController(policyService *services.CommandPolicyService) *C
 func (c *CommandPolicyController) GetCommands(ctx *gin.Context) {
 	var req models.CommandListRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -54,7 +54,7 @@ func (c *CommandPolicyController) GetCommands(ctx *gin.Context) {
 
 	commands, total, err := c.policyService.GetCommands(&req)
 	if err != nil {
-		utils.RespondWithInternalError(ctx, err)
+		utils.RespondWithInternalError(ctx, err.Error())
 		return
 	}
 
@@ -74,7 +74,7 @@ func (c *CommandPolicyController) GetCommands(ctx *gin.Context) {
 func (c *CommandPolicyController) CreateCommand(ctx *gin.Context) {
 	var req models.CommandCreateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -107,7 +107,7 @@ func (c *CommandPolicyController) UpdateCommand(ctx *gin.Context) {
 
 	var req models.CommandUpdateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -163,7 +163,7 @@ func (c *CommandPolicyController) DeleteCommand(ctx *gin.Context) {
 func (c *CommandPolicyController) GetCommandGroups(ctx *gin.Context) {
 	var req models.CommandGroupListRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -177,7 +177,7 @@ func (c *CommandPolicyController) GetCommandGroups(ctx *gin.Context) {
 
 	groups, total, err := c.policyService.GetCommandGroups(&req)
 	if err != nil {
-		utils.RespondWithInternalError(ctx, err)
+		utils.RespondWithInternalError(ctx, err.Error())
 		return
 	}
 
@@ -197,7 +197,7 @@ func (c *CommandPolicyController) GetCommandGroups(ctx *gin.Context) {
 func (c *CommandPolicyController) CreateCommandGroup(ctx *gin.Context) {
 	var req models.CommandGroupCreateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -230,7 +230,7 @@ func (c *CommandPolicyController) UpdateCommandGroup(ctx *gin.Context) {
 
 	var req models.CommandGroupUpdateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -286,7 +286,7 @@ func (c *CommandPolicyController) DeleteCommandGroup(ctx *gin.Context) {
 func (c *CommandPolicyController) GetPolicies(ctx *gin.Context) {
 	var req models.PolicyListRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -300,7 +300,7 @@ func (c *CommandPolicyController) GetPolicies(ctx *gin.Context) {
 
 	policies, total, err := c.policyService.GetPolicies(&req)
 	if err != nil {
-		utils.RespondWithInternalError(ctx, err)
+		utils.RespondWithInternalError(ctx, err.Error())
 		return
 	}
 
@@ -376,7 +376,7 @@ func (c *CommandPolicyController) GetPolicies(ctx *gin.Context) {
 func (c *CommandPolicyController) CreatePolicy(ctx *gin.Context) {
 	var req models.PolicyCreateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -409,7 +409,7 @@ func (c *CommandPolicyController) UpdatePolicy(ctx *gin.Context) {
 
 	var req models.PolicyUpdateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -467,7 +467,7 @@ func (c *CommandPolicyController) BindPolicyUsers(ctx *gin.Context) {
 
 	var req models.PolicyBindUsersRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -499,7 +499,7 @@ func (c *CommandPolicyController) BindPolicyCommands(ctx *gin.Context) {
 
 	var req models.PolicyBindCommandsRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -533,7 +533,7 @@ func (c *CommandPolicyController) BindPolicyCommands(ctx *gin.Context) {
 func (c *CommandPolicyController) GetInterceptLogs(ctx *gin.Context) {
 	var req models.InterceptLogListRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
-		utils.RespondWithValidationError(ctx, err)
+		utils.RespondWithValidationError(ctx, err.Error())
 		return
 	}
 
@@ -547,7 +547,7 @@ func (c *CommandPolicyController) GetInterceptLogs(ctx *gin.Context) {
 
 	logs, total, err := c.policyService.GetInterceptLogs(&req)
 	if err != nil {
-		utils.RespondWithInternalError(ctx, err)
+		utils.RespondWithInternalError(ctx, err.Error())
 		return
 	}
 

@@ -77,8 +77,8 @@ func RespondWithError(c *gin.Context, code int, errorMsg string, details ...stri
 
 // RespondWithValidationError 返回验证错误响应
 // 用于请求参数验证失败的场景
-func RespondWithValidationError(c *gin.Context, err error) {
-	RespondWithError(c, http.StatusBadRequest, "请求参数验证失败", err.Error())
+func RespondWithValidationError(c *gin.Context, message string) {
+	RespondWithError(c, http.StatusBadRequest, message)
 }
 
 // RespondWithNotFound 返回资源不存在响应
@@ -107,15 +107,9 @@ func RespondWithForbidden(c *gin.Context, message string) {
 
 // RespondWithInternalError 返回服务器内部错误响应
 // 用于服务器内部错误的场景，生产环境不应暴露详细错误信息
-func RespondWithInternalError(c *gin.Context, err error) {
-	// 记录详细错误日志
-	if err != nil {
-		// TODO: 集成日志系统记录详细错误
-		_ = err
-	}
-	
+func RespondWithInternalError(c *gin.Context, message string) {
 	// 返回通用错误信息，不暴露内部细节
-	RespondWithError(c, http.StatusInternalServerError, "服务器内部错误")
+	RespondWithError(c, http.StatusInternalServerError, message)
 }
 
 // RespondWithConflict 返回冲突错误响应
