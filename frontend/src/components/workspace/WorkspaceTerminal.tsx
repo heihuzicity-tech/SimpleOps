@@ -457,7 +457,9 @@ const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
             flexDirection: 'column',
             gap: 16
           }}>
-            <Spin size="large" tip="正在建立连接..." />
+            <Spin size="large" tip="正在建立连接...">
+              <div />
+            </Spin>
             <div style={{ textAlign: 'center' }}>
               <p>连接到 {tab.assetInfo.name}</p>
               <p style={{ color: '#666', fontSize: '12px' }}>

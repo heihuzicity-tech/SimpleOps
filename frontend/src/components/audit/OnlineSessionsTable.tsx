@@ -786,14 +786,16 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
         ]}
         width={isFullscreen ? '95%' : '85%'}
         style={{ top: isFullscreen ? 5 : 10 }}
-        bodyStyle={{ 
-          padding: 0, 
-          backgroundColor: terminalTheme === 'dark' ? '#1e1e1e' : '#ffffff',
-          height: isFullscreen ? 'calc(100vh - 80px)' : 'calc(100vh - 150px)',
-          display: 'flex',
-          flexDirection: 'column'
+        styles={{
+          body: { 
+            padding: 0, 
+            backgroundColor: terminalTheme === 'dark' ? '#1e1e1e' : '#ffffff',
+            height: isFullscreen ? 'calc(100vh - 80px)' : 'calc(100vh - 150px)',
+            display: 'flex',
+            flexDirection: 'column'
+          }
         }}
-        destroyOnClose={true}
+        destroyOnHidden={true}
       >
         {/* 压缩的会话信息条 */}
         <div style={{ 

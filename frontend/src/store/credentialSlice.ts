@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { message } from 'antd';
-import * as credentialAPI from '../services/credentialAPI';
+// import * as credentialAPI from '../services/credentialAPI';
+import { credentialApiService, UpdateCredentialRequest } from '../services/api/CredentialApiService';
 import { Credential } from '../types';
 
 interface CredentialState {
@@ -29,22 +30,15 @@ interface NormalizedCredentialsResponse {
 export const fetchCredentials = createAsyncThunk(
   'credential/fetchCredentials',
   async (params: { page?: number; page_size?: number; keyword?: string; type?: 'password' | 'key'; asset_id?: number }): Promise<NormalizedCredentialsResponse> => {
-    const response = await credentialAPI.getCredentials(params);
-    // 适配后端返回的数据结构
-    if (response.data && response.data.data) {
-      return {
-        credentials: response.data.data.credentials || [],
-        total: response.data.data.pagination?.total || 0,
-        page: response.data.data.pagination?.page || 1,
-        page_size: response.data.data.pagination?.page_size || 10,
-      };
-    }
-    // 如果是其他格式，返回默认值
+    // 使用新的CredentialApiService，它会自动处理响应格式转换
+    const data = await credentialApiService.getCredentials(params);
+    // Service返回数据处理成功
+    
     return {
-      credentials: [],
-      total: 0,
-      page: 1,
-      page_size: 10,
+      credentials: data.items || [],
+      total: data.total || 0,
+      page: data.page || 1,
+      page_size: data.page_size || 10,
     };
   }
 );
@@ -59,23 +53,23 @@ export const createCredential = createAsyncThunk(
     private_key?: string;
     asset_ids: number[];
   }) => {
-    const response = await credentialAPI.createCredential(credentialData);
-    return response.data;
+    const data = await credentialApiService.createCredential(credentialData);
+    return data;
   }
 );
 
 export const updateCredential = createAsyncThunk(
   'credential/updateCredential',
-  async ({ id, credentialData }: { id: number; credentialData: credentialAPI.UpdateCredentialRequest }) => {
-    const response = await credentialAPI.updateCredential(id, credentialData);
-    return response.data;
+  async ({ id, credentialData }: { id: number; credentialData: UpdateCredentialRequest }) => {
+    const data = await credentialApiService.updateCredential(id, credentialData);
+    return data;
   }
 );
 
 export const deleteCredential = createAsyncThunk(
   'credential/deleteCredential',
   async (id: number) => {
-    await credentialAPI.deleteCredential(id);
+    await credentialApiService.deleteCredential(id);
     return id;
   }
 );
@@ -83,7 +77,7 @@ export const deleteCredential = createAsyncThunk(
 export const batchDeleteCredentials = createAsyncThunk(
   'credential/batchDeleteCredentials',
   async (ids: number[]) => {
-    await credentialAPI.batchDeleteCredentials(ids);
+    await credentialApiService.batchDeleteCredentials(ids);
     return ids;
   }
 );
@@ -91,8 +85,8 @@ export const batchDeleteCredentials = createAsyncThunk(
 export const testConnection = createAsyncThunk(
   'credential/testConnection',
   async (testData: { asset_id: number; credential_id: number; test_type: 'ping' | 'ssh' | 'rdp' | 'database' }) => {
-    const response = await credentialAPI.testConnection(testData);
-    return { credentialId: testData.credential_id, result: response.data };
+    const result = await credentialApiService.testConnection(testData);
+    return { credentialId: testData.credential_id, result };
   }
 );
 

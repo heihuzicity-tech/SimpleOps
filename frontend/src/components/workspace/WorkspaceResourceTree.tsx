@@ -221,7 +221,9 @@ const WorkspaceResourceTree: React.FC<WorkspaceResourceTreeProps> = ({
         alignItems: 'center', 
         height: '200px' 
       }}>
-        <Spin size="small" tip="加载资源中..." />
+        <Spin size="small" tip="加载资源中...">
+          <div style={{ minHeight: '50px' }} />
+        </Spin>
       </div>
     );
   }

@@ -52,7 +52,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
 
     // 防止重复初始化
     if (terminal.current) {
-      console.log('Terminal already initialized');
+      // Terminal already initialized
       return terminal.current;
     }
 
@@ -113,7 +113,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
         }
       });
 
-      console.log('Terminal initialized successfully');
+      // Terminal initialized successfully
       return terminal.current;
     } catch (error) {
       console.error('Failed to initialize terminal:', error);
@@ -130,13 +130,13 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
 
     // 如果正在连接，不要重复连接
     if (isConnecting) {
-      console.log('WebSocket connection already in progress, skipping...');
+      // WebSocket connection already in progress
       return;
     }
 
     // 如果已有连接且处于连接状态，不要重复连接
     if (websocket.current && websocket.current.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already connected, skipping...');
+      // WebSocket already connected
       return;
     }
 
@@ -151,12 +151,12 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
     
     try {
       const wsUrl = sshAPI.getWebSocketURL(sessionId);
-      console.log('Connecting to WebSocket:', wsUrl);
+      // Connecting to WebSocket
       
       websocket.current = new WebSocket(wsUrl);
 
       websocket.current.onopen = () => {
-        console.log('WebSocket connected successfully');
+        // WebSocket connected successfully
         setIsConnecting(false);
         updateConnectionStatus('connected');
         setReconnectAttempts(0);
@@ -176,11 +176,11 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
                   rows,
                 };
                 websocket.current?.send(JSON.stringify(resizeMessage));
-                console.log(`Terminal size sent: ${cols}x${rows}`);
+                // Terminal size sent
                 
                 // ✅ 修复：不发送初始化命令，让后端处理
                 // 不需要前端发送初始化命令，后端会处理
-                console.log('WebSocket connected, terminal ready');
+                // WebSocket connected, terminal ready
               } catch (error) {
                 console.error('Failed to send terminal size:', error);
               }
@@ -253,7 +253,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
                     maskClosable: false,
                   });
                 } else {
-                  console.log(`终端 ${sessionId} 收到其他会话 ${messageSessionId} 的强制终止消息，忽略处理`);
+                  // 忽略其他会话的终止消息
                 }
               }
               break;
@@ -281,7 +281,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
       };
 
       websocket.current.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
+        // WebSocket closed
         setIsConnecting(false);
         updateConnectionStatus('disconnected');
         
@@ -291,14 +291,14 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
         
         if (isNormalClose || isComponentUnmounting) {
           // 正常关闭或组件卸载，不要重连
-          console.log('WebSocket closed normally, not reconnecting');
+          // WebSocket closed normally
           dispatch(updateSessionStatus({ sessionId, status: 'closed' }));
           return;
         }
         
         // 只有在非正常关闭且重连次数未超限时才重连
         if (reconnectAttempts < maxReconnectAttempts) {
-          console.log(`WebSocket will reconnect in ${Math.pow(2, reconnectAttempts) * 1000}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+          // WebSocket will reconnect
           setTimeout(() => {
             setReconnectAttempts(prev => prev + 1);
             updateConnectionStatus('reconnecting');
@@ -389,7 +389,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
     const initializeTerminal = async () => {
       // 防止重复初始化
       if (initializationComplete) {
-        console.log('Terminal already initialized, skipping...');
+        // Terminal already initialized
         return;
       }
       

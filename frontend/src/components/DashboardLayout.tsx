@@ -262,7 +262,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         alignItems: 'center', 
         height: '100vh' 
       }}>
-        <Spin size="large" tip="加载中..." />
+        <Spin size="large" tip="加载中...">
+          <div />
+        </Spin>
       </div>
     );
   }

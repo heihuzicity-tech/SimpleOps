@@ -13,14 +13,14 @@ const SimpleWorkspace: React.FC = () => {
   const { user, token, loading, error } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
-    console.log('SimpleWorkspace - Auth State:', { user, token, hasToken: !!token, loading, error });
+    // Auth State 检查
     document.title = '连接工作台 - Bastion';
     
     // 如果有token但没有用户信息，获取用户信息
     if (token && !user && !loading) {
-      console.log('获取用户信息...');
+      // 获取用户信息
       dispatch(getCurrentUser()).catch(err => {
-        console.error('获取用户信息失败:', err);
+        // 获取用户信息失败
       });
     }
   }, [user, token, loading, dispatch, error]);
@@ -49,7 +49,9 @@ const SimpleWorkspace: React.FC = () => {
         justifyContent: 'center',
         background: '#f0f2f5' 
       }}>
-        <Spin size="large" tip="正在加载用户信息..." />
+        <Spin size="large" tip="正在加载用户信息...">
+          <div style={{ minHeight: '100px', minWidth: '200px' }} />
+        </Spin>
       </div>
     );
   }

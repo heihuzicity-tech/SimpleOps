@@ -314,7 +314,7 @@ const ConnectionCreator: React.FC<ConnectionCreatorProps> = ({
           )}
         </Space>
       }
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
     >
       <div style={{ marginBottom: 24 }}>

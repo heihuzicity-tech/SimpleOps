@@ -9,7 +9,7 @@ import type {
 
 export class AuthApiService extends BaseApiService {
   constructor() {
-    super('/auth');
+    super('');  // 使用空字符串，因为认证相关的API分布在不同路径
   }
   
   // 登录
@@ -17,7 +17,7 @@ export class AuthApiService extends BaseApiService {
     success: boolean;
     data: TokenResponse;
   }> {
-    const data = await this.post<TokenResponse>(this.buildUrl('/login'), credentials);
+    const data = await this.post<TokenResponse>('/auth/login', credentials);
     return {
       success: true,
       data
@@ -45,7 +45,7 @@ export class AuthApiService extends BaseApiService {
   
   // 刷新Token
   async refreshToken(): Promise<{ success: boolean; data: RefreshTokenResponse }> {
-    const data = await this.post<RefreshTokenResponse>(this.buildUrl('/refresh'));
+    const data = await this.post<RefreshTokenResponse>('/auth/refresh');
     return {
       success: true,
       data

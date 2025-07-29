@@ -478,7 +478,7 @@ const RecordingAuditPage: React.FC = () => {
         onCancel={() => setPlayerVisible(false)}
         footer={null}
         width={isPlayerFullscreen ? '100vw' : 1300}
-        destroyOnClose
+        destroyOnHidden
         centered={!isPlayerFullscreen}
         styles={{
           header: {

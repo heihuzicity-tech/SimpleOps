@@ -83,13 +83,13 @@ export const closeTabWithCleanup = createAsyncThunk(
     try {
       const { tabId, sessionId, force = false } = params;
       
-      console.log('closeTabWithCleanup: 开始清理标签页', { tabId, sessionId, force });
+      // 开始清理标签页
       
       // 如果有会话ID，先尝试清理服务端会话
       if (sessionId) {
         try {
           await sshAPI.closeConnection(sessionId);
-          console.log('closeTabWithCleanup: 服务端会话清理成功', sessionId);
+          // 服务端会话清理成功
         } catch (error: any) {
           console.warn('closeTabWithCleanup: 服务端会话清理失败', error);
           

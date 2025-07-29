@@ -12,8 +12,8 @@ export class UserApiService extends BaseApiService {
     success: boolean;
     data: PaginatedResult<User>;
   }> {
-    // 内部使用BaseApiService的方法
-    const data = await this.get<PaginatedResult<User>>(this.endpoint, params);
+    // 内部使用BaseApiService的方法，使用空字符串调用根endpoint
+    const data = await this.get<PaginatedResult<User>>('', params);
     return {
       success: true,
       data
@@ -29,7 +29,7 @@ export class UserApiService extends BaseApiService {
   }
   
   async createUser(userData: CreateUserRequest): Promise<{ success: boolean; data: User }> {
-    const data = await this.post<User>(this.endpoint, userData);
+    const data = await this.post<User>('', userData);
     return {
       success: true,
       data

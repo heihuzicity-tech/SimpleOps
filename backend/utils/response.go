@@ -18,6 +18,14 @@ type PaginatedData struct {
 // RespondWithPagination 返回分页数据响应
 // 用于列表查询接口，统一分页数据格式
 func RespondWithPagination(c *gin.Context, items interface{}, page, pageSize int, total int64) {
+	// 防止除零错误，设置默认值
+	if pageSize <= 0 {
+		pageSize = 10 // 默认每页10条
+	}
+	if page <= 0 {
+		page = 1 // 默认第一页
+	}
+	
 	// 计算总页数
 	totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
 	if totalPages < 0 {
