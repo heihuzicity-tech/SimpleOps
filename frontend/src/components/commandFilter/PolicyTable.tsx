@@ -33,6 +33,7 @@ import {
   CommandGroup,
 } from '../../types';
 import { commandFilterService } from '../../services/commandFilterService';
+import { adaptPaginatedResponse } from '../../services/responseAdapter';
 import { getUsers, User as APIUser } from '../../services/userAPI';
 
 const { Search } = Input;
@@ -84,8 +85,9 @@ const PolicyTable: React.FC = () => {
       
       const response = await commandFilterService.policy.getPolicies(params);
       if (response.data) {
-        setPolicies(response.data.data || []);
-        setTotal(response.data.total || 0);
+        const adaptedData = adaptPaginatedResponse<CommandPolicy>(response);
+        setPolicies(adaptedData.items);
+        setTotal(adaptedData.total);
       }
     } catch (error: any) {
       console.error('加载策略列表失败:', error);
@@ -98,7 +100,8 @@ const PolicyTable: React.FC = () => {
   const loadUsers = async () => {
     try {
       const response = await getUsers({ page: 1, page_size: 100 });
-      setUsers(response.data.data.users || []);
+      const adaptedData = adaptPaginatedResponse<APIUser>(response);
+      setUsers(adaptedData.items);
     } catch (error) {
       console.error('加载用户列表失败:', error);
     }
@@ -108,7 +111,8 @@ const PolicyTable: React.FC = () => {
     try {
       const response = await commandFilterService.command.getCommands({ page: 1, page_size: 100 });
       if (response.data) {
-        setCommands(response.data.data || []);
+        const adaptedData = adaptPaginatedResponse<Command>(response);
+        setCommands(adaptedData.items);
       }
     } catch (error) {
       console.error('加载命令列表失败:', error);
@@ -119,7 +123,8 @@ const PolicyTable: React.FC = () => {
     try {
       const response = await commandFilterService.commandGroup.getCommandGroups({ page: 1, page_size: 100 });
       if (response.data) {
-        setCommandGroups(response.data.data || []);
+        const adaptedData = adaptPaginatedResponse<CommandGroup>(response);
+        setCommandGroups(adaptedData.items);
       }
     } catch (error) {
       console.error('加载命令组列表失败:', error);

@@ -28,6 +28,7 @@ import {
   CommandType,
 } from '../../types';
 import { commandFilterService } from '../../services/commandFilterService';
+import { adaptPaginatedResponse } from '../../services/responseAdapter';
 
 const { Search } = Input;
 const { TextArea } = Input;
@@ -60,8 +61,9 @@ const CommandTable: React.FC = () => {
       
       const response = await commandFilterService.command.getCommands(params);
       if (response.data) {
-        setCommands(response.data.data || []);
-        setTotal(response.data.total || 0);
+        const adaptedData = adaptPaginatedResponse<Command>(response);
+        setCommands(adaptedData.items);
+        setTotal(adaptedData.total);
       }
     } catch (error: any) {
       console.error('加载命令列表失败:', error);

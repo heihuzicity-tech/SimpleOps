@@ -26,6 +26,7 @@ import {
   InterceptLogListRequest,
 } from '../../types';
 import { commandFilterService } from '../../services/commandFilterService';
+import { adaptPaginatedResponse } from '../../services/responseAdapter';
 import { RangePickerProps } from 'antd/lib/date-picker';
 
 const { Search } = Input;
@@ -69,8 +70,9 @@ const InterceptLogTable: React.FC = () => {
       
       const response = await commandFilterService.interceptLog.getInterceptLogs(params);
       if (response.data) {
-        setLogs(response.data.data || []);
-        setTotal(response.data.total || 0);
+        const adaptedData = adaptPaginatedResponse<CommandInterceptLog>(response);
+        setLogs(adaptedData.items);
+        setTotal(adaptedData.total);
       }
     } catch (error: any) {
       console.error('加载拦截日志失败:', error);

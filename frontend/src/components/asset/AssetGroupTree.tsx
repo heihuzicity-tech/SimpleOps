@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
 import { getAssetGroups, createAssetGroup, deleteAssetGroup, AssetGroup } from '../../services/assetAPI';
+import { adaptPaginatedResponse } from '../../services/responseAdapter';
 
 const { Search } = Input;
 
@@ -35,8 +36,8 @@ const AssetGroupTree: React.FC<AssetGroupTreeProps> = ({ onSelect, onGroupChange
     try {
       setLoading(true);
       const response = await getAssetGroups({ page: 1, page_size: 100 });
-      const groupsData = response.data.data || [];
-      setGroups(groupsData);
+      const adaptedData = adaptPaginatedResponse<AssetGroup>(response);
+      setGroups(adaptedData.items);
     } catch (error) {
       console.error('加载资产分组失败:', error);
       message.error('加载资产分组失败');

@@ -29,6 +29,7 @@ import { AppDispatch, RootState } from '../store';
 import { fetchAssets, createAsset, updateAsset, deleteAsset, batchDeleteAssets, testConnection } from '../store/assetSlice';
 import { fetchCredentials } from '../store/credentialSlice';
 import { getAssetGroups, AssetGroup } from '../services/assetAPI';
+import { adaptPaginatedResponse } from '../services/responseAdapter';
 import ResourceTree from '../components/sessions/ResourceTree';
 import SearchSelect from '../components/common/SearchSelect';
 
@@ -88,8 +89,8 @@ const AssetsPage: React.FC = () => {
   const loadAssetGroups = async () => {
     try {
       const response = await getAssetGroups({ page: 1, page_size: 100 });
-      const groups = response.data.data || [];
-      setAssetGroups(groups);
+      const adaptedData = adaptPaginatedResponse<AssetGroup>(response);
+      setAssetGroups(adaptedData.items);
       
     } catch (error) {
       console.error('加载资产分组失败:', error);

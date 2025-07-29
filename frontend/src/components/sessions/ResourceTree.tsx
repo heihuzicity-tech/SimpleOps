@@ -12,6 +12,7 @@ import {
 import type { DataNode } from 'antd/es/tree';
 import type { MenuProps } from 'antd';
 import { getAssetGroups, AssetGroup, getAssetGroupsWithHosts, AssetGroupWithHosts } from '../../services/assetAPI';
+import { adaptPaginatedResponse } from '../../services/responseAdapter';
 import './ResourceTree.css';
 
 const { Search } = Input;
@@ -53,6 +54,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
       setLoading(true);
       const assetType = resourceType === 'host' ? 'server' : 'database';
       const response = await getAssetGroupsWithHosts({ type: assetType });
+      // getAssetGroupsWithHosts 返回的是直接的数组，不需要适配器
       const groupsData = response.data.data || [];
       setGroupsWithHosts(groupsData);
     } catch (error) {
@@ -68,8 +70,8 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
     try {
       setLoading(true);
       const response = await getAssetGroups({ page: 1, page_size: 100 });
-      const groupsData = response.data.data || [];
-      setGroups(groupsData);
+      const adaptedData = adaptPaginatedResponse<AssetGroup>(response);
+      setGroups(adaptedData.items);
     } catch (error) {
       console.error('加载资产分组失败:', error);
       message.error('加载资产分组失败');

@@ -30,6 +30,7 @@ import {
   CommandGroupUpdateRequest,
 } from '../../types';
 import { commandFilterService } from '../../services/commandFilterService';
+import { adaptPaginatedResponse } from '../../services/responseAdapter';
 
 const { Search } = Input;
 const { TextArea } = Input;
@@ -71,8 +72,9 @@ const CommandGroupTable: React.FC = () => {
       
       const response = await commandFilterService.commandGroup.getCommandGroups(params);
       if (response.data) {
-        setCommandGroups(response.data.data || []);
-        setTotal(response.data.total || 0);
+        const adaptedData = adaptPaginatedResponse<CommandGroup>(response);
+        setCommandGroups(adaptedData.items);
+        setTotal(adaptedData.total);
       }
     } catch (error: any) {
       console.error('加载命令组列表失败:', error);
@@ -86,7 +88,8 @@ const CommandGroupTable: React.FC = () => {
     try {
       const response = await commandFilterService.command.getCommands({ page: 1, page_size: 100 });
       if (response.data) {
-        setCommands(response.data.data || []);
+        const adaptedData = adaptPaginatedResponse<Command>(response);
+        setCommands(adaptedData.items);
       }
     } catch (error) {
       console.error('加载命令列表失败:', error);

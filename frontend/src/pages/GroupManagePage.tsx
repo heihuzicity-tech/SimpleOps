@@ -28,6 +28,7 @@ import { RootState } from '../store';
 import { hasAdminPermission } from '../utils/permissions';
 import { getAssetsByGroup, batchMoveAssets, getGroupStatistics } from '../services/groupManageAPI';
 import { apiClient } from '../services/apiClient';
+import { adaptPaginatedResponse } from '../services/responseAdapter';
 
 const { Option } = Select;
 
@@ -89,7 +90,8 @@ const GroupManagePage: React.FC = () => {
     try {
       const response = await apiClient.get('/asset-groups/?page=1&page_size=100');
       if (response.data.success) {
-        setGroups(response.data.data || []);
+        const adaptedData = adaptPaginatedResponse<any>(response.data);
+        setGroups(adaptedData.items || []);
       }
     } catch (error) {
       console.error('Failed to load groups:', error);
