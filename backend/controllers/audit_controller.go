@@ -44,29 +44,17 @@ func NewAuditController(auditService *services.AuditService) *AuditController {
 func (ac *AuditController) GetLoginLogs(c *gin.Context) {
 	var req models.LoginLogListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request parameters",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid request parameters")
 		return
 	}
 
 	logs, total, err := ac.auditService.GetLoginLogs(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get login logs",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get login logs")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"logs":      logs,
-			"total":     total,
-			"page":      req.Page,
-			"page_size": req.PageSize,
-		},
-	})
+	utils.RespondWithPagination(c, logs, req.Page, req.PageSize, total)
 }
 
 // GetOperationLogs 获取操作日志列表
@@ -93,29 +81,17 @@ func (ac *AuditController) GetLoginLogs(c *gin.Context) {
 func (ac *AuditController) GetOperationLogs(c *gin.Context) {
 	var req models.OperationLogListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request parameters",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid request parameters")
 		return
 	}
 
 	logs, total, err := ac.auditService.GetOperationLogs(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get operation logs",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get operation logs")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"logs":      logs,
-			"total":     total,
-			"page":      req.Page,
-			"page_size": req.PageSize,
-		},
-	})
+	utils.RespondWithPagination(c, logs, req.Page, req.PageSize, total)
 }
 
 // GetSessionRecords 获取会话记录列表
@@ -142,29 +118,17 @@ func (ac *AuditController) GetOperationLogs(c *gin.Context) {
 func (ac *AuditController) GetSessionRecords(c *gin.Context) {
 	var req models.SessionRecordListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request parameters",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid request parameters")
 		return
 	}
 
 	records, total, err := ac.auditService.GetSessionRecords(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get session records",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get session records")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"records":   records,
-			"total":     total,
-			"page":      req.Page,
-			"page_size": req.PageSize,
-		},
-	})
+	utils.RespondWithPagination(c, records, req.Page, req.PageSize, total)
 }
 
 // GetCommandLogs 获取命令日志列表
@@ -191,29 +155,17 @@ func (ac *AuditController) GetSessionRecords(c *gin.Context) {
 func (ac *AuditController) GetCommandLogs(c *gin.Context) {
 	var req models.CommandLogListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request parameters",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid request parameters")
 		return
 	}
 
 	logs, total, err := ac.auditService.GetCommandLogs(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get command logs",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get command logs")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"logs":      logs,
-			"total":     total,
-			"page":      req.Page,
-			"page_size": req.PageSize,
-		},
-	})
+	utils.RespondWithPagination(c, logs, req.Page, req.PageSize, total)
 }
 
 // GetAuditStatistics 获取审计统计数据
@@ -230,16 +182,11 @@ func (ac *AuditController) GetCommandLogs(c *gin.Context) {
 func (ac *AuditController) GetAuditStatistics(c *gin.Context) {
 	stats, err := ac.auditService.GetAuditStatistics()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get audit statistics",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get audit statistics")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    stats,
-	})
+	utils.RespondWithData(c, stats)
 }
 
 // GetSessionRecord 获取单个会话记录详情
@@ -260,24 +207,17 @@ func (ac *AuditController) GetSessionRecord(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid session record ID",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid session record ID")
 		return
 	}
 
 	var sessionRecord models.SessionRecord
 	if err := utils.GetDB().Where("id = ?", id).First(&sessionRecord).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Session record not found",
-		})
+		utils.RespondWithNotFound(c, "Session record not found")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    sessionRecord.ToResponse(),
-	})
+	utils.RespondWithData(c, sessionRecord.ToResponse())
 }
 
 // GetOperationLog 获取单个操作日志详情
@@ -298,24 +238,17 @@ func (ac *AuditController) GetOperationLog(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid operation log ID",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid operation log ID")
 		return
 	}
 
 	var operationLog models.OperationLog
 	if err := utils.GetDB().Where("id = ?", id).First(&operationLog).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Operation log not found",
-		})
+		utils.RespondWithNotFound(c, "Operation log not found")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    operationLog.ToResponse(),
-	})
+	utils.RespondWithData(c, operationLog.ToResponse())
 }
 
 // GetCommandLog 获取单个命令日志详情
@@ -336,24 +269,17 @@ func (ac *AuditController) GetCommandLog(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid command log ID",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid command log ID")
 		return
 	}
 
 	var commandLog models.CommandLog
 	if err := utils.GetDB().Where("id = ?", id).First(&commandLog).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Command log not found",
-		})
+		utils.RespondWithNotFound(c, "Command log not found")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    commandLog.ToResponse(),
-	})
+	utils.RespondWithData(c, commandLog.ToResponse())
 }
 
 // CleanupAuditLogs 清理过期审计日志
@@ -371,31 +297,22 @@ func (ac *AuditController) CleanupAuditLogs(c *gin.Context) {
 	// 检查权限（只有管理员可以清理日志）
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
 	user := userInterface.(*models.User)
 	if !user.HasRole("admin") {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "Permission denied",
-		})
+		utils.RespondWithForbidden(c, "Permission denied")
 		return
 	}
 
 	if err := ac.auditService.CleanupAuditLogs(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to cleanup audit logs",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to cleanup audit logs")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Audit logs cleanup completed",
-	})
+	utils.RespondWithSuccess(c, "Audit logs cleanup completed")
 }
 
 // DeleteSessionRecord 删除会话记录
@@ -415,18 +332,14 @@ func (ac *AuditController) CleanupAuditLogs(c *gin.Context) {
 func (ac *AuditController) DeleteSessionRecord(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid session ID",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid session ID")
 		return
 	}
 
 	// 获取当前用户信息（用于审计日志）
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
@@ -435,21 +348,14 @@ func (ac *AuditController) DeleteSessionRecord(c *gin.Context) {
 	// 执行删除操作
 	if err := ac.auditService.DeleteSessionRecord(sessionID, user.Username, c.ClientIP(), "手动删除操作"); err != nil {
 		if err.Error() == "session record not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "请求的资源不存在",
-			})
+			utils.RespondWithNotFound(c, "请求的资源不存在")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "删除失败",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "删除失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "会话记录删除成功",
-	})
+	utils.RespondWithSuccess(c, "会话记录删除成功")
 }
 
 // BatchDeleteSessionRecords 批量删除会话记录
@@ -472,25 +378,19 @@ func (ac *AuditController) BatchDeleteSessionRecords(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request parameters",
-		})
+		utils.RespondWithValidationError(c, "Invalid request parameters")
 		return
 	}
 
 	if len(req.SessionIDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Session IDs cannot be empty",
-		})
+		utils.RespondWithValidationError(c, "Session IDs cannot be empty")
 		return
 	}
 
 	// 获取当前用户信息（用于审计日志）
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
@@ -498,18 +398,13 @@ func (ac *AuditController) BatchDeleteSessionRecords(c *gin.Context) {
 
 	// 执行批量删除操作
 	if err := ac.auditService.BatchDeleteSessionRecords(req.SessionIDs, user.Username, c.ClientIP(), req.Reason); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "批量删除失败",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "批量删除失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.RespondWithData(c, gin.H{
 		"message": "批量删除成功",
-		"data": gin.H{
-			"deleted_count": len(req.SessionIDs),
-		},
+		"deleted_count": len(req.SessionIDs),
 	})
 }
 
@@ -531,18 +426,14 @@ func (ac *AuditController) DeleteOperationLog(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid operation log ID",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid operation log ID")
 		return
 	}
 
 	// 获取当前用户信息（用于审计日志）
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
@@ -551,21 +442,14 @@ func (ac *AuditController) DeleteOperationLog(c *gin.Context) {
 	// 执行删除操作
 	if err := ac.auditService.DeleteOperationLog(uint(id), user.Username, c.ClientIP(), "手动删除操作"); err != nil {
 		if err.Error() == "operation log not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "请求的资源不存在",
-			})
+			utils.RespondWithNotFound(c, "请求的资源不存在")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "删除失败",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "删除失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "操作日志删除成功",
-	})
+	utils.RespondWithSuccess(c, "操作日志删除成功")
 }
 
 // BatchDeleteOperationLogs 批量删除操作日志
@@ -588,25 +472,19 @@ func (ac *AuditController) BatchDeleteOperationLogs(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request parameters",
-		})
+		utils.RespondWithValidationError(c, "Invalid request parameters")
 		return
 	}
 
 	if len(req.IDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Operation log IDs cannot be empty",
-		})
+		utils.RespondWithValidationError(c, "Operation log IDs cannot be empty")
 		return
 	}
 
 	// 获取当前用户信息（用于审计日志）
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
@@ -614,17 +492,12 @@ func (ac *AuditController) BatchDeleteOperationLogs(c *gin.Context) {
 
 	// 执行批量删除操作
 	if err := ac.auditService.BatchDeleteOperationLogs(req.IDs, user.Username, c.ClientIP(), req.Reason); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "批量删除失败",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "批量删除失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.RespondWithData(c, gin.H{
 		"message": "批量删除成功",
-		"data": gin.H{
-			"deleted_count": len(req.IDs),
-		},
+		"deleted_count": len(req.IDs),
 	})
 }

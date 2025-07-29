@@ -24,9 +24,16 @@ import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../store';
 import { fetchUsers, createUser, updateUser, deleteUser } from '../store/userSlice';
 import { getRoles } from '../services/userAPI';
+import { adaptPaginatedResponse } from '../services/responseAdapter';
 
 const { Search } = Input;
 const { Option } = Select;
+
+interface Role {
+  id: number;
+  name: string;
+  description: string;
+}
 
 const UsersPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -34,7 +41,7 @@ const UsersPage: React.FC = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [form] = Form.useForm();
-  const [roles, setRoles] = useState<any[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
 
@@ -54,8 +61,9 @@ const UsersPage: React.FC = () => {
   const loadRoles = async () => {
     try {
       const response = await getRoles();
-      // 后端返回的数据格式是 {data: {pagination: {...}, roles: [...]}}
-      setRoles(response.data.data.roles || []);
+      // 使用适配器处理响应格式
+      const adaptedData = adaptPaginatedResponse<Role>(response.data);
+      setRoles(adaptedData.items || []);
     } catch (error: any) {
       console.error('加载角色失败:', error);
       if (error.response?.status === 403) {

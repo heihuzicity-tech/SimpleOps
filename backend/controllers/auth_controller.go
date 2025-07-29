@@ -4,7 +4,6 @@ import (
 	"bastion/models"
 	"bastion/services"
 	"bastion/utils"
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -31,16 +30,14 @@ func NewAuthController(authService *services.AuthService) *AuthController {
 // @Accept       json
 // @Produce      json
 // @Param        request body models.UserLoginRequest true "登录请求"
-// @Success      200  {object}  map[string]interface{}  "登录成功"
-// @Failure      400  {object}  map[string]interface{}  "请求格式错误"
-// @Failure      401  {object}  map[string]interface{}  "用户名或密码错误"
+// @Success      200  {object}  models.DataResponse  "登录成功，返回用户信息和token"
+// @Failure      400  {object}  models.ErrorResponse  "请求格式错误"
+// @Failure      401  {object}  models.ErrorResponse  "用户名或密码错误"
 // @Router       /auth/login [post]
 func (ac *AuthController) Login(c *gin.Context) {
 	var request models.UserLoginRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
@@ -62,9 +59,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 			err.Error(),
 		)
 
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithUnauthorized(c, err.Error())
 		return
 	}
 
@@ -83,10 +78,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 		)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    token,
-	})
+	utils.RespondWithData(c, token)
 }
 
 // Logout 用户登出
@@ -104,17 +96,13 @@ func (ac *AuthController) Logout(c *gin.Context) {
 	// 获取token
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Authorization header is required",
-		})
+		utils.RespondWithValidationError(c, "Authorization header is required")
 		return
 	}
 
 	bearerToken := strings.Split(authHeader, " ")
 	if len(bearerToken) != 2 || bearerToken[0] != "Bearer" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid authorization format",
-		})
+		utils.RespondWithValidationError(c, "Invalid authorization format")
 		return
 	}
 
@@ -132,9 +120,7 @@ func (ac *AuthController) Logout(c *gin.Context) {
 
 	// 调用认证服务
 	if err := ac.authService.Logout(tokenString); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to logout",
-		})
+		utils.RespondWithInternalError(c, "Failed to logout")
 		return
 	}
 
@@ -151,10 +137,7 @@ func (ac *AuthController) Logout(c *gin.Context) {
 		)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Logout successful",
-	})
+	utils.RespondWithSuccess(c, "Logout successful")
 }
 
 // RefreshToken 刷新token
@@ -172,17 +155,13 @@ func (ac *AuthController) RefreshToken(c *gin.Context) {
 	// 获取token
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Authorization header is required",
-		})
+		utils.RespondWithValidationError(c, "Authorization header is required")
 		return
 	}
 
 	bearerToken := strings.Split(authHeader, " ")
 	if len(bearerToken) != 2 || bearerToken[0] != "Bearer" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid authorization format",
-		})
+		utils.RespondWithValidationError(c, "Invalid authorization format")
 		return
 	}
 
@@ -191,16 +170,11 @@ func (ac *AuthController) RefreshToken(c *gin.Context) {
 	// 调用认证服务
 	newToken, err := ac.authService.RefreshToken(tokenString)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithUnauthorized(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    newToken,
-	})
+	utils.RespondWithData(c, newToken)
 }
 
 // GetProfile 获取用户资料
@@ -217,25 +191,18 @@ func (ac *AuthController) GetProfile(c *gin.Context) {
 	// 从上下文获取用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "User ID not found in context",
-		})
+		utils.RespondWithInternalError(c, "User ID not found in context")
 		return
 	}
 
 	// 调用认证服务
 	profile, err := ac.authService.GetProfile(userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithInternalError(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    profile,
-	})
+	utils.RespondWithData(c, profile)
 }
 
 // UpdateProfile 更新用户资料
@@ -243,33 +210,24 @@ func (ac *AuthController) UpdateProfile(c *gin.Context) {
 	// 从上下文获取用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "User ID not found in context",
-		})
+		utils.RespondWithInternalError(c, "User ID not found in context")
 		return
 	}
 
 	var request models.UserUpdateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
 	// 调用认证服务
 	profile, err := ac.authService.UpdateProfile(userID.(uint), &request)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithInternalError(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    profile,
-	})
+	utils.RespondWithData(c, profile)
 }
 
 // ChangePassword 修改密码
@@ -277,32 +235,23 @@ func (ac *AuthController) ChangePassword(c *gin.Context) {
 	// 从上下文获取用户ID
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "User ID not found in context",
-		})
+		utils.RespondWithInternalError(c, "User ID not found in context")
 		return
 	}
 
 	var request models.PasswordChangeRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
 	// 调用认证服务
 	if err := ac.authService.ChangePassword(userID.(uint), &request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithValidationError(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Password changed successfully",
-	})
+	utils.RespondWithSuccess(c, "Password changed successfully")
 }
 
 // GetCurrentUser 获取当前用户信息
@@ -310,22 +259,15 @@ func (ac *AuthController) GetCurrentUser(c *gin.Context) {
 	// 从上下文获取用户信息
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "User not found in context",
-		})
+		utils.RespondWithInternalError(c, "User not found in context")
 		return
 	}
 
 	user, ok := userInterface.(*models.User)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Invalid user type",
-		})
+		utils.RespondWithInternalError(c, "Invalid user type")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    user.ToResponse(),
-	})
+	utils.RespondWithData(c, user.ToResponse())
 }

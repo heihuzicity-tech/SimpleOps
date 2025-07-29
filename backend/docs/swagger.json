@@ -44,24 +44,21 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "登录成功",
+                        "description": "登录成功，返回用户信息和token",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.DataResponse"
                         }
                     },
                     "400": {
                         "description": "请求格式错误",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "用户名或密码错误",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     }
                 }
@@ -89,22 +86,19 @@
                     "200": {
                         "description": "登出成功",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.BaseResponse"
                         }
                     },
                     "400": {
                         "description": "请求格式错误",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器错误",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     }
                 }
@@ -268,24 +262,21 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "获取成功",
+                        "description": "获取成功，返回角色列表",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.PaginatedResponse"
                         }
                     },
                     "401": {
                         "description": "未授权",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "权限不足",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     }
                 }
@@ -618,6 +609,117 @@
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "models.BaseResponse": {
+            "type": "object",
+            "description": "基础响应结构，用于无数据返回的成功操作",
+            "properties": {
+                "success": {
+                    "type": "boolean",
+                    "description": "操作成功标识",
+                    "example": true
+                },
+                "message": {
+                    "type": "string",
+                    "description": "操作结果描述",
+                    "example": "操作成功"
+                }
+            }
+        },
+        "models.DataResponse": {
+            "type": "object",
+            "description": "单项数据响应结构，用于返回单个资源数据",
+            "properties": {
+                "success": {
+                    "type": "boolean",
+                    "description": "操作成功标识",
+                    "example": true
+                },
+                "message": {
+                    "type": "string",
+                    "description": "操作结果描述",
+                    "example": "获取成功"
+                },
+                "data": {
+                    "type": "object",
+                    "description": "返回的数据内容",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "models.PaginatedResponse": {
+            "type": "object",
+            "description": "分页数据响应结构，用于返回分页列表数据",
+            "properties": {
+                "success": {
+                    "type": "boolean",
+                    "description": "操作成功标识",
+                    "example": true
+                },
+                "message": {
+                    "type": "string",
+                    "description": "操作结果描述",
+                    "example": "获取成功"
+                },
+                "data": {
+                    "$ref": "#/definitions/models.PaginatedDataWrap"
+                }
+            }
+        },
+        "models.PaginatedDataWrap": {
+            "type": "object",
+            "description": "分页数据包装结构",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "description": "数据列表，统一使用items字段",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "description": "当前页码，从1开始",
+                    "example": 1
+                },
+                "page_size": {
+                    "type": "integer",
+                    "description": "每页记录数",
+                    "example": 10
+                },
+                "total": {
+                    "type": "integer",
+                    "description": "总记录数",
+                    "example": 100
+                },
+                "total_pages": {
+                    "type": "integer",
+                    "description": "总页数，自动计算",
+                    "example": 10
+                }
+            }
+        },
+        "models.ErrorResponse": {
+            "type": "object",
+            "description": "错误响应结构，用于所有错误情况",
+            "properties": {
+                "success": {
+                    "type": "boolean",
+                    "description": "操作成功标识，错误时始终为false",
+                    "example": false
+                },
+                "error": {
+                    "type": "string",
+                    "description": "错误信息",
+                    "example": "资源不存在"
+                },
+                "details": {
+                    "type": "string",
+                    "description": "详细错误信息（可选）",
+                    "example": "ID为123的用户不存在"
                 }
             }
         }

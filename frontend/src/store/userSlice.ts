@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { message } from 'antd';
 import * as userAPI from '../services/userAPI';
+import { adaptPaginatedResponse } from '../services/responseAdapter';
 
 interface User {
   id: number;
@@ -35,8 +36,15 @@ export const fetchUsers = createAsyncThunk(
   'user/fetchUsers',
   async (params: { page?: number; page_size?: number; keyword?: string }) => {
     const response = await userAPI.getUsers(params);
-    // 后端返回的数据格式是 {data: {page: ..., users: [...], total: ...}}
-    return response.data.data;
+    // 使用适配器统一处理响应格式
+    const adaptedData = adaptPaginatedResponse<User>(response.data);
+    return {
+      users: adaptedData.items,
+      total: adaptedData.total,
+      page: adaptedData.page,
+      page_size: adaptedData.page_size,
+      total_pages: adaptedData.total_pages
+    };
   }
 );
 

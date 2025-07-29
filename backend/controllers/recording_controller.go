@@ -63,31 +63,21 @@ func NewRecordingController() *RecordingController {
 func (rc *RecordingController) GetRecordingList(c *gin.Context) {
 	var request models.SessionRecordingListRequest
 	if err := c.ShouldBindQuery(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "参数验证失败",
-			"error":   err.Error(),
-		})
+		utils.RespondWithValidationError(c, "参数验证失败: "+err.Error())
 		return
 	}
 
 	// 验证用户权限
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "用户未认证",
-		})
+		utils.RespondWithUnauthorized(c, "用户未认证")
 		return
 	}
 	currentUser := user.(*models.User)
 
 	// 检查录屏审计权限
 	if !currentUser.HasPermission("recording:view") {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": "没有录屏查看权限",
-		})
+		utils.RespondWithForbidden(c, "没有录屏查看权限")
 		return
 	}
 
@@ -141,10 +131,7 @@ func (rc *RecordingController) GetRecordingList(c *gin.Context) {
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		logrus.WithError(err).Error("统计录制记录总数失败")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "查询失败",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "查询失败")
 		return
 	}
 
@@ -156,10 +143,7 @@ func (rc *RecordingController) GetRecordingList(c *gin.Context) {
 		Limit(request.PageSize).
 		Find(&recordings).Error; err != nil {
 		logrus.WithError(err).Error("查询录制记录失败")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "查询失败",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "查询失败")
 		return
 	}
 
@@ -169,18 +153,7 @@ func (rc *RecordingController) GetRecordingList(c *gin.Context) {
 		items[i] = *recording.ToResponse()
 	}
 
-	result := gin.H{
-		"items":     items,
-		"total":     total,
-		"page":      request.Page,
-		"page_size": request.PageSize,
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "获取录制列表成功",
-		"data":    result,
-	})
+	utils.RespondWithPagination(c, items, request.Page, request.PageSize, total)
 }
 
 // GetRecordingDetail 获取录制详情
@@ -200,19 +173,13 @@ func (rc *RecordingController) GetRecordingDetail(c *gin.Context) {
 	// 验证用户权限
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "用户未认证",
-		})
+		utils.RespondWithUnauthorized(c, "用户未认证")
 		return
 	}
 	currentUser := user.(*models.User)
 
 	if !currentUser.HasPermission("recording:view") {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": "没有录屏查看权限",
-		})
+		utils.RespondWithForbidden(c, "没有录屏查看权限")
 		return
 	}
 
@@ -220,10 +187,7 @@ func (rc *RecordingController) GetRecordingDetail(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "无效的录制ID",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "无效的录制ID")
 		return
 	}
 
@@ -233,18 +197,11 @@ func (rc *RecordingController) GetRecordingDetail(c *gin.Context) {
 		Preload("Asset").
 		Where("id = ?", id).
 		First(&recording).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "录制记录不存在",
-		})
+		utils.RespondWithNotFound(c, "录制记录不存在")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "获取录制详情成功",
-		"data":    recording.ToResponse(),
-	})
+	utils.RespondWithData(c, recording.ToResponse())
 }
 
 // DownloadRecording 下载录制文件
@@ -264,19 +221,13 @@ func (rc *RecordingController) DownloadRecording(c *gin.Context) {
 	// 验证用户权限
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "用户未认证",
-		})
+		utils.RespondWithUnauthorized(c, "用户未认证")
 		return
 	}
 	currentUser := user.(*models.User)
 
 	if !currentUser.HasPermission("recording:download") {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": "没有录屏下载权限",
-		})
+		utils.RespondWithForbidden(c, "没有录屏下载权限")
 		return
 	}
 
@@ -284,29 +235,20 @@ func (rc *RecordingController) DownloadRecording(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "无效的录制ID",
-		})
+		utils.RespondWithValidationError(c, "无效的录制ID")
 		return
 	}
 
 	db := utils.GetDB()
 	var recording models.SessionRecording
 	if err := db.Where("id = ?", id).First(&recording).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "录制记录不存在",
-		})
+		utils.RespondWithNotFound(c, "录制记录")
 		return
 	}
 
 	// 检查文件是否存在
 	if recording.FilePath == "" {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "录制文件路径为空",
-		})
+		utils.RespondWithError(c, http.StatusNotFound, "录制文件路径为空")
 		return
 	}
 
@@ -315,10 +257,7 @@ func (rc *RecordingController) DownloadRecording(c *gin.Context) {
 			"recording_id": id,
 			"file_path":    recording.FilePath,
 		}).Error("录制文件不存在")
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "录制文件不存在",
-		})
+		utils.RespondWithError(c, http.StatusNotFound, "录制文件不存在")
 		return
 	}
 
@@ -336,10 +275,7 @@ func (rc *RecordingController) DownloadRecording(c *gin.Context) {
 		data, err := readRecordingFile(recording.FilePath)
 		if err != nil {
 			logrus.WithError(err).Error("读取录制文件失败")
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": "读取录制文件失败",
-			})
+			utils.RespondWithInternalError(c, "读取录制文件失败")
 			return
 		}
 
@@ -372,19 +308,13 @@ func (rc *RecordingController) DeleteRecording(c *gin.Context) {
 	// 验证用户权限
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "用户未认证",
-		})
+		utils.RespondWithUnauthorized(c, "用户未认证")
 		return
 	}
 	currentUser := user.(*models.User)
 
 	if !currentUser.HasPermission("recording:delete") {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": "没有录屏删除权限",
-		})
+		utils.RespondWithForbidden(c, "没有录屏删除权限")
 		return
 	}
 
@@ -392,20 +322,14 @@ func (rc *RecordingController) DeleteRecording(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "无效的录制ID",
-		})
+		utils.RespondWithValidationError(c, "无效的录制ID")
 		return
 	}
 
 	db := utils.GetDB()
 	var recording models.SessionRecording
 	if err := db.Where("id = ?", id).First(&recording).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "录制记录不存在",
-		})
+		utils.RespondWithNotFound(c, "录制记录")
 		return
 	}
 
@@ -413,10 +337,7 @@ func (rc *RecordingController) DeleteRecording(c *gin.Context) {
 	if recording.FilePath != "" {
 		if err := os.Remove(recording.FilePath); err != nil && !os.IsNotExist(err) {
 			logrus.WithError(err).WithField("file_path", recording.FilePath).Warn("删除录制文件失败")
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": fmt.Sprintf("删除录制文件失败: %v", err),
-			})
+			utils.RespondWithError(c, http.StatusInternalServerError, fmt.Sprintf("删除录制文件失败: %v", err))
 			return
 		}
 	}
@@ -424,10 +345,7 @@ func (rc *RecordingController) DeleteRecording(c *gin.Context) {
 	// 删除数据库记录
 	if err := db.Delete(&recording).Error; err != nil {
 		logrus.WithError(err).Error("删除录制数据库记录失败")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "删除录制记录失败",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "删除录制记录失败")
 		return
 	}
 
@@ -435,10 +353,7 @@ func (rc *RecordingController) DeleteRecording(c *gin.Context) {
 	utils.LogAudit(currentUser.ID, "删除录制", 
 		fmt.Sprintf("删除录制文件，会话ID: %s, 录制ID: %d", recording.SessionID, recording.ID))
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "录制删除成功",
-	})
+	utils.RespondWithSuccess(c, "录制删除成功")
 }
 
 // GetActiveRecordings 获取活跃录制
@@ -452,13 +367,9 @@ func (rc *RecordingController) DeleteRecording(c *gin.Context) {
 // @Security BearerAuth
 // @Router /recording/active [get]
 func (rc *RecordingController) GetActiveRecordings(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "获取活跃录制成功",
-		"data": gin.H{
-			"active_recordings": gin.H{},
-			"total_count":       0,
-		},
+	utils.RespondWithData(c, gin.H{
+		"active_recordings": gin.H{},
+		"total_count":       0,
 	})
 }
 
@@ -489,27 +400,18 @@ func (rc *RecordingController) BatchDeleteRecording(c *gin.Context) {
 	// 验证用户权限
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "用户未认证",
-		})
+		utils.RespondWithUnauthorized(c, "用户未认证")
 		return
 	}
 	currentUser := user.(*models.User)
 
 	// 验证录制记录数量限制
 	if len(request.RecordingIDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "录制ID列表不能为空",
-		})
+		utils.RespondWithValidationError(c, "录制ID列表不能为空")
 		return
 	}
 	if len(request.RecordingIDs) > 50 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "单次最多只能批量操作50个录制",
-		})
+		utils.RespondWithValidationError(c, "单次最多只能批量操作50个录制")
 		return
 	}
 
@@ -517,20 +419,14 @@ func (rc *RecordingController) BatchDeleteRecording(c *gin.Context) {
 	db := utils.GetDB()
 	var recordings []models.SessionRecording
 	if err := db.Where("id IN ?", request.RecordingIDs).Find(&recordings).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "查询录制记录失败",
-		})
+		utils.RespondWithInternalError(c, "查询录制记录失败")
 		return
 	}
 
 	// 验证权限
 	for _, recording := range recordings {
 		if !currentUser.HasPermission("recording:delete") {
-			c.JSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"message": fmt.Sprintf("没有删除录制 %d 的权限", recording.ID),
-			})
+			utils.RespondWithForbidden(c, fmt.Sprintf("没有删除录制 %d 的权限", recording.ID))
 			return
 		}
 	}
@@ -583,20 +479,14 @@ func (rc *RecordingController) BatchDownloadRecording(c *gin.Context) {
 	// 验证用户权限
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "用户未认证",
-		})
+		utils.RespondWithUnauthorized(c, "用户未认证")
 		return
 	}
 	currentUser := user.(*models.User)
 
 	// 验证录制记录数量限制
 	if len(request.RecordingIDs) == 0 || len(request.RecordingIDs) > 50 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "录制数量必须在1-50之间",
-		})
+		utils.RespondWithValidationError(c, "录制数量必须在1-50之间")
 		return
 	}
 
@@ -604,20 +494,14 @@ func (rc *RecordingController) BatchDownloadRecording(c *gin.Context) {
 	db := utils.GetDB()
 	var recordings []models.SessionRecording
 	if err := db.Where("id IN ?", request.RecordingIDs).Find(&recordings).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "查询录制记录失败",
-		})
+		utils.RespondWithInternalError(c, "查询录制记录失败")
 		return
 	}
 
 	// 验证权限
 	for _, recording := range recordings {
 		if !currentUser.HasPermission("recording:download") {
-			c.JSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"message": fmt.Sprintf("没有下载录制 %d 的权限", recording.ID),
-			})
+			utils.RespondWithForbidden(c, fmt.Sprintf("没有下载录制 %d 的权限", recording.ID))
 			return
 		}
 	}
@@ -672,20 +556,14 @@ func (rc *RecordingController) BatchArchiveRecording(c *gin.Context) {
 	// 验证用户权限
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "用户未认证",
-		})
+		utils.RespondWithUnauthorized(c, "用户未认证")
 		return
 	}
 	currentUser := user.(*models.User)
 
 	// 验证录制记录数量限制
 	if len(request.RecordingIDs) == 0 || len(request.RecordingIDs) > 50 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "录制数量必须在1-50之间",
-		})
+		utils.RespondWithValidationError(c, "录制数量必须在1-50之间")
 		return
 	}
 
@@ -725,20 +603,14 @@ func (rc *RecordingController) BatchArchiveRecording(c *gin.Context) {
 func (rc *RecordingController) GetBatchOperationStatus(c *gin.Context) {
 	taskID := c.Param("task_id")
 	if taskID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "任务ID不能为空",
-		})
+		utils.RespondWithValidationError(c, "任务ID不能为空")
 		return
 	}
 
 	// 从Redis或内存中获取任务状态
 	status := rc.getBatchTaskStatus(taskID)
 	if status == nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "任务不存在或已过期",
-		})
+		utils.RespondWithNotFound(c, "任务")
 		return
 	}
 
@@ -764,20 +636,14 @@ func (rc *RecordingController) GetBatchOperationStatus(c *gin.Context) {
 func (rc *RecordingController) DownloadBatchFile(c *gin.Context) {
 	taskID := c.Param("task_id")
 	if taskID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "任务ID不能为空",
-		})
+		utils.RespondWithValidationError(c, "任务ID不能为空")
 		return
 	}
 
 	// 获取任务状态
 	task := rc.getBatchTaskStatus(taskID)
 	if task == nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "任务不存在或已过期",
-		})
+		utils.RespondWithNotFound(c, "任务")
 		return
 	}
 
@@ -804,29 +670,20 @@ func (rc *RecordingController) DownloadBatchFile(c *gin.Context) {
 
 	// 检查文件是否存在
 	if !fileExists(zipFilePath) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "下载文件不存在或已过期",
-		})
+		utils.RespondWithError(c, http.StatusNotFound, "下载文件不存在或已过期")
 		return
 	}
 
 	// 验证用户权限（检查用户是否有下载权限）
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "用户未认证",
-		})
+		utils.RespondWithUnauthorized(c, "用户未认证")
 		return
 	}
 	currentUser := user.(*models.User)
 
 	if !currentUser.HasPermission("recording:download") {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": "没有下载权限",
-		})
+		utils.RespondWithForbidden(c, "没有下载权限")
 		return
 	}
 

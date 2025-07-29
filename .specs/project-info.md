@@ -25,3 +25,6 @@
 ## 服务端口
 - 后端API: 8080
 - 前端开发: 3000
+
+## 服务管理
+- 使用 `/Users/skip/workspace/bastion/manage.sh` 脚本进行前端和后端服务管理

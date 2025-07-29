@@ -52,8 +52,11 @@ func SetupRouter() *gin.Engine {
 		// 健康检查
 		api.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{
-				"status":  "ok",
+				"success": true,
 				"message": "Bastion API is running",
+				"data": gin.H{
+					"status": "ok",
+				},
 			})
 		})
 

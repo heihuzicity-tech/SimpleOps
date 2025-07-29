@@ -87,18 +87,14 @@ func NewSSHController(sshService *services.SSHService) *SSHController {
 func (sc *SSHController) CreateSession(c *gin.Context) {
 	var request services.SSHSessionRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
 	// 获取当前用户
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
@@ -109,17 +105,12 @@ func (sc *SSHController) CreateSession(c *gin.Context) {
 	sessionResp, err := sc.sshService.CreateSession(user.ID, &request)
 	if err != nil {
 		log.Printf("Failed to create SSH session: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to create SSH session: " + err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to create SSH session: " + err.Error())
 		return
 	}
 	log.Printf("SSH session created successfully: %s", sessionResp.ID)
 
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data":    sessionResp,
-	})
+	utils.RespondWithData(c, sessionResp)
 }
 
 // GetSessions 获取用户的SSH会话列表
@@ -137,9 +128,7 @@ func (sc *SSHController) GetSessions(c *gin.Context) {
 	// 获取当前用户
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
@@ -148,16 +137,11 @@ func (sc *SSHController) GetSessions(c *gin.Context) {
 	// 获取用户的SSH会话
 	sessions, err := sc.sshService.GetSessions(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get SSH sessions",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get SSH sessions")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    sessions,
-	})
+	utils.RespondWithData(c, sessions)
 }
 
 // CloseSession 关闭SSH会话
@@ -177,54 +161,41 @@ func (sc *SSHController) GetSessions(c *gin.Context) {
 func (sc *SSHController) CloseSession(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Session ID is required",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
 	// 验证会话是否属于当前用户
 	session, err := sc.sshService.GetSession(sessionID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Session not found",
-		})
+		utils.RespondWithNotFound(c, "Session not found")
 		return
 	}
 
 	// 获取当前用户
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
 	user := userInterface.(*models.User)
 	if session.UserID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "Access denied",
-		})
+		utils.RespondWithForbidden(c, "Access denied")
 		return
 	}
 
 	// 关闭会话
 	err = sc.sshService.CloseSession(sessionID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to close session",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to close session")
 		return
 	}
 
 	// 清理命令缓冲区
 	sc.clearCommandBuffer(sessionID)
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Session closed successfully",
-	})
+	utils.RespondWithSuccess(c, "Session closed successfully")
 }
 
 // HandleWebSocket 处理WebSocket连接
@@ -234,9 +205,7 @@ func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 	
 	if sessionID == "" {
 		log.Printf("WebSocket connection failed: Session ID is required")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Session ID is required",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
@@ -244,9 +213,7 @@ func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 	userInterface, exists := c.Get("user")
 	if !exists {
 		log.Printf("WebSocket connection failed: User not found for session %s", sessionID)
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
@@ -257,17 +224,13 @@ func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 	session, err := sc.sshService.GetSession(sessionID)
 	if err != nil {
 		log.Printf("WebSocket connection failed: Session %s not found: %v", sessionID, err)
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Session not found",
-		})
+		utils.RespondWithNotFound(c, "Session not found")
 		return
 	}
 
 	if session.UserID != user.ID {
 		log.Printf("WebSocket connection failed: Access denied for session %s, user %d vs %d", sessionID, session.UserID, user.ID)
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "Access denied",
-		})
+		utils.RespondWithForbidden(c, "Access denied")
 		return
 	}
 
@@ -868,9 +831,7 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 func (sc *SSHController) ResizeSession(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Session ID is required",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
@@ -880,51 +841,38 @@ func (sc *SSHController) ResizeSession(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
 	// 验证会话是否存在和属于当前用户
 	session, err := sc.sshService.GetSession(sessionID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Session not found",
-		})
+		utils.RespondWithNotFound(c, "Session not found")
 		return
 	}
 
 	// 获取当前用户
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
 	user := userInterface.(*models.User)
 	if session.UserID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "Access denied",
-		})
+		utils.RespondWithForbidden(c, "Access denied")
 		return
 	}
 
 	// 调整窗口大小
 	err = sc.sshService.ResizeSession(sessionID, request.Width, request.Height)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to resize session",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to resize session")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Session resized successfully",
-	})
+	utils.RespondWithSuccess(c, "Session resized successfully")
 }
 
 // GenerateKeyPair 生成SSH密钥对
@@ -942,18 +890,13 @@ func (sc *SSHController) GenerateKeyPair(c *gin.Context) {
 	// 生成SSH密钥对
 	privateKey, publicKey, err := sc.sshService.GenerateSSHKeyPair()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to generate SSH key pair",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to generate SSH key pair")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"private_key": privateKey,
-			"public_key":  publicKey,
-		},
+	utils.RespondWithData(c, gin.H{
+		"private_key": privateKey,
+		"public_key":  publicKey,
 	})
 }
 
@@ -973,48 +916,37 @@ func (sc *SSHController) GenerateKeyPair(c *gin.Context) {
 func (sc *SSHController) GetSessionInfo(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Session ID is required",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
 	// 验证会话是否存在
 	session, err := sc.sshService.GetSession(sessionID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Session not found",
-		})
+		utils.RespondWithNotFound(c, "Session not found")
 		return
 	}
 
 	// 获取当前用户
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
 	user := userInterface.(*models.User)
 	if session.UserID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "Access denied",
-		})
+		utils.RespondWithForbidden(c, "Access denied")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"id":          session.ID,
-			"status":      session.Status,
-			"created_at":  session.CreatedAt,
-			"updated_at":  session.UpdatedAt,
-			"last_active": session.LastActive,
-			"is_active":   session.IsActive(),
-		},
+	utils.RespondWithData(c, gin.H{
+		"id":          session.ID,
+		"status":      session.Status,
+		"created_at":  session.CreatedAt,
+		"updated_at":  session.UpdatedAt,
+		"last_active": session.LastActive,
+		"is_active":   session.IsActive(),
 	})
 }
 
@@ -1033,12 +965,9 @@ func (sc *SSHController) HealthCheckSessions(c *gin.Context) {
 	// 执行健康检查
 	activeCount := sc.sshService.HealthCheckSessions()
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.RespondWithData(c, gin.H{
 		"message": "Health check completed",
-		"data": gin.H{
-			"active_sessions": activeCount,
-		},
+		"active_sessions": activeCount,
 	})
 }
 
@@ -1059,9 +988,7 @@ func (sc *SSHController) BatchCleanupSessions(c *gin.Context) {
 	// 获取当前用户
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
@@ -1080,9 +1007,7 @@ func (sc *SSHController) BatchCleanupSessions(c *gin.Context) {
 		if dataStr := c.PostForm("data"); dataStr != "" {
 			if jsonErr := json.Unmarshal([]byte(dataStr), &request); jsonErr != nil {
 				log.Printf("解析FormData中的JSON失败: %v", jsonErr)
-				c.JSON(http.StatusBadRequest, gin.H{
-					"error": "Invalid request format",
-				})
+				utils.RespondWithValidationError(c, "Invalid request format")
 				return
 			}
 			
@@ -1092,9 +1017,7 @@ func (sc *SSHController) BatchCleanupSessions(c *gin.Context) {
 			}
 		} else {
 			log.Printf("解析批量清理请求失败: %v", err)
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Invalid request format",
-			})
+			utils.RespondWithValidationError(c, "Invalid request format")
 			return
 		}
 	}
@@ -1130,8 +1053,7 @@ func (sc *SSHController) BatchCleanupSessions(c *gin.Context) {
 	log.Printf("用户 %s 页面卸载，批量清理 %d/%d 个会话", 
 		user.Username, successCount, len(request.Sessions))
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.RespondWithData(c, gin.H{
 		"message": fmt.Sprintf("Successfully cleaned up %d/%d sessions", 
 			successCount, len(request.Sessions)),
 		"cleaned_count": successCount,
@@ -1143,32 +1065,23 @@ func (sc *SSHController) ForceCleanupSessions(c *gin.Context) {
 	// 检查管理员权限
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
 	user := userInterface.(*models.User)
 	if !user.HasRole("admin") {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "Permission denied",
-		})
+		utils.RespondWithForbidden(c, "Permission denied")
 		return
 	}
 
 	// 执行强制清理
 	if err := sc.sshService.ForceCleanupAllSessions(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to cleanup sessions: " + err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to cleanup sessions: " + err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "All sessions have been forcefully cleaned up",
-	})
+	utils.RespondWithSuccess(c, "All sessions have been forcefully cleaned up")
 }
 
 // broadcastToMonitorClients 广播消息给所有监控客户端
@@ -1213,13 +1126,13 @@ func (sc *SSHController) broadcastToMonitorClients(message services.WSMessage) {
 func (sc *SSHController) CreateSessionTimeout(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
 	var req models.SessionTimeoutCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		utils.RespondWithValidationError(c, "Invalid request format: " + err.Error())
 		return
 	}
 
@@ -1229,20 +1142,20 @@ func (sc *SSHController) CreateSessionTimeout(c *gin.Context) {
 	// 获取超时服务
 	timeoutService := sc.sshService.GetTimeoutService()
 	if timeoutService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Timeout service not available")
 		return
 	}
 
 	// 创建超时配置
 	timeout, err := timeoutService.CreateTimeout(&req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create timeout configuration: " + err.Error()})
+		utils.RespondWithError(c, http.StatusBadRequest, "Failed to create timeout configuration: " + err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	utils.RespondWithData(c, gin.H{
 		"message": "Timeout configuration created successfully",
-		"data":    timeout.ToResponse(),
+		"timeout": timeout.ToResponse(),
 	})
 }
 
@@ -1250,14 +1163,14 @@ func (sc *SSHController) CreateSessionTimeout(c *gin.Context) {
 func (sc *SSHController) GetSessionTimeout(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
 	// 获取超时服务
 	timeoutService := sc.sshService.GetTimeoutService()
 	if timeoutService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Timeout service not available")
 		return
 	}
 
@@ -1265,16 +1178,16 @@ func (sc *SSHController) GetSessionTimeout(c *gin.Context) {
 	timeout, err := timeoutService.GetTimeout(sessionID)
 	if err != nil {
 		if err.Error() == "timeout configuration not found: record not found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Timeout configuration not found"})
+			utils.RespondWithNotFound(c, "Timeout configuration not found")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get timeout configuration: " + err.Error()})
+			utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get timeout configuration: " + err.Error())
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	utils.RespondWithData(c, gin.H{
 		"message": "Timeout configuration retrieved successfully",
-		"data":    timeout.ToResponse(),
+		"timeout": timeout.ToResponse(),
 	})
 }
 
@@ -1282,20 +1195,20 @@ func (sc *SSHController) GetSessionTimeout(c *gin.Context) {
 func (sc *SSHController) UpdateSessionTimeout(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
 	var req models.SessionTimeoutUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		utils.RespondWithValidationError(c, "Invalid request format: " + err.Error())
 		return
 	}
 
 	// 获取超时服务
 	timeoutService := sc.sshService.GetTimeoutService()
 	if timeoutService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Timeout service not available")
 		return
 	}
 
@@ -1303,16 +1216,16 @@ func (sc *SSHController) UpdateSessionTimeout(c *gin.Context) {
 	timeout, err := timeoutService.UpdateTimeout(sessionID, &req)
 	if err != nil {
 		if err.Error() == "timeout configuration not found: record not found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Timeout configuration not found"})
+			utils.RespondWithNotFound(c, "Timeout configuration not found")
 		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to update timeout configuration: " + err.Error()})
+			utils.RespondWithError(c, http.StatusBadRequest, "Failed to update timeout configuration: " + err.Error())
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	utils.RespondWithData(c, gin.H{
 		"message": "Timeout configuration updated successfully",
-		"data":    timeout.ToResponse(),
+		"timeout": timeout.ToResponse(),
 	})
 }
 
@@ -1320,45 +1233,45 @@ func (sc *SSHController) UpdateSessionTimeout(c *gin.Context) {
 func (sc *SSHController) DeleteSessionTimeout(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
 	// 获取超时服务
 	timeoutService := sc.sshService.GetTimeoutService()
 	if timeoutService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Timeout service not available")
 		return
 	}
 
 	// 删除超时配置
 	err := timeoutService.DeleteTimeout(sessionID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete timeout configuration: " + err.Error()})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to delete timeout configuration: " + err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Timeout configuration deleted successfully"})
+	utils.RespondWithSuccess(c, "Timeout configuration deleted successfully")
 }
 
 // ExtendSessionTimeout 延长会话超时时间
 func (sc *SSHController) ExtendSessionTimeout(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
 	var req models.SessionTimeoutExtendRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		utils.RespondWithValidationError(c, "Invalid request format: " + err.Error())
 		return
 	}
 
 	// 获取超时服务
 	timeoutService := sc.sshService.GetTimeoutService()
 	if timeoutService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Timeout service not available")
 		return
 	}
 
@@ -1366,16 +1279,16 @@ func (sc *SSHController) ExtendSessionTimeout(c *gin.Context) {
 	timeout, err := timeoutService.ExtendTimeout(sessionID, &req)
 	if err != nil {
 		if err.Error() == "timeout configuration not found: record not found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Timeout configuration not found"})
+			utils.RespondWithNotFound(c, "Timeout configuration not found")
 		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to extend timeout: " + err.Error()})
+			utils.RespondWithError(c, http.StatusBadRequest, "Failed to extend timeout: " + err.Error())
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	utils.RespondWithData(c, gin.H{
 		"message": "Timeout configuration updated successfully",
-		"data":    timeout.ToResponse(),
+		"timeout": timeout.ToResponse(),
 	})
 }
 
@@ -1383,14 +1296,14 @@ func (sc *SSHController) ExtendSessionTimeout(c *gin.Context) {
 func (sc *SSHController) UpdateSessionActivity(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
 	// 获取超时服务
 	timeoutService := sc.sshService.GetTimeoutService()
 	if timeoutService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Timeout service not available")
 		return
 	}
 
@@ -1398,14 +1311,14 @@ func (sc *SSHController) UpdateSessionActivity(c *gin.Context) {
 	err := timeoutService.UpdateActivity(sessionID)
 	if err != nil {
 		// 如果没有超时配置，这不算错误（某些会话可能没有配置超时）
-		c.JSON(http.StatusOK, gin.H{
+		utils.RespondWithData(c, gin.H{
 			"message": "Activity updated (no timeout configuration found)",
 			"warning": true,
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Activity updated successfully"})
+	utils.RespondWithSuccess(c, "Activity updated successfully")
 }
 
 // GetTimeoutStats 获取超时服务统计信息（管理员权限）
@@ -1413,20 +1326,20 @@ func (sc *SSHController) GetTimeoutStats(c *gin.Context) {
 	// 获取超时服务
 	timeoutService := sc.sshService.GetTimeoutService()
 	if timeoutService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Timeout service not available"})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Timeout service not available")
 		return
 	}
 
 	// 获取统计信息
 	stats, err := timeoutService.GetStats()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get timeout stats: " + err.Error()})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get timeout stats: " + err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	utils.RespondWithData(c, gin.H{
 		"message": "Timeout statistics retrieved successfully",
-		"data":    stats,
+		"stats":   stats,
 	})
 }
 

@@ -3,7 +3,7 @@ package controllers
 import (
 	"bastion/models"
 	"bastion/services"
-	"net/http"
+	"bastion/utils"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -36,9 +36,7 @@ func NewRoleController(roleService *services.RoleService) *RoleController {
 func (rc *RoleController) CreateRole(c *gin.Context) {
 	var request models.RoleCreateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
@@ -46,21 +44,14 @@ func (rc *RoleController) CreateRole(c *gin.Context) {
 	role, err := rc.roleService.CreateRole(&request)
 	if err != nil {
 		if err.Error() == "role name already exists" {
-			c.JSON(http.StatusConflict, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithConflict(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithInternalError(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data":    role,
-	})
+	utils.RespondWithData(c, role)
 }
 
 // GetRoles 获取角色列表
@@ -80,18 +71,14 @@ func (rc *RoleController) CreateRole(c *gin.Context) {
 func (rc *RoleController) GetRoles(c *gin.Context) {
 	var request models.RoleListRequest
 	if err := c.ShouldBindQuery(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid query parameters",
-		})
+		utils.RespondWithValidationError(c, "Invalid query parameters")
 		return
 	}
 
 	// 调用角色服务
 	roles, total, err := rc.roleService.GetRoles(&request)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithInternalError(c, err.Error())
 		return
 	}
 
@@ -105,18 +92,7 @@ func (rc *RoleController) GetRoles(c *gin.Context) {
 		pageSize = 10
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"roles": roles,
-			"pagination": gin.H{
-				"page":       page,
-				"page_size":  pageSize,
-				"total":      total,
-				"total_page": (total + int64(pageSize) - 1) / int64(pageSize),
-			},
-		},
-	})
+	utils.RespondWithPagination(c, roles, page, pageSize, total)
 }
 
 // GetRole 获取角色详情
@@ -137,9 +113,7 @@ func (rc *RoleController) GetRole(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid role ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid role ID")
 		return
 	}
 
@@ -147,21 +121,14 @@ func (rc *RoleController) GetRole(c *gin.Context) {
 	role, err := rc.roleService.GetRole(uint(id))
 	if err != nil {
 		if err.Error() == "role not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, "Role")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithInternalError(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    role,
-	})
+	utils.RespondWithData(c, role)
 }
 
 // UpdateRole 更新角色
@@ -183,17 +150,13 @@ func (rc *RoleController) UpdateRole(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid role ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid role ID")
 		return
 	}
 
 	var request models.RoleUpdateRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request format",
-		})
+		utils.RespondWithValidationError(c, "Invalid request format")
 		return
 	}
 
@@ -201,21 +164,14 @@ func (rc *RoleController) UpdateRole(c *gin.Context) {
 	role, err := rc.roleService.UpdateRole(uint(id), &request)
 	if err != nil {
 		if err.Error() == "role not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, "Role")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithInternalError(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    role,
-	})
+	utils.RespondWithData(c, role)
 }
 
 // DeleteRole 删除角色
@@ -237,36 +193,25 @@ func (rc *RoleController) DeleteRole(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid role ID",
-		})
+		utils.RespondWithValidationError(c, "Invalid role ID")
 		return
 	}
 
 	// 调用角色服务
 	if err := rc.roleService.DeleteRole(uint(id)); err != nil {
 		if err.Error() == "role not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, "Role")
 			return
 		}
 		if err.Error() == "cannot delete role: role is assigned to users" {
-			c.JSON(http.StatusConflict, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithConflict(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		utils.RespondWithInternalError(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Role deleted successfully",
-	})
+	utils.RespondWithSuccess(c, "Role deleted successfully")
 }
 
 // GetPermissions 获取可用权限列表
@@ -283,14 +228,9 @@ func (rc *RoleController) DeleteRole(c *gin.Context) {
 func (rc *RoleController) GetPermissions(c *gin.Context) {
 	permissions, err := rc.roleService.GetPermissions()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get permissions",
-		})
+		utils.RespondWithInternalError(c, "Failed to get permissions")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    permissions,
-	})
+	utils.RespondWithData(c, permissions)
 }

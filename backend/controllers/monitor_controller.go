@@ -3,6 +3,7 @@ package controllers
 import (
 	"bastion/models"
 	"bastion/services"
+	"bastion/utils"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -46,17 +47,13 @@ func NewMonitorController(monitorService *services.MonitorService) *MonitorContr
 func (mc *MonitorController) GetActiveSessions(c *gin.Context) {
 	var req models.ActiveSessionListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request parameters",
-		})
+		utils.RespondWithValidationError(c, "Invalid request parameters")
 		return
 	}
 
 	sessions, total, err := mc.monitorService.GetActiveSessions(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get active sessions",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get active sessions")
 		return
 	}
 
@@ -68,15 +65,7 @@ func (mc *MonitorController) GetActiveSessions(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"sessions":  sessions,
-			"total":     total,
-			"page":      req.Page,
-			"page_size": req.PageSize,
-		},
-	})
+	utils.RespondWithPagination(c, sessions, req.Page, req.PageSize, int64(total))
 }
 
 // TerminateSession 终止会话
@@ -98,26 +87,20 @@ func (mc *MonitorController) GetActiveSessions(c *gin.Context) {
 func (mc *MonitorController) TerminateSession(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Session ID is required",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
 	var req models.TerminateSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request body",
-		})
+		utils.RespondWithValidationError(c, "Invalid request body")
 		return
 	}
 
 	// 获取当前用户
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
@@ -135,29 +118,20 @@ func (mc *MonitorController) TerminateSession(c *gin.Context) {
 
 	if err := mc.monitorService.TerminateSession(sessionID, user.ID, &req); err != nil {
 		if err.Error() == "会话不存在或已结束" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, err.Error())
 		} else if err.Error() == "没有终止会话的权限" {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithForbidden(c, err.Error())
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithError(c, http.StatusInternalServerError, err.Error())
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Session terminated successfully",
-		"data": gin.H{
-			"session_id": sessionID,
-			"reason":     req.Reason,
-			"force":      req.Force,
-		},
+	utils.RespondWithData(c, gin.H{
+		"message":    "Session terminated successfully",
+		"session_id": sessionID,
+		"reason":     req.Reason,
+		"force":      req.Force,
 	})
 }
 
@@ -180,26 +154,20 @@ func (mc *MonitorController) TerminateSession(c *gin.Context) {
 func (mc *MonitorController) SendSessionWarning(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Session ID is required",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
 	var req models.SessionWarningRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request body",
-		})
+		utils.RespondWithValidationError(c, "Invalid request body")
 		return
 	}
 
 	// 获取当前用户
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
@@ -208,28 +176,21 @@ func (mc *MonitorController) SendSessionWarning(c *gin.Context) {
 	// 发送警告
 	if err := mc.monitorService.SendSessionWarning(sessionID, user.ID, &req); err != nil {
 		if err.Error() == "会话不存在或已结束" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, err.Error())
 		} else if err.Error() == "没有发送警告的权限" {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithForbidden(c, err.Error())
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithError(c, http.StatusInternalServerError, err.Error())
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Warning sent successfully",
-		"data": gin.H{
-			"session_id": sessionID,
-			"message":    req.Message,
-			"level":      req.Level,
+	utils.RespondWithData(c, gin.H{
+		"message":    "Warning sent successfully",
+		"session_id": sessionID,
+		"warning":    gin.H{
+			"message": req.Message,
+			"level":   req.Level,
 		},
 	})
 }
@@ -248,16 +209,11 @@ func (mc *MonitorController) SendSessionWarning(c *gin.Context) {
 func (mc *MonitorController) GetMonitorStatistics(c *gin.Context) {
 	stats, err := mc.monitorService.GetMonitorStatistics()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get monitor statistics",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get monitor statistics")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    stats,
-	})
+	utils.RespondWithData(c, stats)
 }
 
 // GetSessionMonitorLogs 获取会话监控日志
@@ -278,9 +234,7 @@ func (mc *MonitorController) GetMonitorStatistics(c *gin.Context) {
 func (mc *MonitorController) GetSessionMonitorLogs(c *gin.Context) {
 	sessionID := c.Param("id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Session ID is required",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Session ID is required")
 		return
 	}
 
@@ -289,21 +243,11 @@ func (mc *MonitorController) GetSessionMonitorLogs(c *gin.Context) {
 
 	logs, total, err := mc.monitorService.GetSessionMonitorLogs(sessionID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to get session monitor logs",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get session monitor logs")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"logs":      logs,
-			"total":     total,
-			"page":      page,
-			"page_size": pageSize,
-		},
-	})
+	utils.RespondWithPagination(c, logs, page, pageSize, int64(total))
 }
 
 // MarkWarningAsRead 标记警告为已读
@@ -324,18 +268,14 @@ func (mc *MonitorController) MarkWarningAsRead(c *gin.Context) {
 	idParam := c.Param("id")
 	warningID, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid warning ID",
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid warning ID")
 		return
 	}
 
 	// 获取当前用户
 	userInterface, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
-		})
+		utils.RespondWithUnauthorized(c, "User not found")
 		return
 	}
 
@@ -344,21 +284,14 @@ func (mc *MonitorController) MarkWarningAsRead(c *gin.Context) {
 	// 标记为已读
 	if err := mc.monitorService.MarkWarningAsRead(uint(warningID), user.ID); err != nil {
 		if err.Error() == "警告不存在或无权访问" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithNotFound(c, err.Error())
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": err.Error(),
-			})
+			utils.RespondWithError(c, http.StatusInternalServerError, err.Error())
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Warning marked as read",
-	})
+	utils.RespondWithSuccess(c, "Warning marked as read")
 }
 
 // HandleWebSocketMonitor 处理WebSocket监控连接
@@ -373,9 +306,7 @@ func (mc *MonitorController) HandleWebSocketMonitor(c *gin.Context) {
 	if services.GlobalWebSocketService != nil {
 		services.GlobalWebSocketService.HandleWebSocket(c)
 	} else {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "WebSocket service is not available",
-		})
+		utils.RespondWithError(c, http.StatusServiceUnavailable, "WebSocket service is not available")
 	}
 }
 
@@ -403,15 +334,11 @@ func (mc *MonitorController) CleanupStaleSessionRecords(c *gin.Context) {
 		})
 	
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"error":   "Failed to cleanup stale sessions",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to cleanup stale sessions")
 		return
 	}
 	
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
+	utils.RespondWithData(c, gin.H{
 		"message": fmt.Sprintf("Cleaned up %d stale session records", result.RowsAffected),
 		"cleaned_count": result.RowsAffected,
 	})
