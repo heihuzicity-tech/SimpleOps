@@ -1,7 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { message } from 'antd';
-import * as userAPI from '../services/userAPI';
-import { adaptPaginatedResponse } from '../services/responseAdapter';
+// 迁移到新的UserApiService
+// import * as userAPI from '../services/userAPI';
+// import { adaptPaginatedResponse } from '../services/responseAdapter';
+import { userApiService } from '../services/api/UserApiService';
 
 interface User {
   id: number;
@@ -35,15 +37,14 @@ const initialState: UserState = {
 export const fetchUsers = createAsyncThunk(
   'user/fetchUsers',
   async (params: { page?: number; page_size?: number; keyword?: string }) => {
-    const response = await userAPI.getUsers(params);
-    // 使用适配器统一处理响应格式
-    const adaptedData = adaptPaginatedResponse<User>(response.data);
+    // 使用新的UserApiService，不再需要adaptPaginatedResponse
+    const response = await userApiService.getUsers(params);
     return {
-      users: adaptedData.items,
-      total: adaptedData.total,
-      page: adaptedData.page,
-      page_size: adaptedData.page_size,
-      total_pages: adaptedData.total_pages
+      users: response.data.items,  // UserApiService已经返回统一格式
+      total: response.data.total,
+      page: response.data.page,
+      page_size: response.data.page_size,
+      total_pages: response.data.total_pages
     };
   }
 );
@@ -56,23 +57,23 @@ export const createUser = createAsyncThunk(
     password: string;
     role_ids: number[];
   }) => {
-    const response = await userAPI.createUser(userData);
-    return response.data.data;
+    const response = await userApiService.createUser(userData);
+    return response.data;  // UserApiService返回的data字段就是User对象
   }
 );
 
 export const updateUser = createAsyncThunk(
   'user/updateUser',
   async ({ id, userData }: { id: number; userData: Partial<User> }) => {
-    const response = await userAPI.updateUser(id, userData);
-    return response.data.data;
+    const response = await userApiService.updateUser(id, userData);
+    return response.data;  // UserApiService返回的data字段就是User对象
   }
 );
 
 export const deleteUser = createAsyncThunk(
   'user/deleteUser',
   async (id: number) => {
-    await userAPI.deleteUser(id);
+    await userApiService.deleteUser(id);
     return id;
   }
 );

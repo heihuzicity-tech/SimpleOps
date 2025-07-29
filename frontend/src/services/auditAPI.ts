@@ -1,4 +1,6 @@
 import { apiClient } from './apiClient';
+// 导入新的AuditApiService
+import { auditApiService } from './api/AuditApiService';
 
 // 审计相关的类型定义
 export interface LoginLog {
@@ -183,127 +185,100 @@ export interface SessionMonitorLog {
 export class AuditAPI {
   // 获取登录日志列表
   static async getLoginLogs(params: LoginLogListParams = {}) {
-    const response = await apiClient.get<ApiResponse<ListResponse<LoginLog>>>('/audit/login-logs', { params });
-    return response.data;
+    // 使用新的AuditApiService
+    return await auditApiService.getLoginLogs(params);
   }
 
   // 获取操作日志列表
   static async getOperationLogs(params: OperationLogListParams = {}) {
-    const response = await apiClient.get<ApiResponse<ListResponse<OperationLog>>>('/audit/operation-logs', { params });
-    return response.data;
+    return await auditApiService.getOperationLogs(params);
   }
 
   // 获取单个操作日志详情
   static async getOperationLog(id: number) {
-    const response = await apiClient.get<ApiResponse<OperationLog>>(`/audit/operation-logs/${id}`);
-    return response.data;
+    return await auditApiService.getOperationLog(id);
   }
 
   // 获取会话记录列表
   static async getSessionRecords(params: SessionRecordListParams = {}) {
-    const response = await apiClient.get<ApiResponse<ListResponse<SessionRecord>>>('/audit/session-records', { params });
-    return response.data;
+    return await auditApiService.getSessionRecords(params);
   }
 
   // 获取单个会话记录详情
   static async getSessionRecord(id: number) {
-    const response = await apiClient.get<ApiResponse<SessionRecord>>(`/audit/session-records/${id}`);
-    return response.data;
+    return await auditApiService.getSessionRecord(id);
   }
 
   // 获取命令日志列表
   static async getCommandLogs(params: CommandLogListParams = {}) {
-    const response = await apiClient.get<ApiResponse<ListResponse<CommandLog>>>('/audit/command-logs', { params });
-    return response.data;
+    return await auditApiService.getCommandLogs(params);
   }
 
   // 获取单个命令日志详情
   static async getCommandLog(id: number) {
-    const response = await apiClient.get<ApiResponse<CommandLog>>(`/audit/command-logs/${id}`);
-    return response.data;
+    return await auditApiService.getCommandLog(id);
   }
 
   // 获取审计统计数据
   static async getAuditStatistics() {
-    const response = await apiClient.get<ApiResponse<AuditStatistics>>('/audit/statistics');
-    return response.data;
+    return await auditApiService.getAuditStatistics();
   }
 
   // 清理过期审计日志（仅管理员）
   static async cleanupAuditLogs() {
-    const response = await apiClient.post<ApiResponse<{ message: string }>>('/audit/cleanup');
-    return response.data;
+    return await auditApiService.cleanupAuditLogs();
   }
 
   // ======================== 实时监控API ========================
 
   // 获取活跃会话列表
   static async getActiveSessions(params: SessionRecordListParams = {}) {
-    const response = await apiClient.get<ApiResponse<ListResponse<ActiveSession>>>('/audit/active-sessions', { params });
-    return response.data;
+    return await auditApiService.getActiveSessions(params);
   }
 
   // 终止会话
   static async terminateSession(sessionId: string, data: TerminateSessionRequest) {
-    const response = await apiClient.post<ApiResponse<any>>(`/audit/sessions/${sessionId}/terminate`, data);
-    return response.data;
+    return await auditApiService.terminateSession(sessionId, data);
   }
 
   // 发送会话警告
   static async sendSessionWarning(sessionId: string, data: SessionWarningRequest) {
-    const response = await apiClient.post<ApiResponse<any>>(`/audit/sessions/${sessionId}/warning`, data);
-    return response.data;
+    return await auditApiService.sendSessionWarning(sessionId, data);
   }
 
   // 获取监控统计数据
   static async getMonitorStatistics() {
-    const response = await apiClient.get<ApiResponse<MonitorStatistics>>('/audit/monitor/statistics');
-    return response.data;
+    return await auditApiService.getMonitorStatistics();
   }
 
   // 获取会话监控日志
   static async getSessionMonitorLogs(sessionId: string, params: { page?: number; page_size?: number } = {}) {
-    const response = await apiClient.get<ApiResponse<ListResponse<SessionMonitorLog>>>(
-      `/audit/sessions/${sessionId}/monitor-logs`, 
-      { params }
-    );
-    return response.data;
+    return await auditApiService.getSessionMonitorLogs(sessionId, params);
   }
 
   // 标记警告为已读
   static async markWarningAsRead(warningId: number) {
-    const response = await apiClient.post<ApiResponse<any>>(`/audit/warnings/${warningId}/read`);
-    return response.data;
+    return await auditApiService.markWarningAsRead(warningId);
   }
 
   // 删除单个会话记录
   static async deleteSessionRecord(sessionId: string) {
-    const response = await apiClient.delete<ApiResponse<any>>(`/audit/session-records/${sessionId}`);
-    return response.data;
+    return await auditApiService.deleteSessionRecord(sessionId);
   }
 
   // 批量删除会话记录
   static async batchDeleteSessionRecords(sessionIds: string[], reason: string) {
-    const response = await apiClient.post<ApiResponse<any>>('/audit/session-records/batch/delete', {
-      session_ids: sessionIds,
-      reason,
-    });
-    return response.data;
+    return await auditApiService.batchDeleteSessionRecords({ session_ids: sessionIds, reason });
   }
 
   // 删除单个操作日志
   static async deleteOperationLog(id: number) {
-    const response = await apiClient.delete<ApiResponse<any>>(`/audit/operation-logs/${id}`);
-    return response.data;
+    return await auditApiService.deleteOperationLog(id);
   }
 
   // 批量删除操作日志
   static async batchDeleteOperationLogs(ids: number[], reason: string) {
-    const response = await apiClient.post<ApiResponse<any>>('/audit/operation-logs/batch/delete', {
-      ids,
-      reason,
-    });
-    return response.data;
+    return await auditApiService.batchDeleteOperationLogs({ ids, reason });
   }
 }
 

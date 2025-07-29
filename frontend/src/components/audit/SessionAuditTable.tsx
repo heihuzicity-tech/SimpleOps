@@ -74,7 +74,8 @@ const SessionAuditTable: React.FC<SessionAuditTableProps> = ({ className }) => {
       });
       
       if (response.success) {
-        setData(response.data.records || []);
+        // 使用统一的 PaginatedResult 格式
+        setData(response.data.items || []);
         setTotal(response.data.total);
       }
     } catch (error) {

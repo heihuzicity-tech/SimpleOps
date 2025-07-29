@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { message } from 'antd';
-import * as authAPI from '../services/authAPI';
+// 迁移到新的AuthApiService
+// import * as authAPI from '../services/authAPI';
+import { authApiService } from '../services/api/AuthApiService';
 
 interface User {
   id: number;
@@ -11,7 +13,8 @@ interface User {
     name: string;
     description: string;
   }>;
-  permissions: string[];
+  permissions: string[];  // 保持必需，默认为空数组
+  last_login?: string;    // 添加这个字段以匹配UserProfile
 }
 
 interface AuthState {
@@ -32,26 +35,37 @@ const initialState: AuthState = {
 export const login = createAsyncThunk(
   'auth/login',
   async (credentials: { username: string; password: string }) => {
-    const response = await authAPI.login(credentials);
-    // 后端返回的数据结构: { success: true, data: { access_token, token_type, expires_in } }
-    const token = response.data.data.access_token;
+    const response = await authApiService.login(credentials);
+    // AuthApiService已经处理了响应格式，直接访问data
+    const token = response.data.access_token;
     localStorage.setItem('token', token);
+    
+    // 立即获取用户信息
+    const userResponse = await authApiService.getCurrentUser();
+    
     return {
       token: token,
-      user: null // 用户信息需要单独获取
+      user: {
+        ...userResponse.data,
+        permissions: userResponse.data.permissions || []
+      }
     };
   }
 );
 
 export const logout = createAsyncThunk('auth/logout', async () => {
-  await authAPI.logout();
+  await authApiService.logout();
   localStorage.removeItem('token');
 });
 
 export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async () => {
-  const response = await authAPI.getCurrentUser();
-  // 处理后端返回的嵌套数据结构 {success: true, data: {...}}
-  return response.data.data || response.data;
+  const response = await authApiService.getCurrentUser();
+  // AuthApiService已经处理了响应格式，直接返回data
+  // 确保permissions字段存在（如果后端没有返回，默认为空数组）
+  return {
+    ...response.data,
+    permissions: response.data.permissions || []
+  };
 });
 
 const authSlice = createSlice({

@@ -16,13 +16,17 @@ interface User {
 
 // 检查用户是否有管理员权限
 export const hasAdminPermission = (user: User | null): boolean => {
-  if (!user || !user.roles) return false;
+  if (!user || !user.roles) {
+    return false;
+  }
   return user.roles.some(role => role.name === 'admin');
 };
 
 // 检查用户是否有运维权限
 export const hasOperatorPermission = (user: User | null): boolean => {
-  if (!user || !user.roles) return false;
+  if (!user || !user.roles) {
+    return false;
+  }
   return user.roles.some(role => 
     role.name === 'admin' || role.name === 'operator'
   );

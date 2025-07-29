@@ -64,7 +64,8 @@ const OperationLogsTable: React.FC<OperationLogsTableProps> = ({ className }) =>
       });
       
       if (response.success) {
-        setData(response.data.logs || []);
+        // 使用统一的 PaginatedResult 格式
+        setData(response.data.items || []);
         setTotal(response.data.total);
       }
     } catch (error) {

@@ -79,7 +79,8 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
       
       if (response.success) {
         // 去重处理：基于session_id去除重复项
-        const sessions = response.data.sessions || [];
+        // 使用统一的 PaginatedResult 格式
+        const sessions = response.data.items || [];
         const uniqueSessions = sessions.filter((session: any, index: number, self: any[]) => 
           index === self.findIndex((s: any) => s.session_id === session.session_id)
         );
