@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Token</title>
+</head>
+<body>
+    <h2>Token Debug</h2>
+    <div id="output"></div>
+    
+    <script>
+        function debugToken() {
+            const output = document.getElementById('output');
+            const token = localStorage.getItem('token');
+            
+            if (token) {
+                output.innerHTML = `
+                    <p>✅ Token存在</p>
+                    <p>Token: ${token.substring(0, 50)}...</p>
+                    <button onclick="testAPI()">测试API调用</button>
+                `;
+            } else {
+                output.innerHTML = `
+                    <p>❌ Token不存在</p>
+                    <button onclick="login()">模拟登录</button>
+                `;
+            }
+        }
+        
+        async function login() {
+            try {
+                const response = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    localStorage.setItem('token', data.data.access_token);
+                    location.reload();
+                } else {
+                    alert('登录失败');
+                }
+            } catch (error) {
+                alert('登录错误: ' + error.message);
+            }
+        }
+        
+        async function testAPI() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/v1/asset-groups?page=1&page_size=10', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                document.getElementById('output').innerHTML += `
+                    <h3>API测试结果</h3>
+                    <p>状态: ${response.status}</p>
+                    <p>成功: ${data.success}</p>
+                    <p>数据项数量: ${data.data?.items?.length || 0}</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                alert('API调用错误: ' + error.message);
+            }
+        }
+        
+        debugToken();
+    </script>
+</body>
+</html>

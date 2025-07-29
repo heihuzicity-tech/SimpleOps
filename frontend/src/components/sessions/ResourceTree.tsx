@@ -26,6 +26,7 @@ interface ResourceTreeProps {
   searchValue?: string; // 新增：外部搜索值
   hideSearch?: boolean; // 新增：是否隐藏搜索框
   showHostDetails?: boolean; // 新增：是否显示主机详情（仅控制台页面使用）
+  externalGroups?: AssetGroup[]; // 新增：外部传入的分组数据
 }
 
 const ResourceTree: React.FC<ResourceTreeProps> = ({ 
@@ -36,7 +37,8 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
   totalCount = 0, // 新增：总数量参数
   searchValue: externalSearchValue = '', // 新增：外部搜索值
   hideSearch = false, // 新增：是否隐藏搜索框
-  showHostDetails = false // 新增：是否显示主机详情
+  showHostDetails = false, // 新增：是否显示主机详情
+  externalGroups = [] // 新增：外部传入的分组数据
 }) => {
   const [treeData, setTreeData] = useState<DataNode[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
@@ -69,9 +71,14 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
   const loadAssetGroups = async () => {
     try {
       setLoading(true);
+      console.log('[ResourceTree] 开始加载资产分组数据...');
       const response = await getAssetGroups({ page: 1, page_size: 100 });
+      console.log('[ResourceTree] API响应:', response);
+      console.log('[ResourceTree] API响应数据结构:', response.data);
       const adaptedData = adaptPaginatedResponse<AssetGroup>(response);
+      console.log('[ResourceTree] 适配后数据:', adaptedData);
       setGroups(adaptedData.items);
+      console.log('[ResourceTree] 设置分组数据:', adaptedData.items);
     } catch (error) {
       console.error('加载资产分组失败:', error);
       message.error('加载资产分组失败');
@@ -81,14 +88,26 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
   };
 
   useEffect(() => {
+    console.log('[ResourceTree] useEffect 触发');
+    console.log('[ResourceTree] showHostDetails:', showHostDetails);
+    console.log('[ResourceTree] externalGroups 长度:', externalGroups?.length || 0);
+    console.log('[ResourceTree] externalGroups 数据:', externalGroups);
+    
     if (showHostDetails) {
       // 仅当需要显示主机详情时才加载新数据
+      console.log('[ResourceTree] 加载主机详情数据...');
       loadAssetGroupsWithHosts();
-    } else {
-      // 默认情况下加载传统的分组数据
+    } else if (externalGroups.length === 0) {
+      // 只有当没有外部分组数据时才加载分组数据
+      console.log('[ResourceTree] 外部分组数据为空，使用内部API加载...');
       loadAssetGroups();
+    } else {
+      // 使用外部传入的分组数据
+      console.log('[ResourceTree] ✅ 使用外部分组数据，数量:', externalGroups?.length);
+      console.log('[ResourceTree] ✅ 外部分组数据内容:', externalGroups);
+      setGroups(externalGroups);
     }
-  }, [resourceType, showHostDetails]);
+  }, [resourceType, showHostDetails, externalGroups]);
 
   // 同步外部搜索值
   useEffect(() => {
@@ -129,6 +148,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
     
     // 根据真实API数据生成树形数据
     const generateTreeData = (): DataNode[] => {
+      console.log('[ResourceTree] 生成树数据 - resourceType:', resourceType, 'showHostDetails:', showHostDetails, 'groups长度:', groups.length, 'groupsWithHosts长度:', groupsWithHosts.length);
       if (resourceType === 'host') {
         if (showHostDetails && groupsWithHosts.length > 0) {
           // 使用包含主机详情的数据生成树形结构（仅控制台页面）

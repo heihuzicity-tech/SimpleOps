@@ -68,11 +68,23 @@ const AssetsPage: React.FC = () => {
   };
 
   useEffect(() => {
+    console.log('[AssetsPage] 组件初始化，开始加载数据...');
     loadCredentials();
     loadAssetGroups();
     // 初始化时加载全部资产
     loadAssetsByGroup('all');
   }, []);
+
+  // 监听 assetGroups 状态变化
+  useEffect(() => {
+    console.log('[AssetsPage] assetGroups 状态变化:', assetGroups?.length || 0, assetGroups);
+  }, [assetGroups]);
+
+  // 监听 assets 状态变化
+  useEffect(() => {
+    console.log('[AssetsPage] assets 状态变化:', assets?.length || 0, 'loading:', loading);
+    console.log('[AssetsPage] assets 数据:', assets);
+  }, [assets, loading]);
 
   // 当资产数据变化时，如果当前选择的是 'all'，更新总数
   useEffect(() => {
@@ -88,12 +100,36 @@ const AssetsPage: React.FC = () => {
 
   const loadAssetGroups = async () => {
     try {
-      const response = await getAssetGroups({ page: 1, page_size: 100 });
-      const adaptedData = adaptPaginatedResponse<AssetGroup>(response);
-      setAssetGroups(adaptedData.items);
+      console.log('[AssetsPage] 开始加载资产分组数据...');
       
-    } catch (error) {
-      console.error('加载资产分组失败:', error);
+      // 检查认证token
+      const token = localStorage.getItem('token');
+      console.log('[AssetsPage] 当前token状态:', token ? '✅ 存在' : '❌ 不存在');
+      if (token) {
+        console.log('[AssetsPage] Token前50字符:', token.substring(0, 50) + '...');
+      }
+      
+      const response = await getAssetGroups({ page: 1, page_size: 100 });
+      console.log('[AssetsPage] API响应:', response);
+      console.log('[AssetsPage] API响应数据结构:', response.data);
+      console.log('[AssetsPage] API响应data.data:', (response.data as any)?.data);
+      console.log('[AssetsPage] API响应data.data.items:', (response.data as any)?.data?.items);
+      console.log('[AssetsPage] API响应data.data.items长度:', (response.data as any)?.data?.items?.length);
+      console.log('[AssetsPage] API响应状态码:', response.status);
+      console.log('[AssetsPage] API响应headers:', response.headers);
+      const adaptedData = adaptPaginatedResponse<AssetGroup>(response);
+      console.log('[AssetsPage] 适配后数据:', adaptedData);
+      console.log('[AssetsPage] 适配后数据项数量:', adaptedData.items?.length);
+      setAssetGroups(adaptedData.items || []);
+      console.log('[AssetsPage] ✅ 成功设置分组数据，数量:', adaptedData.items?.length || 0);
+      
+    } catch (error: any) {
+      console.error('[AssetsPage] ❌ 加载资产分组失败:', error);
+      console.error('[AssetsPage] ❌ 错误类型:', error?.constructor?.name);
+      if (error?.response) {
+        console.error('[AssetsPage] ❌ 响应状态:', error.response.status);
+        console.error('[AssetsPage] ❌ 响应数据:', error.response.data);
+      }
     }
   };
 
@@ -324,23 +360,33 @@ const AssetsPage: React.FC = () => {
     const currentType = getCurrentAssetType();
     const searchTerm = keyword !== undefined ? keyword : searchKeyword;
     
+    console.log('[AssetsPage] 开始加载资产数据...');
+    console.log('[AssetsPage] 分组键:', groupKey);
+    console.log('[AssetsPage] 资产类型:', currentType);
+    console.log('[AssetsPage] 搜索关键字:', searchTerm);
+    console.log('[AssetsPage] 分页信息:', pagination);
+    
     if (groupKey === 'all') {
       // 加载所有资产
-      dispatch(fetchAssets({
+      const params = {
         page: pagination.current,
         page_size: pagination.pageSize,
         keyword: searchTerm,
         type: currentType,
-      }));
+      };
+      console.log('[AssetsPage] 调用fetchAssets - 全部资产:', params);
+      dispatch(fetchAssets(params));
     } else {
       // 根据分组ID过滤资产
-      dispatch(fetchAssets({
+      const params = {
         page: pagination.current,
         page_size: pagination.pageSize,
         keyword: searchTerm,
         type: currentType,
         group_id: parseInt(groupKey),
-      }));
+      };
+      console.log('[AssetsPage] 调用fetchAssets - 分组资产:', params);
+      dispatch(fetchAssets(params));
     }
   };
 
@@ -546,6 +592,7 @@ const AssetsPage: React.FC = () => {
             onSelect={handleTreeSelect}
             selectedKeys={[selectedCategory]}
             totalCount={totalAssetCount}
+            externalGroups={assetGroups}
           />
         </div>
         <div 

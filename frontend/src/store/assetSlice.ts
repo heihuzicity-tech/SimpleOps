@@ -43,16 +43,25 @@ export const fetchAssets = createAsyncThunk(
   'asset/fetchAssets',
   async (params: { page?: number; page_size?: number; keyword?: string; type?: string; group_id?: number }): Promise<NormalizedAssetsResponse> => {
     const response = await assetAPI.getAssets(params);
-    // 适配后端返回的数据结构
+    console.log('[Redux fetchAssets] API响应:', response);
+    console.log('[Redux fetchAssets] API响应数据:', response.data);
+
+    // 适配后端返回的数据结构 - 新统一格式
     if (response.data && response.data.data) {
+      const data = response.data.data as any;
+      console.log('[Redux fetchAssets] 提取的数据:', data);
+      console.log('[Redux fetchAssets] items数量:', data.items?.length || 0);
+      
       return {
-        assets: response.data.data.assets || [],
-        total: response.data.data.pagination?.total || 0,
-        page: response.data.data.pagination?.page || 1,
-        limit: response.data.data.pagination?.page_size || 10,
+        assets: data.items || [],
+        total: data.total || 0,
+        page: data.page || 1,
+        limit: data.page_size || 10,
       };
     }
+    
     // 如果是其他格式，返回默认值
+    console.log('[Redux fetchAssets] 使用默认值');
     return {
       assets: [],
       total: 0,

@@ -30,7 +30,19 @@ export const adaptPaginatedResponse = <T>(response: any): PaginatedResponse<T> =
 
   const data = response.data;
 
-  // 1. 新统一格式 - 已经包含 items 字段
+  // 1. 新统一格式 - 嵌套数据格式 response.data.data.items
+  if (data.data && data.data.items !== undefined) {
+    const nestedData = data.data;
+    return {
+      items: nestedData.items || [],
+      total: nestedData.total || 0,
+      page: nestedData.page || 1,
+      page_size: nestedData.page_size || 10,
+      total_pages: nestedData.total_pages || Math.ceil((nestedData.total || 0) / (nestedData.page_size || 10))
+    };
+  }
+
+  // 2. 新统一格式 - 直接数据格式 response.data.items
   if (data.items !== undefined) {
     return {
       items: data.items || [],
