@@ -28,7 +28,7 @@ export class AuditApiService extends BaseApiService {
     success: boolean;
     data: PaginatedResult<LoginLog>;
   }> {
-    const data = await this.get<PaginatedResult<LoginLog>>(this.buildUrl('/login-logs'), params);
+    const data = await this.get<PaginatedResult<LoginLog>>('/login-logs', params);
     return {
       success: true,
       data
@@ -40,7 +40,7 @@ export class AuditApiService extends BaseApiService {
     success: boolean;
     data: PaginatedResult<OperationLog>;
   }> {
-    const data = await this.get<PaginatedResult<OperationLog>>(this.buildUrl('/operation-logs'), params);
+    const data = await this.get<PaginatedResult<OperationLog>>('/operation-logs', params);
     return {
       success: true,
       data
@@ -48,7 +48,7 @@ export class AuditApiService extends BaseApiService {
   }
 
   async getOperationLog(id: number): Promise<{ success: boolean; data: OperationLog }> {
-    const data = await this.get<OperationLog>(this.buildUrl(`/operation-logs/${id}`));
+    const data = await this.get<OperationLog>(`/operation-logs/${id}`);
     return {
       success: true,
       data
@@ -56,14 +56,14 @@ export class AuditApiService extends BaseApiService {
   }
 
   async deleteOperationLog(id: number): Promise<{ success: boolean }> {
-    await this.delete(this.buildUrl(`/operation-logs/${id}`));
+    await this.delete(`/operation-logs/${id}`);
     return {
       success: true
     };
   }
 
   async batchDeleteOperationLogs(request: BatchDeleteRequest): Promise<{ success: boolean }> {
-    await this.post(this.buildUrl('/operation-logs/batch/delete'), request);
+    await this.post('/operation-logs/batch/delete', request);
     return {
       success: true
     };
@@ -74,7 +74,7 @@ export class AuditApiService extends BaseApiService {
     success: boolean;
     data: PaginatedResult<SessionRecord>;
   }> {
-    const data = await this.get<PaginatedResult<SessionRecord>>(this.buildUrl('/session-records'), params);
+    const data = await this.get<PaginatedResult<SessionRecord>>('/session-records', params);
     return {
       success: true,
       data
@@ -82,7 +82,7 @@ export class AuditApiService extends BaseApiService {
   }
 
   async getSessionRecord(id: number): Promise<{ success: boolean; data: SessionRecord }> {
-    const data = await this.get<SessionRecord>(this.buildUrl(`/session-records/${id}`));
+    const data = await this.get<SessionRecord>(`/session-records/${id}`);
     return {
       success: true,
       data
@@ -90,14 +90,14 @@ export class AuditApiService extends BaseApiService {
   }
 
   async deleteSessionRecord(sessionId: string): Promise<{ success: boolean }> {
-    await this.delete(this.buildUrl(`/session-records/${sessionId}`));
+    await this.delete(`/session-records/${sessionId}`);
     return {
       success: true
     };
   }
 
   async batchDeleteSessionRecords(request: BatchDeleteRequest): Promise<{ success: boolean }> {
-    await this.post(this.buildUrl('/session-records/batch/delete'), request);
+    await this.post('/session-records/batch/delete', request);
     return {
       success: true
     };
@@ -108,7 +108,7 @@ export class AuditApiService extends BaseApiService {
     success: boolean;
     data: PaginatedResult<CommandLog>;
   }> {
-    const data = await this.get<PaginatedResult<CommandLog>>(this.buildUrl('/command-logs'), params);
+    const data = await this.get<PaginatedResult<CommandLog>>('/command-logs', params);
     return {
       success: true,
       data
@@ -116,7 +116,7 @@ export class AuditApiService extends BaseApiService {
   }
 
   async getCommandLog(id: number): Promise<{ success: boolean; data: CommandLog }> {
-    const data = await this.get<CommandLog>(this.buildUrl(`/command-logs/${id}`));
+    const data = await this.get<CommandLog>(`/command-logs/${id}`);
     return {
       success: true,
       data
@@ -125,7 +125,7 @@ export class AuditApiService extends BaseApiService {
 
   // ==================== 统计数据 ====================
   async getAuditStatistics(): Promise<{ success: boolean; data: AuditStatistics }> {
-    const data = await this.get<AuditStatistics>(this.buildUrl('/statistics'));
+    const data = await this.get<AuditStatistics>('/statistics');
     return {
       success: true,
       data
@@ -133,7 +133,7 @@ export class AuditApiService extends BaseApiService {
   }
 
   async cleanupAuditLogs(): Promise<{ success: boolean; message: string }> {
-    const response = await this.post<{ message: string }>(this.buildUrl('/cleanup'));
+    const response = await this.post<{ message: string }>('/cleanup');
     return {
       success: true,
       message: response.message || '清理完成'
@@ -145,7 +145,7 @@ export class AuditApiService extends BaseApiService {
     success: boolean;
     data: PaginatedResult<ActiveSession>;
   }> {
-    const data = await this.get<PaginatedResult<ActiveSession>>(this.buildUrl('/active-sessions'), params);
+    const data = await this.get<PaginatedResult<ActiveSession>>('/active-sessions', params);
     return {
       success: true,
       data
@@ -153,21 +153,21 @@ export class AuditApiService extends BaseApiService {
   }
 
   async terminateSession(sessionId: string, request: TerminateSessionRequest): Promise<{ success: boolean }> {
-    await this.post(this.buildUrl(`/sessions/${sessionId}/terminate`), request);
+    await this.post(`/sessions/${sessionId}/terminate`, request);
     return {
       success: true
     };
   }
 
   async sendSessionWarning(sessionId: string, request: SessionWarningRequest): Promise<{ success: boolean }> {
-    await this.post(this.buildUrl(`/sessions/${sessionId}/warning`), request);
+    await this.post(`/sessions/${sessionId}/warning`, request);
     return {
       success: true
     };
   }
 
   async getMonitorStatistics(): Promise<{ success: boolean; data: MonitorStatistics }> {
-    const data = await this.get<MonitorStatistics>(this.buildUrl('/monitor/statistics'));
+    const data = await this.get<MonitorStatistics>('/monitor/statistics');
     return {
       success: true,
       data
@@ -179,7 +179,7 @@ export class AuditApiService extends BaseApiService {
     data: PaginatedResult<SessionMonitorLog>;
   }> {
     const data = await this.get<PaginatedResult<SessionMonitorLog>>(
-      this.buildUrl(`/sessions/${sessionId}/monitor-logs`),
+      `/sessions/${sessionId}/monitor-logs`,
       params
     );
     return {
@@ -189,7 +189,7 @@ export class AuditApiService extends BaseApiService {
   }
 
   async markWarningAsRead(warningId: number): Promise<{ success: boolean }> {
-    await this.post(this.buildUrl(`/warnings/${warningId}/read`));
+    await this.post(`/warnings/${warningId}/read`);
     return {
       success: true
     };
