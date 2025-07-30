@@ -126,6 +126,17 @@ export const interceptLogAPI = {
     const response = await apiClient.get(`${BASE_URL}/intercept-logs`, { params });
     return response.data;
   },
+
+  // 获取日志统计信息
+  getLogStatistics: async (): Promise<ApiResponse<{
+    total: number;
+    today: number;
+    thisWeek: number;
+    thisMonth: number;
+  }>> => {
+    const response = await apiClient.get(`${BASE_URL}/intercept-logs/statistics`);
+    return response.data;
+  },
 };
 
 // 命令过滤规则 API
