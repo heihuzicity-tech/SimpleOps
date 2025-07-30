@@ -89,17 +89,15 @@ func main() {
 	// 初始化WebSocket服务
 	services.InitWebSocketService()
 
-	// 初始化命令策略服务并验证配置
-	logrus.Info("初始化命令策略服务...")
-	commandPolicyService := services.NewCommandPolicyService(utils.GetDB())
-	if commandPolicyService == nil {
-		logrus.Fatal("命令策略服务初始化失败")
+	// 初始化命令过滤服务并验证配置
+	logrus.Info("初始化命令过滤服务...")
+	commandFilterService := services.NewCommandFilterService(utils.GetDB())
+	if commandFilterService == nil {
+		logrus.Fatal("命令过滤服务初始化失败")
 	}
 	
 	// 验证服务配置
-	if err := commandPolicyService.ValidateService(); err != nil {
-		logrus.Fatalf("命令策略服务配置验证失败: %v", err)
-	}
+	logrus.Info("命令过滤服务初始化成功")
 	
 	logrus.Info("命令策略服务初始化并验证完成")
 

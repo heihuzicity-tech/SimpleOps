@@ -495,6 +495,10 @@ const PolicyTable: React.FC = () => {
           onChange={(targetKeys) => setSelectedUserKeys(targetKeys as string[])}
           render={item => `${item.title} ${item.description ? `(${item.description})` : ''}`}
           showSearch
+          filterOption={(inputValue, option) =>
+            option.title?.toLowerCase().includes(inputValue.toLowerCase()) ||
+            option.description?.toLowerCase().includes(inputValue.toLowerCase()) || false
+          }
           style={{ width: '100%' }}
         />
       </Modal>
@@ -521,6 +525,10 @@ const PolicyTable: React.FC = () => {
             </span>
           )}
           showSearch
+          filterOption={(inputValue, option) =>
+            option.title?.toLowerCase().includes(inputValue.toLowerCase()) ||
+            option.description?.toLowerCase().includes(inputValue.toLowerCase()) || false
+          }
           style={{ width: '100%' }}
         />
       </Modal>
