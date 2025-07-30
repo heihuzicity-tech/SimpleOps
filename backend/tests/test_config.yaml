@@ -1,0 +1,279 @@
+# 命令过滤功能集成测试配置文件
+# 作者: AI Test Automation Expert
+# 日期: 2025-07-30
+
+# 测试环境配置
+test:
+  # 数据库配置
+  database:
+    host: "localhost"
+    port: 3306
+    username: "root"
+    password: "password"
+    database: "bastion_test"
+    charset: "utf8mb4"
+    max_idle_conns: 10
+    max_open_conns: 100
+    conn_max_lifetime: 3600
+    
+  # Redis配置（如果需要）
+  redis:
+    host: "localhost"
+    port: 6379
+    password: ""
+    database: 1
+    
+  # 日志配置
+  log:
+    level: "debug"
+    format: "json"
+    output: "stdout"
+    
+  # 测试专用配置
+  test_config:
+    # 测试数据库自动清理
+    auto_cleanup: true
+    
+    # 测试事务自动回滚
+    auto_rollback: true
+    
+    # 测试超时设置（秒）
+    test_timeout: 300
+    
+    # 并发测试数量
+    concurrent_tests: 4
+    
+    # 性能测试配置
+    performance:
+      # 基准测试次数
+      benchmark_iterations: 100
+      
+      # 性能阈值（毫秒）
+      response_time_threshold: 10
+      
+      # 内存使用阈值（MB）
+      memory_threshold: 100
+      
+    # 测试数据配置
+    test_data:
+      # 测试用户数量
+      test_users_count: 3
+      
+      # 测试资产数量
+      test_assets_count: 4
+      
+      # 测试命令组数量
+      test_command_groups_count: 5
+      
+      # 测试过滤规则数量
+      test_filters_count: 6
+      
+      # 历史日志条数
+      test_logs_count: 5
+      
+    # 断言配置
+    assertions:
+      # 严格模式：所有断言都必须通过
+      strict_mode: true
+      
+      # 详细错误信息
+      verbose_errors: true
+      
+      # 失败时继续执行其他测试
+      continue_on_failure: false
+      
+    # 覆盖率配置
+    coverage:
+      # 最小覆盖率要求
+      minimum_coverage: 80
+      
+      # 覆盖率报告格式
+      report_format: "html"
+      
+      # 排除的文件模式
+      exclude_patterns:
+        - "*/tests/*"
+        - "*/mocks/*"
+        - "*/vendor/*"
+        
+    # 集成测试配置
+    integration:
+      # 外部服务依赖
+      external_services:
+        # 是否需要真实数据库
+        require_database: true
+        
+        # 是否需要Redis
+        require_redis: false
+        
+        # 是否需要文件系统
+        require_filesystem: true
+        
+      # 测试环境隔离
+      isolation:
+        # 使用独立的测试数据库
+        separate_database: true
+        
+        # 使用事务隔离
+        transaction_isolation: true
+        
+        # 清理测试数据
+        cleanup_after_test: true
+        
+    # 安全测试配置
+    security:
+      # SQL注入测试
+      sql_injection_tests: true
+      
+      # 命令注入测试
+      command_injection_tests: true
+      
+      # 权限绕过测试
+      privilege_escalation_tests: true
+      
+      # 输入验证测试
+      input_validation_tests: true
+      
+    # 错误处理测试配置
+    error_handling:
+      # 网络错误模拟
+      network_errors: true
+      
+      # 数据库错误模拟
+      database_errors: true
+      
+      # 超时错误模拟
+      timeout_errors: true
+      
+      # 资源耗尽模拟
+      resource_exhaustion: true
+      
+  # 模拟配置
+  mocks:
+    # 是否启用模拟服务
+    enabled: false
+    
+    # 模拟数据文件路径
+    data_path: "./tests/mock_data"
+    
+    # 模拟延迟（毫秒）
+    latency: 0
+    
+    # 模拟错误率（百分比）
+    error_rate: 0
+
+# 测试报告配置
+reporting:
+  # 报告输出目录
+  output_dir: "./tests/results"
+  
+  # 报告格式
+  formats:
+    - "console"
+    - "json"
+    - "html"
+    - "junit"
+    
+  # 详细程度
+  verbosity: "detailed"
+  
+  # 包含的信息
+  include:
+    - "test_results"
+    - "coverage"
+    - "performance"
+    - "errors"
+    - "warnings"
+    
+  # 自定义报告模板
+  templates:
+    html: "./tests/templates/report.html"
+    markdown: "./tests/templates/report.md"
+
+# 通知配置（可选）
+notifications:
+  # 是否启用通知
+  enabled: false
+  
+  # 通知渠道
+  channels:
+    email:
+      enabled: false
+      recipients: []
+      
+    slack:
+      enabled: false
+      webhook_url: ""
+      
+    webhook:
+      enabled: false
+      url: ""
+
+# 环境变量配置
+environment:
+  # 测试环境标识
+  GO_ENV: "test"
+  
+  # 测试模式
+  TEST_MODE: "integration"
+  
+  # 调试模式
+  DEBUG: "true"
+  
+  # 详细日志
+  VERBOSE: "true"
+  
+  # 覆盖率模式
+  COVERAGE_MODE: "atomic"
+
+# 特性开关
+features:
+  # 新功能测试
+  new_features:
+    enabled: true
+    
+  # 实验性功能测试
+  experimental_features:
+    enabled: false
+    
+  # 性能优化功能测试
+  performance_optimizations:
+    enabled: true
+    
+  # 安全增强功能测试
+  security_enhancements:
+    enabled: true
+
+# 测试数据模板
+test_data_templates:
+  # 用户模板
+  user:
+    username: "testuser{id}"
+    email: "testuser{id}@example.com"
+    password: "password123"
+    realname: "Test User {id}"
+    is_active: true
+    
+  # 资产模板
+  asset:
+    name: "test-server-{id:02d}"
+    ip: "192.168.1.{id+10}"
+    port: 22
+    type: "server"
+    is_active: true
+    
+  # 命令组模板
+  command_group:
+    name: "测试命令组{id}"
+    remark: "用于测试的命令组{id}"
+    
+  # 过滤规则模板
+  command_filter:
+    name: "测试过滤规则{id}"
+    priority: "{id*10}"
+    enabled: true
+    user_type: "all"
+    asset_type: "all"
+    account_type: "all"
+    action: "deny"
+    remark: "测试用的过滤规则{id}"
