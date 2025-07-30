@@ -316,11 +316,13 @@ export interface CommandGroup {
   id: number;
   name: string;
   description?: string;
-  is_preset: boolean;
+  remark?: string;
+  is_preset?: boolean;
   command_count?: number;
   created_at: string;
   updated_at: string;
   commands?: Command[];
+  items?: CommandGroupItem[];
 }
 
 export interface CommandPolicy {
@@ -415,13 +417,26 @@ export interface CommandGroupListRequest {
 export interface CommandGroupCreateRequest {
   name: string;
   description?: string;
-  command_ids: number[];
+  command_ids?: number[];
+  remark?: string;
+  items?: CommandGroupItem[];
 }
 
 export interface CommandGroupUpdateRequest {
   name?: string;
   description?: string;
   command_ids?: number[];
+  remark?: string;
+  items?: CommandGroupItem[];
+}
+
+export interface CommandGroupItem {
+  id?: number;
+  command_group_id?: number;
+  type: 'command' | 'regex';
+  content: string;
+  ignore_case: boolean;
+  sort_order?: number;
 }
 
 export interface PolicyListRequest {

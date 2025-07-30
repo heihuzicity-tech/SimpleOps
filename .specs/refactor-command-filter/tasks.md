@@ -112,10 +112,11 @@
   - 验收: 文件已删除
   - 完成: 删除了PolicyTable.tsx、CommandTable.tsx和InterceptLogTable.tsx（保留CommandGroupTable.tsx作为参考）
 
-- [ ] 6.2 创建命令组管理组件
+- [x] 6.2 创建命令组管理组件
   - 文件: `frontend/src/components/commandFilter/CommandGroupManagement.tsx`
   - 描述: 实现命令组的创建、编辑、删除功能，支持批量输入命令
   - 验收: 命令组管理功能完整，UI友好
+  - 完成: 创建了功能完整的命令组管理组件，支持CRUD、批量输入、搜索分页等功能
 
 - [ ] 6.3 创建命令过滤管理组件
   - 文件: `frontend/src/components/commandFilter/CommandFilterManagement.tsx`
@@ -191,9 +192,9 @@
 
 ### 完成统计
 - **总任务数**: 29
-- **已完成**: 20
+- **已完成**: 21
 - **进行中**: 0
-- **完成率**: 69.0%
+- **完成率**: 72.4%
 
 ### 里程碑
 - [x] 数据库结构完成 (任务 1.x-2.x) ✅

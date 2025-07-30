@@ -53,25 +53,25 @@ export const commandAPI = {
 export const commandGroupAPI = {
   // 获取命令组列表
   getCommandGroups: async (params: CommandGroupListRequest): Promise<ApiResponse<CommandFilterPaginatedResponse<CommandGroup>>> => {
-    const response = await apiClient.get(`${BASE_URL}/command-groups`, { params });
+    const response = await apiClient.get(`${BASE_URL}/groups`, { params });
     return response.data;
   },
 
   // 创建命令组
   createCommandGroup: async (data: CommandGroupCreateRequest): Promise<ApiResponse<CommandGroup>> => {
-    const response = await apiClient.post(`${BASE_URL}/command-groups`, data);
+    const response = await apiClient.post(`${BASE_URL}/groups`, data);
     return response.data;
   },
 
   // 更新命令组
   updateCommandGroup: async (id: number, data: CommandGroupUpdateRequest): Promise<ApiResponse<CommandGroup>> => {
-    const response = await apiClient.put(`${BASE_URL}/command-groups/${id}`, data);
+    const response = await apiClient.put(`${BASE_URL}/groups/${id}`, data);
     return response.data;
   },
 
   // 删除命令组
   deleteCommandGroup: async (id: number): Promise<ApiResponse<void>> => {
-    const response = await apiClient.delete(`${BASE_URL}/command-groups/${id}`);
+    const response = await apiClient.delete(`${BASE_URL}/groups/${id}`);
     return response.data;
   },
 };
