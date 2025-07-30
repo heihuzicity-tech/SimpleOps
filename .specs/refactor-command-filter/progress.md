@@ -1,9 +1,9 @@
 # 命令过滤功能重构 - 进度追踪
 
 ## 当前状态
-- **当前阶段**: 后端开发完成，测试通过
-- **当前任务**: 准备前端开发（6.1）
-- **完成进度**: 19/39 (48.7%)
+- **当前阶段**: 前端开发阶段
+- **当前任务**: 准备创建命令组管理组件（6.2）
+- **完成进度**: 20/39 (51.3%)
 
 ## 已完成的阶段
 1. ✅ 需求收集与分析
@@ -21,6 +21,12 @@
    - 预计5-7天完成
 
 ## 已完成任务
+18. ✅ 任务6.1：删除旧的前端组件
+   - 删除了 `frontend/src/components/commandFilter/PolicyTable.tsx`
+   - 删除了 `frontend/src/components/commandFilter/CommandTable.tsx`
+   - 删除了 `frontend/src/components/commandFilter/InterceptLogTable.tsx`
+   - 保留了 `CommandGroupTable.tsx` 作为后续开发参考
+
 1. ✅ 任务1.1：备份现有命令过滤相关数据
    - 创建了SQL备份脚本：`backend/migrations/20250130_backup_command_data.sql`
    - 创建了Shell备份脚本：`.specs/backups/backup_command_filter.sh`
@@ -137,8 +143,8 @@
      - 批量操作和导入导出
 
 ## 下一步行动
-- 执行任务6.1：删除旧的前端组件
-- 使用命令：`/kiro exec 6.1` 或 `/kiro next`
+- 执行任务6.2：创建命令组管理组件
+- 使用命令：`/kiro exec 6.2` 或 `/kiro next`
 
 ## 重要决策记录
 1. 数据库设计采用关联表而非JSON存储，提升查询性能
@@ -157,6 +163,7 @@
 - **备份文件**: command_filter_backup_20250730_151646.sql (30K)
 - **清理执行时间**: 2025-01-30 15:27
 - **新表创建时间**: 2025-01-30 15:27
+- **前端组件清理时间**: 2025-01-30 17:35
 
 ## 文档同步状态
 - ✅ requirements.md - 已提交
@@ -173,4 +180,4 @@
   - 创建重复名称的命令组（400错误） - 正确的唯一性约束
   - 创建无效过滤规则（400错误） - 正确的外键约束验证
 
-最后更新时间：2025-01-30 17:27
+最后更新时间：2025-01-30 17:35

@@ -106,10 +106,11 @@
   - 完成: 替换了服务初始化、控制器初始化和路由配置，实现了完整的新路由结构
 
 ### 6. 前端组件开发
-- [ ] 6.1 删除旧的前端组件
+- [x] 6.1 删除旧的前端组件
   - 文件: `frontend/src/components/commandFilter/PolicyTable.tsx`、`frontend/src/components/commandFilter/CommandTable.tsx`
   - 描述: 删除策略和命令管理组件
   - 验收: 文件已删除
+  - 完成: 删除了PolicyTable.tsx、CommandTable.tsx和InterceptLogTable.tsx（保留CommandGroupTable.tsx作为参考）
 
 - [ ] 6.2 创建命令组管理组件
   - 文件: `frontend/src/components/commandFilter/CommandGroupManagement.tsx`
@@ -190,9 +191,9 @@
 
 ### 完成统计
 - **总任务数**: 29
-- **已完成**: 9
+- **已完成**: 20
 - **进行中**: 0
-- **完成率**: 31.0%
+- **完成率**: 69.0%
 
 ### 里程碑
 - [x] 数据库结构完成 (任务 1.x-2.x) ✅
