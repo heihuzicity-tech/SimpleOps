@@ -4,11 +4,9 @@ import {
   SecurityScanOutlined,
   GroupOutlined,
   FilterOutlined,
-  FileTextOutlined,
 } from '@ant-design/icons';
 import CommandGroupManagement from '../../components/commandFilter/CommandGroupManagement';
 import CommandFilterManagement from '../../components/commandFilter/CommandFilterManagement';
-import FilterLogTable from '../../components/commandFilter/FilterLogTable';
 
 const { Title } = Typography;
 
@@ -35,16 +33,6 @@ const CommandFilterPage: React.FC = () => {
         </span>
       ),
       children: <CommandFilterManagement />,
-    },
-    {
-      key: 'filter-logs',
-      label: (
-        <span>
-          <FileTextOutlined />
-          过滤日志
-        </span>
-      ),
-      children: <FilterLogTable />,
     },
   ];
 

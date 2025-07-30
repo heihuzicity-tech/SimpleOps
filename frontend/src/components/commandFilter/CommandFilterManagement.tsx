@@ -30,7 +30,6 @@ import {
 import {
   CommandFilter,
   CommandGroup,
-  User,
   Asset,
   CommandFilterListRequest,
   CommandFilterCreateRequest,
@@ -40,7 +39,7 @@ import {
 } from '../../types';
 import { commandFilterService } from '../../services/commandFilterService';
 import { adaptPaginatedResponse } from '../../services/responseAdapter';
-import { getUsers } from '../../services/userAPI';
+import { getUsers, User } from '../../services/userAPI';
 import { getAssets } from '../../services/assetAPI';
 
 const { Search } = Input;

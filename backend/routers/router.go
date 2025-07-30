@@ -329,13 +329,6 @@ func SetupRouter() *gin.Engine {
 					filters.POST("/import", commandFilterController.ImportCommandFilters)
 				}
 
-				// 过滤日志管理
-				logs := commandFilter.Group("/logs")
-				{
-					logs.GET("", commandFilterController.GetCommandFilterLogs)
-					logs.GET("/stats", commandFilterController.GetCommandFilterLogStats)
-				}
-
 				// 命令匹配测试
 				commandFilter.POST("/match", commandFilterController.TestCommandMatch)
 			}

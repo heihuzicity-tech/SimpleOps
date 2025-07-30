@@ -12,11 +12,17 @@ import (
 // CommandFilterService 命令过滤服务
 type CommandFilterService struct {
 	db *gorm.DB
+	matcherService *CommandMatcherService // 用于缓存失效通知
 }
 
 // NewCommandFilterService 创建命令过滤服务实例
 func NewCommandFilterService(db *gorm.DB) *CommandFilterService {
 	return &CommandFilterService{db: db}
+}
+
+// SetMatcherService 设置匹配服务（用于缓存失效通知）
+func (s *CommandFilterService) SetMatcherService(matcherService *CommandMatcherService) {
+	s.matcherService = matcherService
 }
 
 // List 获取过滤规则列表
@@ -165,6 +171,9 @@ func (s *CommandFilterService) Create(req *models.CommandFilterCreateRequest) (*
 		return nil, err
 	}
 	
+	// 清除相关缓存
+	s.invalidateRelatedCaches(filter.ID)
+	
 	// 返回创建的过滤规则
 	return s.Get(filter.ID)
 }
@@ -302,6 +311,9 @@ func (s *CommandFilterService) Update(id uint, req *models.CommandFilterUpdateRe
 		return nil, err
 	}
 	
+	// 清除相关缓存
+	s.invalidateRelatedCaches(id)
+	
 	// 返回更新后的过滤规则
 	return s.Get(id)
 }
@@ -315,6 +327,9 @@ func (s *CommandFilterService) Delete(id uint) error {
 		}
 		return fmt.Errorf("delete command filter failed: %w", err)
 	}
+	
+	// 清除相关缓存
+	s.invalidateRelatedCaches(id)
 	
 	return nil
 }
@@ -335,6 +350,9 @@ func (s *CommandFilterService) Toggle(id uint) error {
 		return fmt.Errorf("toggle command filter failed: %w", err)
 	}
 	
+	// 清除相关缓存
+	s.invalidateRelatedCaches(id)
+	
 	return nil
 }
 
@@ -347,6 +365,11 @@ func (s *CommandFilterService) BatchDelete(ids []uint) error {
 	// 批量删除
 	if err := s.db.Where("id IN ?", ids).Delete(&models.CommandFilter{}).Error; err != nil {
 		return fmt.Errorf("batch delete command filters failed: %w", err)
+	}
+	
+	// 清除相关缓存
+	for _, id := range ids {
+		s.invalidateRelatedCaches(id)
 	}
 	
 	return nil
@@ -620,4 +643,12 @@ func (s *CommandFilterService) buildFilterResponse(filter *models.CommandFilter,
 	}
 	
 	return response
+}
+
+// invalidateRelatedCaches 使相关缓存失效
+func (s *CommandFilterService) invalidateRelatedCaches(filterID uint) {
+	if s.matcherService != nil {
+		// 使过滤规则相关的缓存失效
+		s.matcherService.InvalidateFilterCacheByFilterID(filterID)
+	}
 }

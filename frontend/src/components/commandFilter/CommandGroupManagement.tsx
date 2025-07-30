@@ -26,7 +26,6 @@ import {
   ReloadOutlined,
   GroupOutlined,
   CodeOutlined,
-  RegexIcon,
   QuestionCircleOutlined,
 } from '@ant-design/icons';
 import { commandFilterService } from '../../services/commandFilterService';
@@ -157,19 +156,25 @@ const CommandGroupManagement: React.FC = () => {
     }
 
     try {
-      const data: CommandGroupCreateRequest | CommandGroupUpdateRequest = {
-        ...values,
-        items: commandItems.map((item, index) => ({
-          ...item,
-          sort_order: index,
-        })),
-      };
-
       if (editingGroup) {
-        await commandFilterService.commandGroup.updateCommandGroup(editingGroup.id, data);
+        const updateData: CommandGroupUpdateRequest = {
+          ...values,
+          items: commandItems.map((item, index) => ({
+            ...item,
+            sort_order: index,
+          })),
+        };
+        await commandFilterService.commandGroup.updateCommandGroup(editingGroup.id, updateData);
         message.success('更新成功');
       } else {
-        await commandFilterService.commandGroup.createCommandGroup(data);
+        const createData: CommandGroupCreateRequest = {
+          ...values,
+          items: commandItems.map((item, index) => ({
+            ...item,
+            sort_order: index,
+          })),
+        };
+        await commandFilterService.commandGroup.createCommandGroup(createData);
         message.success('创建成功');
       }
       setIsModalVisible(false);
