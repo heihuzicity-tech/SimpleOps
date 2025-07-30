@@ -118,10 +118,11 @@
   - 验收: 命令组管理功能完整，UI友好
   - 完成: 创建了功能完整的命令组管理组件，支持CRUD、批量输入、搜索分页等功能
 
-- [ ] 6.3 创建命令过滤管理组件
+- [x] 6.3 创建命令过滤管理组件
   - 文件: `frontend/src/components/commandFilter/CommandFilterManagement.tsx`
   - 描述: 实现过滤规则配置，包括用户/资产/账号选择
   - 验收: 过滤规则配置灵活，交互流畅
+  - 完成: 实现了完整的过滤规则管理功能，支持用户/资产/账号的灵活配置
 
 - [ ] 6.4 创建过滤日志查看组件
   - 文件: `frontend/src/components/commandFilter/FilterLogTable.tsx`

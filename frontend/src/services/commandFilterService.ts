@@ -3,6 +3,7 @@ import {
   CommandGroup,
   CommandPolicy,
   CommandInterceptLog,
+  CommandFilter,
   CommandListRequest,
   CommandCreateRequest,
   CommandUpdateRequest,
@@ -15,6 +16,9 @@ import {
   PolicyBindUsersRequest,
   PolicyBindCommandsRequest,
   InterceptLogListRequest,
+  CommandFilterListRequest,
+  CommandFilterCreateRequest,
+  CommandFilterUpdateRequest,
   CommandFilterPaginatedResponse,
   ApiResponse,
 } from '../types';
@@ -124,12 +128,52 @@ export const interceptLogAPI = {
   },
 };
 
+// 命令过滤规则 API
+export const filterAPI = {
+  // 获取过滤规则列表
+  getFilters: async (params: CommandFilterListRequest): Promise<ApiResponse<CommandFilterPaginatedResponse<CommandFilter>>> => {
+    const response = await apiClient.get(`${BASE_URL}/filters`, { params });
+    return response.data;
+  },
+
+  // 获取过滤规则详情
+  getFilter: async (id: number): Promise<ApiResponse<CommandFilter>> => {
+    const response = await apiClient.get(`${BASE_URL}/filters/${id}`);
+    return response.data;
+  },
+
+  // 创建过滤规则
+  createFilter: async (data: CommandFilterCreateRequest): Promise<ApiResponse<CommandFilter>> => {
+    const response = await apiClient.post(`${BASE_URL}/filters`, data);
+    return response.data;
+  },
+
+  // 更新过滤规则
+  updateFilter: async (id: number, data: CommandFilterUpdateRequest): Promise<ApiResponse<CommandFilter>> => {
+    const response = await apiClient.put(`${BASE_URL}/filters/${id}`, data);
+    return response.data;
+  },
+
+  // 删除过滤规则
+  deleteFilter: async (id: number): Promise<ApiResponse<void>> => {
+    const response = await apiClient.delete(`${BASE_URL}/filters/${id}`);
+    return response.data;
+  },
+
+  // 启用/禁用过滤规则
+  toggleFilter: async (id: number): Promise<ApiResponse<CommandFilter>> => {
+    const response = await apiClient.patch(`${BASE_URL}/filters/${id}/toggle`);
+    return response.data;
+  },
+};
+
 // 统一导出
 export const commandFilterService = {
   command: commandAPI,
   commandGroup: commandGroupAPI,
   policy: policyAPI,
   interceptLog: interceptLogAPI,
+  filter: filterAPI,
 };
 
 export default commandFilterService;
