@@ -32,16 +32,14 @@ export interface GetAssetsParams {
 }
 
 export interface GetAssetsResponse {
-  data: {
-    assets: Asset[];
-    pagination: {
-      page: number;
-      page_size: number;
-      total: number;
-      total_page: number;
-    };
-  };
   success: boolean;
+  data: {
+    items: Asset[];
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+  };
 }
 
 export interface CreateAssetRequest {

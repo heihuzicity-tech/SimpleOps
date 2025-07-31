@@ -23,7 +23,7 @@ export interface GetUsersParams {
 export interface GetUsersResponse {
   success: boolean;
   data: {
-    users: User[];
+    items: User[];
     total: number;
     page: number;
     page_size: number;
