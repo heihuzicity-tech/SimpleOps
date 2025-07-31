@@ -394,6 +394,9 @@ func (s *CommandFilterService) GetByPriority() ([]models.CommandFilter, error) {
 func (s *CommandFilterService) GetApplicableFilters(userID uint, assetID uint, account string) ([]models.CommandFilter, error) {
 	var filters []models.CommandFilter
 	
+	// 添加调试日志
+	fmt.Printf("[DEBUG] GetApplicableFilters called with userID=%d, assetID=%d, account=%s\n", userID, assetID, account)
+	
 	// 构建基础查询
 	query := s.db.Model(&models.CommandFilter{}).
 		Where("enabled = ?", true).
@@ -427,6 +430,13 @@ func (s *CommandFilterService) GetApplicableFilters(userID uint, assetID uint, a
 		Order("priority ASC, id ASC").
 		Find(&filters).Error; err != nil {
 		return nil, fmt.Errorf("get applicable filters failed: %w", err)
+	}
+	
+	// 调试日志：输出查询结果
+	fmt.Printf("[DEBUG] Found %d applicable filters\n", len(filters))
+	for _, f := range filters {
+		fmt.Printf("[DEBUG] Filter: ID=%d, Name=%s, UserType=%s, AssetType=%s, AccountType=%s, AccountNames=%s\n", 
+			f.ID, f.Name, f.UserType, f.AssetType, f.AccountType, f.AccountNames)
 	}
 	
 	// 如果有属性过滤，还需要进一步处理

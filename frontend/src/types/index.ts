@@ -498,8 +498,8 @@ export interface CommandFilter {
   command_group_id: number;
   action: 'deny' | 'allow' | 'alert' | 'prompt_alert';
   remark?: string;
-  users?: number[];
-  assets?: number[];
+  user_ids?: number[];
+  asset_ids?: number[];
   attributes?: FilterAttribute[];
   command_group?: CommandGroup;
   created_at: string;
@@ -533,8 +533,8 @@ export interface CommandFilterCreateRequest {
   command_group_id: number;
   action: 'deny' | 'allow' | 'alert' | 'prompt_alert';
   remark?: string;
-  users?: number[];
-  assets?: number[];
+  user_ids?: number[];
+  asset_ids?: number[];
   attributes?: FilterAttribute[];
 }
 
@@ -549,8 +549,8 @@ export interface CommandFilterUpdateRequest {
   command_group_id?: number;
   action?: 'deny' | 'allow' | 'alert' | 'prompt_alert';
   remark?: string;
-  users?: number[];
-  assets?: number[];
+  user_ids?: number[];
+  asset_ids?: number[];
   attributes?: FilterAttribute[];
 }
 

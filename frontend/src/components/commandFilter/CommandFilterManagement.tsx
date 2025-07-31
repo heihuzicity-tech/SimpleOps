@@ -263,8 +263,8 @@ const CommandFilterManagement: React.FC = () => {
     try {
       const data: CommandFilterCreateRequest | CommandFilterUpdateRequest = {
         ...values,
-        users: values.user_type === 'specific' ? selectedUserKeys.map(key => parseInt(key)) : undefined,
-        assets: values.asset_type === 'specific' ? selectedAssetKeys.map(key => parseInt(key)) : undefined,
+        user_ids: values.user_type === 'specific' ? selectedUserKeys.map(key => parseInt(key)) : undefined,
+        asset_ids: values.asset_type === 'specific' ? selectedAssetKeys.map(key => parseInt(key)) : undefined,
         attributes: values.user_type === 'attribute' || values.asset_type === 'attribute' ? attributes : undefined,
         // 处理账号选择
         account_names: values.account_type === 'specific' ? selectedAccounts.join(',') : undefined,
