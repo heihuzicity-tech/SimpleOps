@@ -117,7 +117,7 @@ const CommandFilterManagement: React.FC = () => {
 
   const loadUsers = async () => {
     try {
-      const response = await getUsers({ page: 1, page_size: 1000 });
+      const response = await getUsers({ page: 1, page_size: 100 });
       if (response.data?.data?.users) {
         setUsers(response.data.data.users);
       }
