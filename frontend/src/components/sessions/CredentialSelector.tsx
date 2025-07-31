@@ -26,7 +26,6 @@ export const CredentialSelector: React.FC<CredentialSelectorProps> = ({
 }) => {
   const [selectedCredential, setSelectedCredential] = useState<Credential | null>(null);
   const [timeoutMinutes, setTimeoutMinutes] = useState<number>(30);
-  const [form] = Form.useForm();
   
   // 获取与资产关联的凭证
   const assetCredentials = credentials.filter(cred => 
@@ -38,6 +37,9 @@ export const CredentialSelector: React.FC<CredentialSelectorProps> = ({
   
   // 如果没有可用凭证，不渲染 Form
   const shouldRenderForm = availableCredentials.length > 0;
+  
+  // 创建 form 实例
+  const [form] = Form.useForm();
   
   useEffect(() => {
     if (!visible) {

@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Tree, Input, Card, message, Menu } from 'antd';
 import { 
   FolderOutlined, 
   FolderOpenOutlined,
   DesktopOutlined,
   DatabaseOutlined,
-  SearchOutlined,
-  CloudServerOutlined,
-  HddOutlined
+  SearchOutlined
 } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
 import type { MenuProps } from 'antd';
@@ -49,9 +47,10 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
   const [loading, setLoading] = useState(false);
   const [menuItems, setMenuItems] = useState<MenuProps['items']>([]);
   const [selectedMenuKeys, setSelectedMenuKeys] = useState<string[]>([]);
+  const treeDataRef = useRef<DataNode[]>([]);
 
   // 加载资产分组数据（包含主机详情）
-  const loadAssetGroupsWithHosts = async () => {
+  const loadAssetGroupsWithHosts = useCallback(async () => {
     try {
       setLoading(true);
       const assetType = resourceType === 'host' ? 'server' : 'database';
@@ -65,7 +64,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [resourceType]);
 
   // 加载资产分组数据（兼容旧版本）
   const loadAssetGroups = async () => {
@@ -99,7 +98,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
       // 使用外部分组数据
       setGroups(externalGroups);
     }
-  }, [resourceType, showHostDetails, externalGroups]);
+  }, [resourceType, showHostDetails, externalGroups, loadAssetGroupsWithHosts]);
 
   // 同步外部搜索值
   useEffect(() => {
@@ -124,120 +123,113 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
           }
         });
       };
-      loop(treeData);
+      loop(treeDataRef.current);
       setExpandedKeys(expandedKeys);
       setAutoExpandParent(true);
     }
-  }, [externalSearchValue, searchValue, treeData]);
+  }, [externalSearchValue, searchValue]);
 
-  useEffect(() => {
+  // 使用 useMemo 优化树形数据生成
+  const computedTreeData = useMemo(() => {
     // 优先使用外部传入的树数据
     if (externalTreeData && externalTreeData.length > 0) {
-      setTreeData(externalTreeData);
-      setExpandedKeys(['all']);
-      return;
+      return externalTreeData;
     }
     
     // 根据真实API数据生成树形数据
-    const generateTreeData = (): DataNode[] => {
-      // 生成树数据
-      if (resourceType === 'host') {
-        if (showHostDetails && groupsWithHosts.length > 0) {
-          // 使用包含主机详情的数据生成树形结构（仅控制台页面）
-          const groupItems = groupsWithHosts.map(group => ({
-            title: `${group.name} (${group.asset_count})`,
-            key: group.id.toString(),
-            icon: <FolderOutlined />,
-            children: group.assets.map(asset => ({
-              title: asset.name,
-              key: `asset-${asset.id}`,
-              icon: <DesktopOutlined />,
-              isLeaf: true,
-              // 存储额外信息用于后续处理
-              data: {
-                type: 'asset',
-                asset: asset,
-                groupId: group.id,
-              },
-            })),
-          }));
-
-          // 计算总主机数量
-          const totalHosts = groupsWithHosts.reduce((sum, group) => sum + group.asset_count, 0);
-
-          return [
-            {
-              title: `全部主机${totalHosts > 0 ? `(${totalHosts})` : ''}`,
-              key: 'all',
-              icon: <FolderOutlined />,
-              children: groupItems,
-            },
-          ];
-        } else {
-          // 使用传统的分组数据结构（其他页面）
-          const groupItems = groups.map(group => ({
-            title: `${group.name} (${group.asset_count})`,
-            key: group.id.toString(),
-            icon: <FolderOutlined />,
+    if (resourceType === 'host') {
+      if (showHostDetails && groupsWithHosts.length > 0) {
+        // 使用包含主机详情的数据生成树形结构（仅控制台页面）
+        const groupItems = groupsWithHosts.map(group => ({
+          title: `${group.name} (${group.asset_count})`,
+          key: group.id.toString(),
+          icon: <FolderOutlined />,
+          children: group.assets.map(asset => ({
+            title: asset.name,
+            key: `asset-${asset.id}`,
+            icon: <DesktopOutlined />,
             isLeaf: true,
-          }));
-
-          return [
-            {
-              title: `全部主机${totalCount > 0 ? `(${totalCount})` : ''}`,
-              key: 'all',
-              icon: <FolderOutlined />,
-              children: groupItems,
+            // 存储额外信息用于后续处理
+            data: {
+              type: 'asset',
+              asset: asset,
+              groupId: group.id,
             },
-          ];
-        }
-      } else {
-        // 数据库类型，暂时保持简单结构
+          })),
+        }));
+
+        // 计算总主机数量
+        const totalHosts = groupsWithHosts.reduce((sum, group) => sum + group.asset_count, 0);
+
         return [
           {
-            title: `全部数据库${totalCount > 0 ? `(${totalCount})` : ''}`,
+            title: `全部主机${totalHosts > 0 ? `(${totalHosts})` : ''}`,
             key: 'all',
             icon: <FolderOutlined />,
-            children: [
-              {
-                title: 'MySQL',
-                key: 'mysql',
-                icon: <DatabaseOutlined />,
-              },
-              {
-                title: 'PostgreSQL',
-                key: 'postgresql',
-                icon: <DatabaseOutlined />,
-              },
-              {
-                title: 'Redis',
-                key: 'redis',
-                icon: <DatabaseOutlined />,
-              },
-              {
-                title: 'MongoDB',
-                key: 'mongodb',
-                icon: <DatabaseOutlined />,
-              },
-            ],
+            children: groupItems,
+          },
+        ];
+      } else {
+        // 使用传统的分组数据结构（其他页面）
+        const groupItems = groups.map(group => ({
+          title: `${group.name} (${group.asset_count})`,
+          key: group.id.toString(),
+          icon: <FolderOutlined />,
+          isLeaf: true,
+        }));
+
+        return [
+          {
+            title: `全部主机${totalCount > 0 ? `(${totalCount})` : ''}`,
+            key: 'all',
+            icon: <FolderOutlined />,
+            children: groupItems,
           },
         ];
       }
-    };
-
-    const data = generateTreeData();
-    setTreeData(data);
-    setExpandedKeys(['all']);
-    
-    // 如果是控制台页面，同时生成Menu数据
-    if (showHostDetails) {
-      const menuData = generateMenuData();
-      setMenuItems(menuData);
+    } else {
+      // 数据库类型，暂时保持简单结构
+      return [
+        {
+          title: `全部数据库${totalCount > 0 ? `(${totalCount})` : ''}`,
+          key: 'all',
+          icon: <FolderOutlined />,
+          children: [
+            {
+              title: 'MySQL',
+              key: 'mysql',
+              icon: <DatabaseOutlined />,
+            },
+            {
+              title: 'PostgreSQL',
+              key: 'postgresql',
+              icon: <DatabaseOutlined />,
+            },
+            {
+              title: 'Redis',
+              key: 'redis',
+              icon: <DatabaseOutlined />,
+            },
+            {
+              title: 'MongoDB',
+              key: 'mongodb',
+              icon: <DatabaseOutlined />,
+            },
+          ],
+        },
+      ];
     }
   }, [resourceType, groups, groupsWithHosts, externalTreeData, totalCount, showHostDetails]);
 
+  // 当计算出的树数据变化时，更新状态
+  useEffect(() => {
+    setTreeData(computedTreeData);
+    treeDataRef.current = computedTreeData; // 同步更新ref
+    setExpandedKeys(['all']);
+  }, [computedTreeData]);
+
   // 生成Menu组件数据
-  const generateMenuData = (): MenuProps['items'] => {
+  const generateMenuData = useCallback((): MenuProps['items'] => {
     if (resourceType === 'host' && showHostDetails && groupsWithHosts.length > 0) {
       return groupsWithHosts.map(group => ({
         key: group.id.toString(),
@@ -256,10 +248,18 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
       }));
     }
     return [];
-  };
+  }, [resourceType, showHostDetails, groupsWithHosts]);
+
+  // 生成Menu数据
+  useEffect(() => {
+    if (showHostDetails) {
+      const menuData = generateMenuData();
+      setMenuItems(menuData);
+    }
+  }, [showHostDetails, generateMenuData]);
 
   // 处理Menu选择事件
-  const handleMenuSelect = ({ key }: { key: string }) => {
+  const handleMenuSelect = useCallback(({ key }: { key: string }) => {
     setSelectedMenuKeys([key]);
     
     // 如果是主机资产，触发onSelect回调
@@ -273,14 +273,14 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
       };
       onSelect([key], mockInfo);
     }
-  };
+  }, [onSelect]);
 
-  const onExpand = (newExpandedKeys: React.Key[]) => {
+  const onExpand = useCallback((newExpandedKeys: React.Key[]) => {
     setExpandedKeys(newExpandedKeys as string[]);
     setAutoExpandParent(false);
-  };
+  }, []);
 
-  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target;
     setSearchValue(value);
     
@@ -302,12 +302,12 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
         }
       });
     };
-    loop(treeData);
+    loop(treeDataRef.current); // 使用 ref 获取最新的 treeData
     setExpandedKeys(expandedKeys);
     setAutoExpandParent(true);
-  };
+  }, []); // 不依赖任何外部变量，使用 ref 获取最新状态
 
-  const renderTreeNodes = (data: DataNode[]): DataNode[] => {
+  const renderTreeNodes = useCallback((data: DataNode[]): DataNode[] => {
     return data.map((item) => {
       const index = item.title ? item.title.toString().toLowerCase().indexOf(searchValue.toLowerCase()) : -1;
       const beforeStr = item.title ? item.title.toString().substr(0, index) : '';
@@ -337,7 +337,7 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
         title,
       };
     });
-  };
+  }, [searchValue, expandedKeys]);
 
   return (
     <Card 
