@@ -238,12 +238,66 @@ func (s *CommandMatcherService) matchCommandItem(command string, item *models.Co
 	}
 }
 
-// matchExact 精确匹配
+// matchExact 精确匹配（严格匹配版本 - 包含文件名检查）
 func (s *CommandMatcherService) matchExact(command string, item *models.CommandGroupItem) bool {
-	if item.IgnoreCase {
-		return strings.EqualFold(command, item.Content)
+	// 将命令拆分为多个部分
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		return false
 	}
-	return command == item.Content
+	
+	// 遍历每个部分，检查是否包含被禁止的命令
+	for i, part := range parts {
+		// 处理转义字符（如 \rm）
+		cleanPart := strings.TrimPrefix(part, "\\")
+		
+		// 提取基本命令名（处理路径如 /bin/rm）
+		if idx := strings.LastIndex(cleanPart, "/"); idx != -1 {
+			cleanPart = cleanPart[idx+1:]
+		}
+		
+		// 移除文件扩展名（如 rm.txt -> rm）
+		if idx := strings.LastIndex(cleanPart, "."); idx != -1 {
+			nameWithoutExt := cleanPart[:idx]
+			// 检查去掉扩展名后是否匹配
+			if item.IgnoreCase {
+				if strings.EqualFold(nameWithoutExt, item.Content) {
+					return true
+				}
+			} else {
+				if nameWithoutExt == item.Content {
+					return true
+				}
+			}
+		}
+		
+		// 检查是否完全匹配命令名
+		matched := false
+		if item.IgnoreCase {
+			matched = strings.EqualFold(cleanPart, item.Content)
+		} else {
+			matched = cleanPart == item.Content
+		}
+		
+		if matched {
+			// 对于第一个部分，直接认为是命令
+			if i == 0 {
+				return true
+			}
+			
+			// 对于非第一个部分，需要判断前面是否是特定的命令
+			// 比如 "which rm", "type rm", "whereis rm" 等
+			prevPart := parts[i-1]
+			commandsThatTakeCommands := []string{"which", "type", "whereis", "command", "builtin", "alias"}
+			for _, cmd := range commandsThatTakeCommands {
+				if strings.EqualFold(prevPart, cmd) {
+					return true
+				}
+			}
+		}
+	}
+	
+	return false
 }
 
 // matchRegex 正则表达式匹配

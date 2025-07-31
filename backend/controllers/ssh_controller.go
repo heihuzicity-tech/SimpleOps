@@ -692,7 +692,10 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 				
 				// 检查是否为命令执行（回车键）
 				if sc.isCommandInput(inputData) {
+					// 获取完整的命令行
 					command := sc.getCommandFromBuffer(wsConn.sessionID)
+					log.Printf("[DEBUG] Command buffer for session %s: '%s'", wsConn.sessionID, command)
+					
 					if command != "" {
 						// 创建命令匹配服务实例来检查命令
 						commandFilterService := services.NewCommandFilterService(utils.GetDB())
@@ -717,18 +720,22 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 							AssetID:  session.AssetID,
 							Account:  account,
 						}
+						log.Printf("[DEBUG] Checking command: '%s', UserID: %d, AssetID: %d, Account: %s", command, wsConn.userID, session.AssetID, account)
 						matchResult, err := commandMatcherService.MatchCommand(matchReq)
 						if err != nil {
 							log.Printf("Command match error: %v", err)
-							continue
 						}
-						allowed := !matchResult.Matched || matchResult.Action == "allow"
-						violation := matchResult
-						if !allowed && violation != nil {
-							// 命令被拦截，发送红色提示消息
+						
+						allowed := (err == nil) && (!matchResult.Matched || matchResult.Action == "allow")
+						
+						if !allowed {
+							// 命令被拦截
 							blockedMessage := fmt.Sprintf("\r\n\033[31m命令 `%s` 是被禁止的 ...\033[0m\r\n", command)
 							
-							// 创建输出消息发送给前端
+							// 发送 Ctrl+C 来中断当前命令
+							sc.sshService.WriteToSession(wsConn.sessionID, []byte{0x03}) // Ctrl+C
+							
+							// 发送禁止提示到前端
 							outputMessage := TerminalMessage{
 								Type: "output",
 								Data: blockedMessage,
@@ -738,18 +745,21 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 							wsConn.conn.WriteJSON(outputMessage)
 							wsConn.mu.Unlock()
 							
-							// 记录拦截日志 - 日志已在 MatchCommand 中自动记录
-							
 							log.Printf("Command blocked for user %d in session %s: %s", wsConn.userID, wsConn.sessionID, command)
 							
 							// 清空命令缓冲区
 							sc.clearCommandBuffer(wsConn.sessionID)
-							return // 不发送命令到SSH会话
+							
+							// 阻止回车键的发送
+							continue
 						}
 					}
+					
+					// 命令被允许或缓冲区为空，清空缓冲区
+					sc.clearCommandBuffer(wsConn.sessionID)
 				}
 				
-				// 处理用户输入
+				// 发送输入到SSH会话（包括允许的命令和其他字符）
 				err = sc.sshService.WriteToSession(wsConn.sessionID, []byte(message.Data))
 				if err != nil {
 					log.Printf("Failed to write to SSH session: %v", err)
@@ -1384,9 +1394,8 @@ func (sc *SSHController) updateCommandBuffer(sessionID, input string) {
 		sc.cmdBuffer = make(map[string]string)
 	}
 	
-	// 如果是回车，清空缓冲区
+	// 如果是回车，不要立即清空缓冲区，等命令检查完成后再清空
 	if input == "\r" || input == "\n" || input == "\r\n" {
-		delete(sc.cmdBuffer, sessionID)
 		return
 	}
 	
