@@ -24,7 +24,7 @@ import {
 } from '../types';
 import { apiClient } from './apiClient';
 
-const BASE_URL = '/api/command-filter';
+const BASE_URL = '/command-filter';
 
 // 命令管理 API
 export const commandAPI = {

@@ -6,7 +6,6 @@ import (
 	"bastion/utils"
 	"errors"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
