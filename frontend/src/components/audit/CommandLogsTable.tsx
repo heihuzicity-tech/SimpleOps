@@ -64,9 +64,10 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
         setData(response.data.items || []);
         setTotal(response.data.total);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取命令日志失败:', error);
-      message.error('获取命令日志失败');
+      const errorMsg = error.response?.data?.error || error.message || '获取命令日志失败';
+      message.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -80,12 +81,18 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
   // 搜索处理
   const handleSearch = () => {
     const newParams: any = {};
-    if (searchValue) {
+    if (searchValue.trim()) {
       if (searchType === 'asset') {
         // 将资产搜索映射到asset_id字段
-        newParams['asset_id'] = parseInt(searchValue) || 0;
+        const assetId = parseInt(searchValue);
+        if (!isNaN(assetId)) {
+          newParams['asset_id'] = assetId;
+        } else {
+          message.warning('请输入有效的主机ID数字');
+          return;
+        }
       } else {
-        newParams[searchType] = searchValue;
+        newParams[searchType] = searchValue.trim();
       }
     }
     setSearchParams(newParams);
@@ -111,9 +118,10 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
       if (response.success) {
         setSelectedLog(response.data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取命令日志详情失败:', error);
-      message.error('获取命令日志详情失败');
+      const errorMsg = error.response?.data?.error || error.message || '获取命令日志详情失败';
+      message.error(errorMsg);
     } finally {
       setDetailLoading(false);
     }
@@ -144,20 +152,51 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
       key: 'command',
       width: 300,
       ellipsis: true,
+      render: (command: string, record: CommandLog) => {
+        const riskColors = {
+          low: '#52c41a',
+          medium: '#faad14',
+          high: '#f5222d',
+        };
+        return (
+          <span>
+            <span 
+              style={{ 
+                display: 'inline-block',
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: riskColors[record.risk] || '#d9d9d9',
+                marginRight: 8,
+              }}
+              title={`风险等级: ${record.risk}`}
+            />
+            {command}
+          </span>
+        );
+      },
     },
     {
       title: '资产',
       dataIndex: 'asset_id',
       key: 'asset_id',
       width: 120,
-      render: (assetId: number) => `资产-${assetId}`,
+      render: (assetId: number) => (
+        <span title={`资产ID: ${assetId}`}>
+          主机-{assetId}
+        </span>
+      ),
     },
     {
-      title: '账号',
-      dataIndex: 'user_id',
-      key: 'account',
+      title: '用户',
+      dataIndex: 'username',
+      key: 'username_display',
       width: 120,
-      render: (userId: number) => `账号-${userId}`,
+      render: (username: string, record: CommandLog) => (
+        <span title={`用户ID: ${record.user_id}`}>
+          {username}
+        </span>
+      ),
     },
     {
       title: '会话',
@@ -165,7 +204,11 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
       key: 'session_id',
       width: 120,
       ellipsis: true,
-      render: (sessionId: string) => sessionId.substring(0, 8) + '...',
+      render: (sessionId: string) => (
+        <span title={sessionId} style={{ cursor: 'pointer' }}>
+          {sessionId.substring(0, 8)}...
+        </span>
+      ),
     },
     {
       title: '日期时间',
@@ -271,16 +314,28 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
                 <Text>{selectedLog.session_id}</Text>
               </Col>
               <Col span={12}>
-                <Text strong>资产ID：</Text>
-                <Text>{selectedLog.asset_id}</Text>
+                <Text strong>资产：</Text>
+                <Text>主机-{selectedLog.asset_id}</Text>
               </Col>
               <Col span={12}>
                 <Text strong>退出码：</Text>
-                <Text>{selectedLog.exit_code}</Text>
+                <Text style={{ color: selectedLog.exit_code === 0 ? '#52c41a' : '#f5222d' }}>
+                  {selectedLog.exit_code}
+                </Text>
               </Col>
               <Col span={12}>
                 <Text strong>执行时间：</Text>
                 <Text>{formatDuration(selectedLog.duration)}</Text>
+              </Col>
+              <Col span={12}>
+                <Text strong>风险等级：</Text>
+                <Text style={{ 
+                  color: selectedLog.risk === 'high' ? '#f5222d' : 
+                         selectedLog.risk === 'medium' ? '#faad14' : '#52c41a' 
+                }}>
+                  {selectedLog.risk === 'high' ? '高' : 
+                   selectedLog.risk === 'medium' ? '中' : '低'}
+                </Text>
               </Col>
               <Col span={12}>
                 <Text strong>开始时间：</Text>
