@@ -1,0 +1,35 @@
+/* 简化的命令审计表格样式 */
+.commandLogsTable {
+  /* 紧凑的表格间距 */
+}
+
+.commandLogsTable :global(.ant-table-small) {
+  font-size: 13px;
+}
+
+.commandLogsTable :global(.ant-table-small .ant-table-tbody > tr > td) {
+  padding: 8px 12px;
+}
+
+.commandLogsTable :global(.ant-table-small .ant-table-thead > tr > th) {
+  padding: 12px 12px;
+  font-weight: 600;
+  background-color: #fafafa;
+}
+
+/* 搜索区域样式 */
+.searchArea {
+  padding: 12px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* 简化的模态框样式 */
+.detailModal :global(.ant-modal-header) {
+  background-color: #fafafa;
+}
+
+.detailModal :global(.ant-descriptions-item-label) {
+  font-weight: 600;
+  color: #333;
+}
