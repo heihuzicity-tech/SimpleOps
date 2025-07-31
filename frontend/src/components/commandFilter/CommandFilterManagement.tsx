@@ -128,7 +128,7 @@ const CommandFilterManagement: React.FC = () => {
 
   const loadAssets = async () => {
     try {
-      const response = await getAssets({ page: 1, page_size: 1000 });
+      const response = await getAssets({ page: 1, page_size: 100 });
       if (response.data?.data?.assets) {
         setAssets(response.data.data.assets);
       }
