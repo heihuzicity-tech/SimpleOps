@@ -65,6 +65,7 @@ export interface CommandLog {
   output: string;
   exit_code: number;
   risk: 'low' | 'medium' | 'high';
+  action: string;
   start_time: string;
   end_time?: string;
   duration: number;
@@ -218,6 +219,7 @@ export class AuditAPI {
   static async getCommandLog(id: number) {
     return await auditApiService.getCommandLog(id);
   }
+
 
   // 获取审计统计数据
   static async getAuditStatistics() {

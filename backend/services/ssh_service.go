@@ -812,21 +812,29 @@ func (s *SSHService) ResizeSession(sessionID string, width, height int) error {
 }
 
 // RecordCommand 记录命令执行
-func (s *SSHService) RecordCommand(sessionID, command, output string, exitCode int, startTime time.Time, endTime *time.Time) error {
+func (s *SSHService) RecordCommand(sessionID, command, output string, exitCode int, action string, startTime time.Time, endTime *time.Time) error {
 	session, err := s.GetSession(sessionID)
 	if err != nil {
 		return err
+	}
+
+	// 获取用户名
+	username := ""
+	var user models.User
+	if err := s.db.Where("id = ?", session.UserID).First(&user).Error; err == nil {
+		username = user.Username
 	}
 
 	// 记录命令到审计日志
 	go s.auditService.RecordCommandLog(
 		sessionID,
 		session.UserID,
-		"", // 需要从数据库获取用户名
+		username,
 		session.AssetID,
 		command,
 		output,
 		exitCode,
+		action,
 		startTime,
 		endTime,
 	)

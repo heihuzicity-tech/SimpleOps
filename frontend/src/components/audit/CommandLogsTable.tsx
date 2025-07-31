@@ -11,15 +11,19 @@ import {
   Row,
   Col,
   message,
+  Popconfirm,
 } from 'antd';
 import { 
   SearchOutlined, 
   ReloadOutlined, 
-  EyeOutlined,
+  PlayCircleOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { AuditAPI, CommandLog, CommandLogListParams } from '../../services/auditAPI';
+import { RecordingAPI, RecordingResponse } from '../../services/recordingAPI';
+import RecordingPlayer from '../recording/RecordingPlayer';
 import styles from './CommandLogsTable.module.css';
 
 const { Text, Paragraph } = Typography;
@@ -43,10 +47,12 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
   const [searchType, setSearchType] = useState<'asset' | 'username' | 'command'>('username');
   const [searchValue, setSearchValue] = useState('');
   
-  // 详情模态框
-  const [detailVisible, setDetailVisible] = useState(false);
-  const [selectedLog, setSelectedLog] = useState<CommandLog | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  
+  // 播放器状态
+  const [playerVisible, setPlayerVisible] = useState(false);
+  const [currentRecording, setCurrentRecording] = useState<RecordingResponse | null>(null);
+  const [loadingRecording, setLoadingRecording] = useState(false);
+  
 
   // 获取命令日志列表
   const fetchCommandLogs = useCallback(async (params: CommandLogListParams = {}) => {
@@ -77,6 +83,52 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
   useEffect(() => {
     fetchCommandLogs();
   }, [fetchCommandLogs]);
+
+  // 根据session_id查找录制文件
+  const findRecordingBySessionId = async (sessionId: string): Promise<RecordingResponse | null> => {
+    try {
+      const response = await RecordingAPI.getRecordingList({
+        session_id: sessionId,
+        page: 1,
+        page_size: 1,
+      });
+      
+      if (response.items && response.items.length > 0) {
+        return response.items[0];
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('查找录制文件失败:', error);
+      return null;
+    }
+  };
+
+  // 播放录屏
+  const handlePlayRecording = async (sessionId: string) => {
+    setLoadingRecording(true);
+    try {
+      const recording = await findRecordingBySessionId(sessionId);
+      
+      if (!recording) {
+        message.error('该会话暂无录屏文件');
+        return;
+      }
+
+      if (!recording.can_view) {
+        message.error('该录制文件无法播放');
+        return;
+      }
+
+      setCurrentRecording(recording);
+      setPlayerVisible(true);
+    } catch (error) {
+      console.error('Failed to load recording:', error);
+      message.error('录屏文件加载失败');
+    } finally {
+      setLoadingRecording(false);
+    }
+  };
 
   // 搜索处理
   const handleSearch = () => {
@@ -109,34 +161,8 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
     fetchCommandLogs({});
   };
 
-  // 查看详情
-  const handleViewDetail = async (record: CommandLog) => {
-    setDetailLoading(true);
-    setDetailVisible(true);
-    try {
-      const response = await AuditAPI.getCommandLog(record.id);
-      if (response.success) {
-        setSelectedLog(response.data);
-      }
-    } catch (error: any) {
-      console.error('获取命令日志详情失败:', error);
-      const errorMsg = error.response?.data?.error || error.message || '获取命令日志详情失败';
-      message.error(errorMsg);
-    } finally {
-      setDetailLoading(false);
-    }
-  };
 
-  // 格式化执行时间
-  const formatDuration = (duration: number) => {
-    if (duration < 1000) {
-      return `${duration}ms`;
-    } else if (duration < 60000) {
-      return `${(duration / 1000).toFixed(1)}s`;
-    } else {
-      return `${(duration / 60000).toFixed(1)}m`;
-    }
-  };
+
 
   // 表格列定义
   const columns: ColumnsType<CommandLog> = [
@@ -177,6 +203,29 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
       },
     },
     {
+      title: '指令类型',
+      dataIndex: 'action',
+      key: 'action',
+      width: 100,
+      align: 'center',
+      render: (action: string) => {
+        const actionConfig = {
+          block: { text: '指令阻断', color: '#f5222d' },
+          allow: { text: '指令放行', color: '#52c41a' },
+          warning: { text: '指令警告', color: '#faad14' },
+        };
+        
+        const config = actionConfig[action as keyof typeof actionConfig] || 
+                      { text: action || '未知', color: '#d9d9d9' };
+        
+        return (
+          <span style={{ color: config.color, fontWeight: 'bold' }}>
+            {config.text}
+          </span>
+        );
+      },
+    },
+    {
       title: '资产',
       dataIndex: 'asset_id',
       key: 'asset_id',
@@ -205,34 +254,26 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
       width: 120,
       ellipsis: true,
       render: (sessionId: string) => (
-        <span title={sessionId} style={{ cursor: 'pointer' }}>
+        <Button
+          type="link"
+          size="small"
+          icon={<PlayCircleOutlined />}
+          title={`点击播放会话录屏 (${sessionId})`}
+          loading={loadingRecording}
+          onClick={() => handlePlayRecording(sessionId)}
+          style={{ padding: 0, height: 'auto' }}
+        >
           {sessionId.substring(0, 8)}...
-        </span>
+        </Button>
       ),
     },
     {
-      title: '日期时间',
+      title: '执行时间',
       dataIndex: 'start_time',
       key: 'start_time',
       width: 160,
       render: (time: string) => dayjs(time).format('YYYY-MM-DD HH:mm:ss'),
       sorter: true,
-    },
-    {
-      title: '操作',
-      key: 'actions',
-      width: 80,
-      fixed: 'right',
-      render: (_, record) => (
-        <Button
-          type="link"
-          size="small"
-          icon={<EyeOutlined />}
-          onClick={() => handleViewDetail(record)}
-        >
-          详情
-        </Button>
-      ),
     },
   ];
 
@@ -242,7 +283,7 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
         {/* 搜索区域 */}
         <div className={styles.searchArea}>
           <Space size="middle">
-            <Input.Group compact style={{ width: 300 }}>
+            <Space.Compact style={{ width: 300 }}>
               <Select
                 value={searchType}
                 onChange={setSearchType}
@@ -260,7 +301,7 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
                 onPressEnter={handleSearch}
                 allowClear
               />
-            </Input.Group>
+            </Space.Compact>
             <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
               搜索
             </Button>
@@ -292,100 +333,24 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
         />
       </Card>
 
-      {/* 详情模态框 */}
+
+      {/* 播放器模态框 */}
       <Modal
-        title="命令执行详情"
-        open={detailVisible}
-        onCancel={() => setDetailVisible(false)}
+        title={`会话录屏回放 - ${currentRecording?.session_id || ''}`}
+        open={playerVisible}
+        onCancel={() => {
+          setPlayerVisible(false);
+          setCurrentRecording(null);
+        }}
         footer={null}
-        width={800}
-        loading={detailLoading}
-        className={styles.detailModal}
+        width={1200}
+        destroyOnHidden
+        centered
       >
-        {selectedLog && (
-          <div>
-            <Row gutter={[16, 16]}>
-              <Col span={12}>
-                <Text strong>用户名：</Text>
-                <Text>{selectedLog.username}</Text>
-              </Col>
-              <Col span={12}>
-                <Text strong>会话ID：</Text>
-                <Text>{selectedLog.session_id}</Text>
-              </Col>
-              <Col span={12}>
-                <Text strong>资产：</Text>
-                <Text>主机-{selectedLog.asset_id}</Text>
-              </Col>
-              <Col span={12}>
-                <Text strong>退出码：</Text>
-                <Text style={{ color: selectedLog.exit_code === 0 ? '#52c41a' : '#f5222d' }}>
-                  {selectedLog.exit_code}
-                </Text>
-              </Col>
-              <Col span={12}>
-                <Text strong>执行时间：</Text>
-                <Text>{formatDuration(selectedLog.duration)}</Text>
-              </Col>
-              <Col span={12}>
-                <Text strong>风险等级：</Text>
-                <Text style={{ 
-                  color: selectedLog.risk === 'high' ? '#f5222d' : 
-                         selectedLog.risk === 'medium' ? '#faad14' : '#52c41a' 
-                }}>
-                  {selectedLog.risk === 'high' ? '高' : 
-                   selectedLog.risk === 'medium' ? '中' : '低'}
-                </Text>
-              </Col>
-              <Col span={12}>
-                <Text strong>开始时间：</Text>
-                <Text>{dayjs(selectedLog.start_time).format('YYYY-MM-DD HH:mm:ss')}</Text>
-              </Col>
-              {selectedLog.end_time && (
-                <Col span={12}>
-                  <Text strong>结束时间：</Text>
-                  <Text>{dayjs(selectedLog.end_time).format('YYYY-MM-DD HH:mm:ss')}</Text>
-                </Col>
-              )}
-            </Row>
-
-            <div style={{ marginTop: 16, marginBottom: 16 }}>
-              <Text strong>执行命令：</Text>
-              <Paragraph 
-                code 
-                copyable 
-                style={{ 
-                  backgroundColor: '#f5f5f5',
-                  padding: '12px',
-                  borderRadius: '4px',
-                  marginTop: '8px',
-                }}
-              >
-                {selectedLog.command}
-              </Paragraph>
-            </div>
-
-            {selectedLog.output && (
-              <div>
-                <Text strong>执行输出：</Text>
-                <Paragraph 
-                  code 
-                  copyable
-                  style={{ 
-                    backgroundColor: '#f5f5f5',
-                    padding: '12px',
-                    borderRadius: '4px',
-                    marginTop: '8px',
-                    maxHeight: '200px',
-                    overflow: 'auto',
-                    whiteSpace: 'pre-wrap',
-                  }}
-                >
-                  {selectedLog.output}
-                </Paragraph>
-              </div>
-            )}
-          </div>
+        {currentRecording && (
+          <RecordingPlayer
+            recording={currentRecording}
+          />
         )}
       </Modal>
     </div>

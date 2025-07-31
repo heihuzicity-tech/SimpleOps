@@ -60,6 +60,7 @@ export interface CommandLog extends WithId, Omit<Timestamps, 'updated_at'> {
   output: string;
   exit_code: number;
   risk: 'low' | 'medium' | 'high';
+  action: string;
   start_time: string;
   end_time?: string;
   duration: number;

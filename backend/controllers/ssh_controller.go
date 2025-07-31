@@ -729,6 +729,26 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 						allowed := (err == nil) && (!matchResult.Matched || matchResult.Action == "allow")
 						
 						if !allowed {
+							// 命令被拦截 - 只记录被阻断的命令到审计日志
+							startTime := time.Now()
+							action := "deny" // 被阻断的命令动作为 deny
+							if matchResult.Matched && matchResult.Action != "" {
+								action = matchResult.Action // 使用匹配规则的动作
+							}
+							
+							// 记录被阻断的命令到审计日志（异步执行，不阻塞命令处理）
+							go sc.sshService.RecordCommand(
+								wsConn.sessionID,
+								command,
+								"Command blocked by filter rule", // output 记录阻断原因
+								1,  // exitCode 设为1表示失败
+								action,
+								startTime,
+								nil, // endTime 暂时为nil
+							)
+							
+							log.Printf("[AUDIT] Recorded blocked command: session=%s, command=%s, action=%s", wsConn.sessionID, command, action)
+							
 							// 命令被拦截
 							blockedMessage := fmt.Sprintf("\r\n\033[31m命令 `%s` 是被禁止的 ...\033[0m\r\n", command)
 							

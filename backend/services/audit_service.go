@@ -103,8 +103,8 @@ func (a *AuditService) GetLoginLogs(req *models.LoginLogListRequest) ([]*models.
 		return nil, 0, err
 	}
 
-	// 转换为响应格式
-	var responses []*models.LoginLogResponse
+	// 转换为响应格式，确保初始化为空切片而不是nil
+	responses := make([]*models.LoginLogResponse, 0, len(logs))
 	for _, log := range logs {
 		responses = append(responses, log.ToResponse())
 	}
@@ -222,8 +222,8 @@ func (a *AuditService) GetOperationLogs(req *models.OperationLogListRequest) ([]
 		return nil, 0, err
 	}
 
-	// 转换为响应格式
-	var responses []*models.OperationLogResponse
+	// 转换为响应格式，确保初始化为空切片而不是nil
+	responses := make([]*models.OperationLogResponse, 0, len(logs))
 	for _, log := range logs {
 		responses = append(responses, log.ToResponse())
 	}
@@ -368,8 +368,8 @@ func (a *AuditService) GetSessionRecords(req *models.SessionRecordListRequest) (
 		return nil, 0, err
 	}
 
-	// 转换为响应格式
-	var responses []*models.SessionRecordResponse
+	// 转换为响应格式，确保初始化为空切片而不是nil
+	responses := make([]*models.SessionRecordResponse, 0, len(records))
 	for _, record := range records {
 		response := record.ToResponse()
 		// 如果会话还在进行中，计算当前持续时间
@@ -385,7 +385,7 @@ func (a *AuditService) GetSessionRecords(req *models.SessionRecordListRequest) (
 // ======================== 命令日志相关 ========================
 
 // RecordCommandLog 记录命令日志
-func (a *AuditService) RecordCommandLog(sessionID string, userID uint, username string, assetID uint, command, output string, exitCode int, startTime time.Time, endTime *time.Time) error {
+func (a *AuditService) RecordCommandLog(sessionID string, userID uint, username string, assetID uint, command, output string, exitCode int, action string, startTime time.Time, endTime *time.Time) error {
 	if !config.GlobalConfig.Audit.EnableSessionRecord {
 		return nil
 	}
@@ -408,6 +408,7 @@ func (a *AuditService) RecordCommandLog(sessionID string, userID uint, username 
 		Output:    output,
 		ExitCode:  exitCode,
 		Risk:      risk,
+		Action:    action,
 		StartTime: startTime,
 		EndTime:   endTime,
 		Duration:  duration,
@@ -478,8 +479,8 @@ func (a *AuditService) GetCommandLogs(req *models.CommandLogListRequest) ([]*mod
 		return nil, 0, err
 	}
 
-	// 转换为响应格式
-	var responses []*models.CommandLogResponse
+	// 转换为响应格式，确保初始化为空切片而不是nil
+	responses := make([]*models.CommandLogResponse, 0, len(logs))
 	for _, log := range logs {
 		responses = append(responses, log.ToResponse())
 	}
@@ -862,6 +863,7 @@ func (a *AuditService) UpdateOperationLogWithResourceInfo(userID uint, path, ses
 	return nil
 }
 
+
 // CleanupAuditLogs 清理过期的审计日志
 func (a *AuditService) CleanupAuditLogs() error {
 	retentionDays := config.GlobalConfig.Audit.RetentionDays
@@ -871,23 +873,23 @@ func (a *AuditService) CleanupAuditLogs() error {
 
 	cutoff := time.Now().AddDate(0, 0, -retentionDays)
 
-	// 清理登录日志
-	if err := a.db.Where("created_at < ?", cutoff).Delete(&models.LoginLog{}).Error; err != nil {
+	// 清理登录日志（物理删除）
+	if err := a.db.Unscoped().Where("created_at < ?", cutoff).Delete(&models.LoginLog{}).Error; err != nil {
 		logrus.WithError(err).Error("Failed to cleanup login logs")
 	}
 
-	// 清理操作日志
-	if err := a.db.Where("created_at < ?", cutoff).Delete(&models.OperationLog{}).Error; err != nil {
+	// 清理操作日志（物理删除）
+	if err := a.db.Unscoped().Where("created_at < ?", cutoff).Delete(&models.OperationLog{}).Error; err != nil {
 		logrus.WithError(err).Error("Failed to cleanup operation logs")
 	}
 
-	// 清理会话记录
-	if err := a.db.Where("created_at < ?", cutoff).Delete(&models.SessionRecord{}).Error; err != nil {
+	// 清理会话记录（物理删除）
+	if err := a.db.Unscoped().Where("created_at < ?", cutoff).Delete(&models.SessionRecord{}).Error; err != nil {
 		logrus.WithError(err).Error("Failed to cleanup session records")
 	}
 
-	// 清理命令日志
-	if err := a.db.Where("created_at < ?", cutoff).Delete(&models.CommandLog{}).Error; err != nil {
+	// 清理命令日志（物理删除）
+	if err := a.db.Unscoped().Where("created_at < ?", cutoff).Delete(&models.CommandLog{}).Error; err != nil {
 		logrus.WithError(err).Error("Failed to cleanup command logs")
 	}
 
@@ -1069,8 +1071,8 @@ func (a *AuditService) BatchDeleteOperationLogs(ids []uint, username, ip, reason
 		return fmt.Errorf("some operation logs not found: %v", missingIDs)
 	}
 
-	// 批量删除操作日志
-	if err := a.db.Where("id IN ?", ids).Delete(&models.OperationLog{}).Error; err != nil {
+	// 批量删除操作日志（物理删除）
+	if err := a.db.Unscoped().Where("id IN ?", ids).Delete(&models.OperationLog{}).Error; err != nil {
 		logrus.WithError(err).Error("Failed to batch delete operation logs")
 		return err
 	}

@@ -32,7 +32,7 @@ func RespondWithPagination(c *gin.Context, items interface{}, page, pageSize int
 		totalPages = 0
 	}
 
-	// 确保 items 不为 nil
+	// 确保 items 不为 nil，使用空切片而不是nil
 	if items == nil {
 		items = []interface{}{}
 	}

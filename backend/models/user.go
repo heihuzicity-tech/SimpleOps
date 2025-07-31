@@ -499,7 +499,7 @@ type LoginLog struct {
 	Message   string         `json:"message" gorm:"type:text"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+	// DeletedAt 已移除 - 审计日志使用物理删除
 
 	// 关联关系
 	User User `json:"user" gorm:"foreignKey:UserID"`
@@ -524,7 +524,7 @@ type OperationLog struct {
 	Duration     int64          `json:"duration"` // 请求耗时，毫秒
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
+	// DeletedAt 已移除 - 审计日志使用物理删除
 
 	// 关联关系
 	User User `json:"user" gorm:"foreignKey:UserID"`
@@ -559,7 +559,7 @@ type SessionRecord struct {
 	
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
+	// DeletedAt 已移除 - 审计日志使用物理删除
 
 	// 关联关系
 	User       User       `json:"user" gorm:"foreignKey:UserID"`
@@ -578,12 +578,13 @@ type CommandLog struct {
 	Output    string         `json:"output" gorm:"type:text"`
 	ExitCode  int            `json:"exit_code"`
 	Risk      string         `json:"risk" gorm:"size:20;default:low"` // low, medium, high
+	Action    string         `json:"action" gorm:"size:20;default:allow"` // block, allow, warning
 	StartTime time.Time      `json:"start_time"`
 	EndTime   *time.Time     `json:"end_time"`
 	Duration  int64          `json:"duration"` // 命令执行时间，毫秒
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+	// DeletedAt 已移除 - 审计日志使用物理删除
 
 	// 关联关系
 	User    User          `json:"user" gorm:"foreignKey:UserID"`
@@ -713,6 +714,7 @@ type CommandLogResponse struct {
 	Output    string     `json:"output"`
 	ExitCode  int        `json:"exit_code"`
 	Risk      string     `json:"risk"`
+	Action    string     `json:"action"`
 	StartTime time.Time  `json:"start_time"`
 	EndTime   *time.Time `json:"end_time"`
 	Duration  int64      `json:"duration"`
@@ -830,6 +832,7 @@ func (c *CommandLog) ToResponse() *CommandLogResponse {
 		Output:    c.Output,
 		ExitCode:  c.ExitCode,
 		Risk:      c.Risk,
+		Action:    c.Action,
 		StartTime: c.StartTime,
 		EndTime:   c.EndTime,
 		Duration:  c.Duration,
