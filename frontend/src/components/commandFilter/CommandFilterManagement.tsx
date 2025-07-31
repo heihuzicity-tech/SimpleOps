@@ -118,8 +118,16 @@ const CommandFilterManagement: React.FC = () => {
   const loadUsers = async () => {
     try {
       const response = await getUsers({ page: 1, page_size: 100 });
-      if (response.data?.data?.users) {
+      console.log('用户列表响应:', response.data);
+      // 适配新的响应格式
+      if (response.data?.data?.items) {
+        console.log('设置用户数据 (items):', response.data.data.items);
+        setUsers(response.data.data.items);
+      } else if (response.data?.data?.users) {
+        console.log('设置用户数据 (users):', response.data.data.users);
         setUsers(response.data.data.users);
+      } else {
+        console.warn('用户数据格式不正确:', response.data);
       }
     } catch (error) {
       console.error('加载用户列表失败:', error);
@@ -129,8 +137,16 @@ const CommandFilterManagement: React.FC = () => {
   const loadAssets = async () => {
     try {
       const response = await getAssets({ page: 1, page_size: 100 });
-      if (response.data?.data?.assets) {
+      console.log('资产列表响应:', response.data);
+      // 适配新的响应格式
+      if (response.data?.data?.items) {
+        console.log('设置资产数据 (items):', response.data.data.items);
+        setAssets(response.data.data.items);
+      } else if (response.data?.data?.assets) {
+        console.log('设置资产数据 (assets):', response.data.data.assets);
         setAssets(response.data.data.assets);
+      } else {
+        console.warn('资产数据格式不正确:', response.data);
       }
     } catch (error) {
       console.error('加载资产列表失败:', error);
