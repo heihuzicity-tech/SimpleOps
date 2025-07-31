@@ -2,41 +2,18 @@ import React, { useState } from 'react';
 import { Card, Tabs, Typography } from 'antd';
 import {
   SecurityScanOutlined,
-  CodeOutlined,
   GroupOutlined,
-  FileTextOutlined,
+  FilterOutlined,
 } from '@ant-design/icons';
-import PolicyTable from '../../components/commandFilter/PolicyTable';
-import CommandTable from '../../components/commandFilter/CommandTable';
-import CommandGroupTable from '../../components/commandFilter/CommandGroupTable';
-import InterceptLogTable from '../../components/commandFilter/InterceptLogTable';
+import CommandGroupManagement from '../../components/commandFilter/CommandGroupManagement';
+import CommandFilterManagement from '../../components/commandFilter/CommandFilterManagement';
 
 const { Title } = Typography;
 
 const CommandFilterPage: React.FC = () => {
-  const [activeKey, setActiveKey] = useState('policies');
+  const [activeKey, setActiveKey] = useState('command-groups');
 
   const tabItems = [
-    {
-      key: 'policies',
-      label: (
-        <span>
-          <SecurityScanOutlined />
-          策略列表
-        </span>
-      ),
-      children: <PolicyTable />,
-    },
-    {
-      key: 'commands',
-      label: (
-        <span>
-          <CodeOutlined />
-          命令列表
-        </span>
-      ),
-      children: <CommandTable />,
-    },
     {
       key: 'command-groups',
       label: (
@@ -45,17 +22,17 @@ const CommandFilterPage: React.FC = () => {
           命令组
         </span>
       ),
-      children: <CommandGroupTable />,
+      children: <CommandGroupManagement />,
     },
     {
-      key: 'intercept-logs',
+      key: 'command-filters',
       label: (
         <span>
-          <FileTextOutlined />
-          拦截日志
+          <FilterOutlined />
+          命令过滤
         </span>
       ),
-      children: <InterceptLogTable />,
+      children: <CommandFilterManagement />,
     },
   ];
 
@@ -68,7 +45,7 @@ const CommandFilterPage: React.FC = () => {
             命令过滤管理
           </Title>
           <p style={{ color: '#666', marginTop: 8, marginBottom: 0 }}>
-            管理SSH会话中的命令过滤策略，支持精确匹配和正则表达式匹配
+            管理命令组和过滤规则，控制用户在SSH会话中可执行的命令
           </p>
         </div>
 

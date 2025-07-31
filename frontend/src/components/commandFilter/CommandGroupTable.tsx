@@ -381,6 +381,11 @@ const CommandGroupTable: React.FC = () => {
                 </span>
               )}
               showSearch
+              filterOption={(inputValue, option) =>
+                option.title?.toLowerCase().includes(inputValue.toLowerCase()) ||
+                option.description?.toLowerCase().includes(inputValue.toLowerCase()) ||
+                option.type?.toLowerCase().includes(inputValue.toLowerCase()) || false
+              }
               style={{ width: '100%' }}
               listStyle={{
                 width: 350,

@@ -3,6 +3,7 @@ import {
   CommandGroup,
   CommandPolicy,
   CommandInterceptLog,
+  CommandFilter,
   CommandListRequest,
   CommandCreateRequest,
   CommandUpdateRequest,
@@ -15,12 +16,15 @@ import {
   PolicyBindUsersRequest,
   PolicyBindCommandsRequest,
   InterceptLogListRequest,
+  CommandFilterListRequest,
+  CommandFilterCreateRequest,
+  CommandFilterUpdateRequest,
   CommandFilterPaginatedResponse,
   ApiResponse,
 } from '../types';
 import { apiClient } from './apiClient';
 
-const BASE_URL = '/command-filter';
+const BASE_URL = '/api/command-filter';
 
 // 命令管理 API
 export const commandAPI = {
@@ -53,25 +57,25 @@ export const commandAPI = {
 export const commandGroupAPI = {
   // 获取命令组列表
   getCommandGroups: async (params: CommandGroupListRequest): Promise<ApiResponse<CommandFilterPaginatedResponse<CommandGroup>>> => {
-    const response = await apiClient.get(`${BASE_URL}/command-groups`, { params });
+    const response = await apiClient.get(`${BASE_URL}/groups`, { params });
     return response.data;
   },
 
   // 创建命令组
   createCommandGroup: async (data: CommandGroupCreateRequest): Promise<ApiResponse<CommandGroup>> => {
-    const response = await apiClient.post(`${BASE_URL}/command-groups`, data);
+    const response = await apiClient.post(`${BASE_URL}/groups`, data);
     return response.data;
   },
 
   // 更新命令组
   updateCommandGroup: async (id: number, data: CommandGroupUpdateRequest): Promise<ApiResponse<CommandGroup>> => {
-    const response = await apiClient.put(`${BASE_URL}/command-groups/${id}`, data);
+    const response = await apiClient.put(`${BASE_URL}/groups/${id}`, data);
     return response.data;
   },
 
   // 删除命令组
   deleteCommandGroup: async (id: number): Promise<ApiResponse<void>> => {
-    const response = await apiClient.delete(`${BASE_URL}/command-groups/${id}`);
+    const response = await apiClient.delete(`${BASE_URL}/groups/${id}`);
     return response.data;
   },
 };
@@ -122,6 +126,56 @@ export const interceptLogAPI = {
     const response = await apiClient.get(`${BASE_URL}/intercept-logs`, { params });
     return response.data;
   },
+
+  // 获取日志统计信息
+  getLogStatistics: async (): Promise<ApiResponse<{
+    total: number;
+    today: number;
+    thisWeek: number;
+    thisMonth: number;
+  }>> => {
+    const response = await apiClient.get(`${BASE_URL}/intercept-logs/statistics`);
+    return response.data;
+  },
+};
+
+// 命令过滤规则 API
+export const filterAPI = {
+  // 获取过滤规则列表
+  getFilters: async (params: CommandFilterListRequest): Promise<ApiResponse<CommandFilterPaginatedResponse<CommandFilter>>> => {
+    const response = await apiClient.get(`${BASE_URL}/filters`, { params });
+    return response.data;
+  },
+
+  // 获取过滤规则详情
+  getFilter: async (id: number): Promise<ApiResponse<CommandFilter>> => {
+    const response = await apiClient.get(`${BASE_URL}/filters/${id}`);
+    return response.data;
+  },
+
+  // 创建过滤规则
+  createFilter: async (data: CommandFilterCreateRequest): Promise<ApiResponse<CommandFilter>> => {
+    const response = await apiClient.post(`${BASE_URL}/filters`, data);
+    return response.data;
+  },
+
+  // 更新过滤规则
+  updateFilter: async (id: number, data: CommandFilterUpdateRequest): Promise<ApiResponse<CommandFilter>> => {
+    const response = await apiClient.put(`${BASE_URL}/filters/${id}`, data);
+    return response.data;
+  },
+
+  // 删除过滤规则
+  deleteFilter: async (id: number): Promise<ApiResponse<void>> => {
+    const response = await apiClient.delete(`${BASE_URL}/filters/${id}`);
+    return response.data;
+  },
+
+  // 启用/禁用过滤规则
+  toggleFilter: async (id: number): Promise<ApiResponse<CommandFilter>> => {
+    const response = await apiClient.patch(`${BASE_URL}/filters/${id}/toggle`);
+    return response.data;
+  },
 };
 
 // 统一导出
@@ -130,6 +184,7 @@ export const commandFilterService = {
   commandGroup: commandGroupAPI,
   policy: policyAPI,
   interceptLog: interceptLogAPI,
+  filter: filterAPI,
 };
 
 export default commandFilterService;

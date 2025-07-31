@@ -694,10 +694,36 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 				if sc.isCommandInput(inputData) {
 					command := sc.getCommandFromBuffer(wsConn.sessionID)
 					if command != "" {
-						// 创建命令策略服务实例来检查命令
-						commandPolicyService := services.NewCommandPolicyService(utils.GetDB())
+						// 创建命令匹配服务实例来检查命令
+						commandFilterService := services.NewCommandFilterService(utils.GetDB())
+						commandMatcherService := services.NewCommandMatcherService(utils.GetDB(), commandFilterService)
 						// 检查命令是否被禁止
-						allowed, violation := commandPolicyService.CheckCommand(wsConn.userID, wsConn.sessionID, command)
+						session, _ := sc.sshService.GetSession(wsConn.sessionID)
+						
+						// 获取凭证信息以获取账号
+						var sessionRecord models.SessionRecord
+						var credential models.Credential
+						var account string = "unknown"
+						
+						if err := utils.GetDB().Where("session_id = ?", wsConn.sessionID).First(&sessionRecord).Error; err == nil {
+							if err := utils.GetDB().First(&credential, sessionRecord.CredentialID).Error; err == nil {
+								account = credential.Username
+							}
+						}
+						
+						matchReq := &models.CommandMatchRequest{
+							Command:  command,
+							UserID:   wsConn.userID,
+							AssetID:  session.AssetID,
+							Account:  account,
+						}
+						matchResult, err := commandMatcherService.MatchCommand(matchReq)
+						if err != nil {
+							log.Printf("Command match error: %v", err)
+							continue
+						}
+						allowed := !matchResult.Matched || matchResult.Action == "allow"
+						violation := matchResult
 						if !allowed && violation != nil {
 							// 命令被拦截，发送红色提示消息
 							blockedMessage := fmt.Sprintf("\r\n\033[31m命令 `%s` 是被禁止的 ...\033[0m\r\n", command)
@@ -712,18 +738,7 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 							wsConn.conn.WriteJSON(outputMessage)
 							wsConn.mu.Unlock()
 							
-							// 记录拦截日志  
-							if session, err := sc.sshService.GetSession(wsConn.sessionID); err == nil {
-								// 获取用户信息
-								var user models.User
-								if err := utils.GetDB().First(&user, wsConn.userID).Error; err == nil {
-									// 创建命令策略服务实例来记录日志
-									commandPolicyService := services.NewCommandPolicyService(utils.GetDB())
-									if err := commandPolicyService.RecordInterceptLog(violation, user.Username, session.AssetID); err != nil {
-										log.Printf("Failed to record intercept log: %v", err)
-									}
-								}
-							}
+							// 记录拦截日志 - 日志已在 MatchCommand 中自动记录
 							
 							log.Printf("Command blocked for user %d in session %s: %s", wsConn.userID, wsConn.sessionID, command)
 							

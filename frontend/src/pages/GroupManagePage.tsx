@@ -399,7 +399,7 @@ const GroupManagePage: React.FC = () => {
           titles={['未分组资产', `${selectedGroup?.name || '当前分组'}资产`]}
           showSearch
           filterOption={(inputValue, option) =>
-            option.title.toLowerCase().includes(inputValue.toLowerCase())
+            option.title?.toString().toLowerCase().includes(inputValue.toLowerCase()) || false
           }
         />
       </Modal>

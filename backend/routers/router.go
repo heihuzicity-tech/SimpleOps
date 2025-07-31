@@ -33,7 +33,9 @@ func SetupRouter() *gin.Engine {
 	sshService := services.NewSSHService(utils.GetDB())
 	auditService := services.NewAuditService(utils.GetDB())
 	monitorService := services.NewMonitorService(utils.GetDB())
-	commandPolicyService := services.NewCommandPolicyService(utils.GetDB())
+	commandGroupService := services.NewCommandGroupService(utils.GetDB())
+	commandFilterService := services.NewCommandFilterService(utils.GetDB())
+	commandMatcherService := services.NewCommandMatcherService(utils.GetDB(), commandFilterService)
 
 	// 创建控制器实例
 	authController := controllers.NewAuthController(authService)
@@ -44,7 +46,8 @@ func SetupRouter() *gin.Engine {
 	auditController := controllers.NewAuditController(auditService)
 	monitorController := controllers.NewMonitorController(monitorService)
 	recordingController := controllers.NewRecordingController()
-	commandPolicyController := controllers.NewCommandPolicyController(commandPolicyService)
+	commandGroupController := controllers.NewCommandGroupController(commandGroupService)
+	commandFilterController := controllers.NewCommandFilterController(commandFilterService, commandMatcherService)
 
 	// API 路由组
 	api := router.Group("/api/v1")
@@ -299,37 +302,35 @@ func SetupRouter() *gin.Engine {
 			commandFilter := authenticated.Group("/command-filter")
 			commandFilter.Use(middleware.RequireAdmin())
 			{
-				// 命令管理
-				commands := commandFilter.Group("/commands")
-				{
-					commands.GET("", commandPolicyController.GetCommands)
-					commands.POST("", commandPolicyController.CreateCommand)
-					commands.PUT("/:id", commandPolicyController.UpdateCommand)
-					commands.DELETE("/:id", commandPolicyController.DeleteCommand)
-				}
-
 				// 命令组管理
-				commandGroups := commandFilter.Group("/command-groups")
+				groups := commandFilter.Group("/groups")
 				{
-					commandGroups.GET("", commandPolicyController.GetCommandGroups)
-					commandGroups.POST("", commandPolicyController.CreateCommandGroup)
-					commandGroups.PUT("/:id", commandPolicyController.UpdateCommandGroup)
-					commandGroups.DELETE("/:id", commandPolicyController.DeleteCommandGroup)
+					groups.GET("", commandGroupController.GetCommandGroups)
+					groups.GET("/:id", commandGroupController.GetCommandGroup)
+					groups.POST("", commandGroupController.CreateCommandGroup)
+					groups.PUT("/:id", commandGroupController.UpdateCommandGroup)
+					groups.DELETE("/:id", commandGroupController.DeleteCommandGroup)
+					groups.POST("/batch-delete", commandGroupController.BatchDeleteCommandGroups)
+					groups.GET("/export", commandGroupController.ExportCommandGroups)
+					groups.POST("/import", commandGroupController.ImportCommandGroups)
 				}
 
-				// 策略管理
-				policies := commandFilter.Group("/policies")
+				// 命令过滤规则管理
+				filters := commandFilter.Group("/filters")
 				{
-					policies.GET("", commandPolicyController.GetPolicies)
-					policies.POST("", commandPolicyController.CreatePolicy)
-					policies.PUT("/:id", commandPolicyController.UpdatePolicy)
-					policies.DELETE("/:id", commandPolicyController.DeletePolicy)
-					policies.POST("/:id/bind-users", commandPolicyController.BindPolicyUsers)
-					policies.POST("/:id/bind-commands", commandPolicyController.BindPolicyCommands)
+					filters.GET("", commandFilterController.GetCommandFilters)
+					filters.GET("/:id", commandFilterController.GetCommandFilter)
+					filters.POST("", commandFilterController.CreateCommandFilter)
+					filters.PUT("/:id", commandFilterController.UpdateCommandFilter)
+					filters.DELETE("/:id", commandFilterController.DeleteCommandFilter)
+					filters.PATCH("/:id/toggle", commandFilterController.ToggleCommandFilter)
+					filters.POST("/batch-delete", commandFilterController.BatchDeleteCommandFilters)
+					filters.GET("/export", commandFilterController.ExportCommandFilters)
+					filters.POST("/import", commandFilterController.ImportCommandFilters)
 				}
 
-				// 拦截日志
-				commandFilter.GET("/intercept-logs", commandPolicyController.GetInterceptLogs)
+				// 命令匹配测试
+				commandFilter.POST("/match", commandFilterController.TestCommandMatch)
 			}
 		}
 

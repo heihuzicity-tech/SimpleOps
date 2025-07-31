@@ -316,11 +316,13 @@ export interface CommandGroup {
   id: number;
   name: string;
   description?: string;
-  is_preset: boolean;
+  remark?: string;
+  is_preset?: boolean;
   command_count?: number;
   created_at: string;
   updated_at: string;
   commands?: Command[];
+  items?: CommandGroupItem[];
 }
 
 export interface CommandPolicy {
@@ -415,13 +417,26 @@ export interface CommandGroupListRequest {
 export interface CommandGroupCreateRequest {
   name: string;
   description?: string;
-  command_ids: number[];
+  command_ids?: number[];
+  remark?: string;
+  items?: CommandGroupItem[];
 }
 
 export interface CommandGroupUpdateRequest {
   name?: string;
   description?: string;
   command_ids?: number[];
+  remark?: string;
+  items?: CommandGroupItem[];
+}
+
+export interface CommandGroupItem {
+  id?: number;
+  command_group_id?: number;
+  type: 'command' | 'regex';
+  content: string;
+  ignore_case: boolean;
+  sort_order?: number;
 }
 
 export interface PolicyListRequest {
@@ -468,4 +483,80 @@ export interface InterceptLogListRequest {
 export const CommandType = {
   EXACT: 'exact',
   REGEX: 'regex',
+} as const;
+
+// 命令过滤相关类型
+export interface CommandFilter {
+  id: number;
+  name: string;
+  priority: number;
+  enabled: boolean;
+  user_type: 'all' | 'specific' | 'attribute';
+  asset_type: 'all' | 'specific' | 'attribute';
+  account_type: 'all' | 'specific';
+  account_names?: string;
+  command_group_id: number;
+  action: 'deny' | 'allow' | 'alert' | 'prompt_alert';
+  remark?: string;
+  users?: number[];
+  assets?: number[];
+  attributes?: FilterAttribute[];
+  command_group?: CommandGroup;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FilterAttribute {
+  id: number;
+  filter_id: number;
+  target_type: 'user' | 'asset';
+  name: string;
+  value: string;
+}
+
+// 命令过滤请求类型
+export interface CommandFilterListRequest {
+  page?: number;
+  page_size?: number;
+  name?: string;
+  enabled?: boolean;
+}
+
+export interface CommandFilterCreateRequest {
+  name: string;
+  priority: number;
+  enabled: boolean;
+  user_type: 'all' | 'specific' | 'attribute';
+  asset_type: 'all' | 'specific' | 'attribute';
+  account_type: 'all' | 'specific';
+  account_names?: string;
+  command_group_id: number;
+  action: 'deny' | 'allow' | 'alert' | 'prompt_alert';
+  remark?: string;
+  users?: number[];
+  assets?: number[];
+  attributes?: FilterAttribute[];
+}
+
+export interface CommandFilterUpdateRequest {
+  name?: string;
+  priority?: number;
+  enabled?: boolean;
+  user_type?: 'all' | 'specific' | 'attribute';
+  asset_type?: 'all' | 'specific' | 'attribute';
+  account_type?: 'all' | 'specific';
+  account_names?: string;
+  command_group_id?: number;
+  action?: 'deny' | 'allow' | 'alert' | 'prompt_alert';
+  remark?: string;
+  users?: number[];
+  assets?: number[];
+  attributes?: FilterAttribute[];
+}
+
+export const FilterAction = {
+  DENY: 'deny',
+  ALLOW: 'allow',
+  ALERT: 'alert',
+  PROMPT_ALERT: 'prompt_alert',
 } as const;
