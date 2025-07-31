@@ -158,17 +158,22 @@ const CommandFilterManagement: React.FC = () => {
       const response = await getCredentials({ page: 1, page_size: 100 });
       console.log('凭证列表响应:', response.data);
       
-      // 根据凭证API的响应格式获取数据
-      const credentialList = response.data?.data?.credentials || [];
-      setCredentials(credentialList);
-      
-      // 提取唯一的账号名称
-      const uniqueAccounts = Array.from(new Set(
-        credentialList.map((cred: Credential) => cred.username)
-      )).filter(Boolean).sort();
-      
-      console.log('可用账号列表:', uniqueAccounts);
-      setAvailableAccounts(uniqueAccounts);
+      // 使用统一的响应格式
+      if (response.data?.data?.items) {
+        const credentialList = response.data.data.items;
+        console.log('凭证数据:', credentialList);
+        setCredentials(credentialList);
+        
+        // 提取唯一的账号名称
+        const uniqueAccounts = Array.from(new Set(
+          credentialList.map((cred: Credential) => cred.username)
+        )).filter(Boolean).sort();
+        
+        console.log('可用账号列表:', uniqueAccounts);
+        setAvailableAccounts(uniqueAccounts);
+      } else {
+        console.error('凭证API响应格式不符合统一标准:', response.data);
+      }
     } catch (error) {
       console.error('加载凭证列表失败:', error);
     }

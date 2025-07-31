@@ -10,16 +10,14 @@ export interface GetCredentialsParams {
 }
 
 export interface GetCredentialsResponse {
-  data: {
-    credentials: Credential[];
-    pagination: {
-      page: number;
-      page_size: number;
-      total: number;
-      total_page: number;
-    };
-  };
   success: boolean;
+  data: {
+    items: Credential[];
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+  };
 }
 
 export interface CreateCredentialRequest {
