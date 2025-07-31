@@ -205,8 +205,8 @@ const CommandFilterManagement: React.FC = () => {
       const response = await commandFilterService.filter.getFilter(filter.id);
       if (response.data) {
         const detailFilter = response.data;
-        setSelectedUserKeys((detailFilter.users || []).map(id => id.toString()));
-        setSelectedAssetKeys((detailFilter.assets || []).map(id => id.toString()));
+        setSelectedUserKeys((detailFilter.user_ids || []).map((id: number) => id.toString()));
+        setSelectedAssetKeys((detailFilter.asset_ids || []).map((id: number) => id.toString()));
         setAttributes(detailFilter.attributes || []);
         
         // 设置选中的账号
@@ -371,7 +371,7 @@ const CommandFilterManagement: React.FC = () => {
             <UserOutlined />
             <span>
               {record.user_type === 'all' ? '所有用户' : 
-               record.user_type === 'specific' ? `指定用户(${record.users?.length || 0})` : 
+               record.user_type === 'specific' ? `指定用户(${record.user_ids?.length || 0})` : 
                '属性筛选'}
             </span>
           </Space>
@@ -379,7 +379,7 @@ const CommandFilterManagement: React.FC = () => {
             <DesktopOutlined />
             <span>
               {record.asset_type === 'all' ? '所有资产' : 
-               record.asset_type === 'specific' ? `指定资产(${record.assets?.length || 0})` : 
+               record.asset_type === 'specific' ? `指定资产(${record.asset_ids?.length || 0})` : 
                '属性筛选'}
             </span>
           </Space>
