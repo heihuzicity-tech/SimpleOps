@@ -98,7 +98,8 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
       // 使用外部分组数据
       setGroups(externalGroups);
     }
-  }, [resourceType, showHostDetails, externalGroups, loadAssetGroupsWithHosts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resourceType, showHostDetails, externalGroups.length]); // 移除 loadAssetGroupsWithHosts 依赖，避免循环
 
   // 同步外部搜索值
   useEffect(() => {
@@ -256,7 +257,8 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
       const menuData = generateMenuData();
       setMenuItems(menuData);
     }
-  }, [showHostDetails, generateMenuData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showHostDetails, resourceType, groupsWithHosts]); // 直接使用依赖，避免 generateMenuData 导致的循环
 
   // 处理Menu选择事件
   const handleMenuSelect = useCallback(({ key }: { key: string }) => {
