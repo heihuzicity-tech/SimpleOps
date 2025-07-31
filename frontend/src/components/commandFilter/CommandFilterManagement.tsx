@@ -31,6 +31,7 @@ import {
   CommandFilter,
   CommandGroup,
   Asset,
+  Credential,
   CommandFilterListRequest,
   CommandFilterCreateRequest,
   CommandFilterUpdateRequest,
@@ -41,6 +42,7 @@ import { commandFilterService } from '../../services/commandFilterService';
 import { adaptPaginatedResponse } from '../../services/responseAdapter';
 import { getUsers, User } from '../../services/userAPI';
 import { getAssets } from '../../services/assetAPI';
+import { getCredentials } from '../../services/credentialAPI';
 
 const { Search } = Input;
 const { TextArea } = Input;
@@ -66,8 +68,11 @@ const CommandFilterManagement: React.FC = () => {
   const [commandGroups, setCommandGroups] = useState<CommandGroup[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [credentials, setCredentials] = useState<Credential[]>([]);
+  const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
   const [selectedUserKeys, setSelectedUserKeys] = useState<string[]>([]);
   const [selectedAssetKeys, setSelectedAssetKeys] = useState<string[]>([]);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [attributes, setAttributes] = useState<FilterAttribute[]>([]);
 
   useEffect(() => {
@@ -75,6 +80,7 @@ const CommandFilterManagement: React.FC = () => {
     loadCommandGroups();
     loadUsers();
     loadAssets();
+    loadCredentials();
   }, []);
 
   const loadFilters = async () => {
@@ -147,10 +153,32 @@ const CommandFilterManagement: React.FC = () => {
     }
   };
 
+  const loadCredentials = async () => {
+    try {
+      const response = await getCredentials({ page: 1, page_size: 100 });
+      console.log('凭证列表响应:', response.data);
+      
+      // 根据凭证API的响应格式获取数据
+      const credentialList = response.data?.data?.credentials || [];
+      setCredentials(credentialList);
+      
+      // 提取唯一的账号名称
+      const uniqueAccounts = Array.from(new Set(
+        credentialList.map((cred: Credential) => cred.username)
+      )).filter(Boolean).sort();
+      
+      console.log('可用账号列表:', uniqueAccounts);
+      setAvailableAccounts(uniqueAccounts);
+    } catch (error) {
+      console.error('加载凭证列表失败:', error);
+    }
+  };
+
   const handleAdd = () => {
     setEditingFilter(null);
     setSelectedUserKeys([]);
     setSelectedAssetKeys([]);
+    setSelectedAccounts([]);
     setAttributes([]);
     setIsModalVisible(true);
     form.resetFields();
@@ -175,6 +203,14 @@ const CommandFilterManagement: React.FC = () => {
         setSelectedUserKeys((detailFilter.users || []).map(id => id.toString()));
         setSelectedAssetKeys((detailFilter.assets || []).map(id => id.toString()));
         setAttributes(detailFilter.attributes || []);
+        
+        // 设置选中的账号
+        if (detailFilter.account_names) {
+          const accounts = detailFilter.account_names.split(',').map(s => s.trim()).filter(Boolean);
+          setSelectedAccounts(accounts);
+        } else {
+          setSelectedAccounts([]);
+        }
         
         setIsModalVisible(true);
         form.setFieldsValue({
@@ -225,6 +261,8 @@ const CommandFilterManagement: React.FC = () => {
         users: values.user_type === 'specific' ? selectedUserKeys.map(key => parseInt(key)) : undefined,
         assets: values.asset_type === 'specific' ? selectedAssetKeys.map(key => parseInt(key)) : undefined,
         attributes: values.user_type === 'attribute' || values.asset_type === 'attribute' ? attributes : undefined,
+        // 处理账号选择
+        account_names: values.account_type === 'specific' ? selectedAccounts.join(',') : undefined,
       };
 
       if (editingFilter) {
@@ -701,13 +739,26 @@ const CommandFilterManagement: React.FC = () => {
               const accountType = form.getFieldValue('account_type');
               if (accountType === 'specific') {
                 return (
-                  <Form.Item
-                    label="账号名称"
-                    name="account_names"
-                    rules={[{ required: true, message: '请输入账号名称' }]}
-                    extra="多个账号用逗号分隔"
-                  >
-                    <Input placeholder="例如: root,admin,deploy" />
+                  <Form.Item label="选择账号">
+                    <Transfer
+                      dataSource={availableAccounts.map(account => ({
+                        key: account,
+                        title: account,
+                      }))}
+                      titles={['可选账号', '已选账号']}
+                      targetKeys={selectedAccounts}
+                      onChange={(targetKeys) => setSelectedAccounts(targetKeys as string[])}
+                      render={item => item.title}
+                      showSearch
+                      filterOption={(inputValue, option) =>
+                        option.title?.toLowerCase().includes(inputValue.toLowerCase()) || false
+                      }
+                      style={{ marginBottom: 16 }}
+                      listStyle={{
+                        width: 350,
+                        height: 250,
+                      }}
+                    />
                   </Form.Item>
                 );
               }
