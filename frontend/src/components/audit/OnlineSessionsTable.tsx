@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { CanvasAddon } from '@xterm/addon-canvas';
 import {
   Card,
   Table,
@@ -259,14 +260,20 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
       wordSeparator: ' ()[]{},\"\' \t\r\n', // 优化单词选择
       rightClickSelectsWord: true, // 右键选择单词
       scrollSensitivity: 5, // 提高滚动灵敏度
-      fastScrollSensitivity: 10 // 快速滚动灵敏度
+      fastScrollSensitivity: 10, // 快速滚动灵敏度
+      // 渲染性能优化
+      fastScrollModifier: 'ctrl',
+      allowProposedApi: true,
+      smoothScrollDuration: 125
     });
 
     const fit = new FitAddon();
     const webLinks = new WebLinksAddon();
+    const canvasAddon = new CanvasAddon();
     
     term.loadAddon(fit);
     term.loadAddon(webLinks);
+    term.loadAddon(canvasAddon);
     
     term.open(mirrorTerminalRef.current);
     

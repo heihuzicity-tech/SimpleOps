@@ -9,13 +9,16 @@ import (
 
 // SessionResources 管理单个会话的所有资源
 type SessionResources struct {
-	mu          sync.Mutex
-	sessionID   string
-	ctx         context.Context
-	cancel      context.CancelFunc
-	resources   []Resource
-	closed      bool
-	closeOnce   sync.Once
+	mu             sync.Mutex
+	sessionID      string
+	ctx            context.Context
+	cancel         context.CancelFunc
+	resources      []Resource
+	closed         bool
+	closeOnce      sync.Once
+	createdAt      time.Time
+	lastActivityAt time.Time
+	timers         []*time.Timer
 }
 
 // Resource 表示需要清理的资源
@@ -48,15 +51,23 @@ func NewResourceFunc(name string, closeFunc func() error) Resource {
 
 // SessionResourceManager 管理所有会话的资源
 type SessionResourceManager struct {
-	mu       sync.RWMutex
-	sessions map[string]*SessionResources
+	mu            sync.RWMutex
+	sessions      map[string]*SessionResources
+	cleanupTicker *time.Ticker
+	cleanupStop   chan struct{}
+	maxIdleTime   time.Duration
 }
 
 // NewSessionResourceManager 创建会话资源管理器
 func NewSessionResourceManager() *SessionResourceManager {
-	return &SessionResourceManager{
-		sessions: make(map[string]*SessionResources),
+	m := &SessionResourceManager{
+		sessions:    make(map[string]*SessionResources),
+		cleanupStop: make(chan struct{}),
+		maxIdleTime: 30 * time.Minute, // 默认30分钟空闲超时
 	}
+	// 启动定期清理
+	m.StartCleanup()
+	return m
 }
 
 // CreateSession 为新会话创建资源管理器
@@ -72,10 +83,13 @@ func (m *SessionResourceManager) CreateSession(sessionID string) (*SessionResour
 
 	ctx, cancel := context.WithCancel(context.Background())
 	session := &SessionResources{
-		sessionID: sessionID,
-		ctx:       ctx,
-		cancel:    cancel,
-		resources: make([]Resource, 0),
+		sessionID:      sessionID,
+		ctx:            ctx,
+		cancel:         cancel,
+		resources:      make([]Resource, 0),
+		timers:         make([]*time.Timer, 0),
+		createdAt:      time.Now(),
+		lastActivityAt: time.Now(),
 	}
 
 	m.sessions[sessionID] = session
@@ -157,6 +171,12 @@ func (s *SessionResources) Close() {
 			s.cancel()
 		}
 		
+		// 停止所有定时器
+		for _, timer := range s.timers {
+			timer.Stop()
+		}
+		s.timers = nil
+		
 		// 倒序关闭资源（后添加的先关闭）
 		for i := len(s.resources) - 1; i >= 0; i-- {
 			resource := s.resources[i]
@@ -204,4 +224,129 @@ func (s *SessionResources) ResourceCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.resources)
+}
+
+// UpdateActivity 更新活动时间
+func (s *SessionResources) UpdateActivity() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastActivityAt = time.Now()
+}
+
+// AddTimer 添加定时器资源
+func (s *SessionResources) AddTimer(timer *time.Timer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
+	if s.closed {
+		timer.Stop()
+		return
+	}
+	
+	s.timers = append(s.timers, timer)
+}
+
+// GetIdleTime 获取空闲时间
+func (s *SessionResources) GetIdleTime() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return time.Since(s.lastActivityAt)
+}
+
+// StartCleanup 启动定期清理
+func (m *SessionResourceManager) StartCleanup() {
+	m.cleanupTicker = time.NewTicker(5 * time.Minute)
+	go func() {
+		for {
+			select {
+			case <-m.cleanupTicker.C:
+				m.cleanupExpiredSessions()
+			case <-m.cleanupStop:
+				m.cleanupTicker.Stop()
+				return
+			}
+		}
+	}()
+}
+
+// StopCleanup 停止定期清理
+func (m *SessionResourceManager) StopCleanup() {
+	close(m.cleanupStop)
+}
+
+// cleanupExpiredSessions 清理过期会话
+func (m *SessionResourceManager) cleanupExpiredSessions() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	expiredSessions := make([]string, 0)
+	
+	for sessionID, session := range m.sessions {
+		idleTime := session.GetIdleTime()
+		if idleTime > m.maxIdleTime {
+			expiredSessions = append(expiredSessions, sessionID)
+		}
+	}
+	
+	// 清理过期会话
+	for _, sessionID := range expiredSessions {
+		if session, exists := m.sessions[sessionID]; exists {
+			log.Printf("Cleaning up expired session %s (idle for %v)", sessionID, session.GetIdleTime())
+			session.Close()
+			delete(m.sessions, sessionID)
+		}
+	}
+	
+	if len(expiredSessions) > 0 {
+		log.Printf("Cleaned up %d expired sessions", len(expiredSessions))
+	}
+}
+
+// SetMaxIdleTime 设置最大空闲时间
+func (m *SessionResourceManager) SetMaxIdleTime(duration time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.maxIdleTime = duration
+}
+
+// GetSessionCount 获取活跃会话数量
+func (m *SessionResourceManager) GetSessionCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.sessions)
+}
+
+// GetSessionStats 获取会话统计信息
+func (m *SessionResourceManager) GetSessionStats() map[string]interface{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	stats := make(map[string]interface{})
+	stats["total_sessions"] = len(m.sessions)
+	
+	var totalResources int
+	var oldestSession time.Time
+	var newestSession time.Time
+	
+	for _, session := range m.sessions {
+		totalResources += session.ResourceCount()
+		
+		if oldestSession.IsZero() || session.createdAt.Before(oldestSession) {
+			oldestSession = session.createdAt
+		}
+		
+		if newestSession.IsZero() || session.createdAt.After(newestSession) {
+			newestSession = session.createdAt
+		}
+	}
+	
+	stats["total_resources"] = totalResources
+	if !oldestSession.IsZero() {
+		stats["oldest_session_age"] = time.Since(oldestSession).String()
+	}
+	if !newestSession.IsZero() {
+		stats["newest_session_age"] = time.Since(newestSession).String()
+	}
+	
+	return stats
 }
