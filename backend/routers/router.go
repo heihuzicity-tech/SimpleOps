@@ -36,6 +36,7 @@ func SetupRouter() *gin.Engine {
 	commandGroupService := services.NewCommandGroupService(utils.GetDB())
 	commandFilterService := services.NewCommandFilterService(utils.GetDB())
 	commandMatcherService := services.NewCommandMatcherService(utils.GetDB(), commandFilterService)
+	dashboardService := services.NewDashboardService(utils.GetDB(), assetService, userService, auditService, monitorService)
 
 	// 创建控制器实例
 	authController := controllers.NewAuthController(authService)
@@ -48,6 +49,7 @@ func SetupRouter() *gin.Engine {
 	recordingController := controllers.NewRecordingController()
 	commandGroupController := controllers.NewCommandGroupController(commandGroupService)
 	commandFilterController := controllers.NewCommandFilterController(commandFilterService, commandMatcherService)
+	dashboardController := controllers.NewDashboardController(dashboardService)
 
 	// API 路由组
 	api := router.Group("/api/v1")
@@ -84,6 +86,18 @@ func SetupRouter() *gin.Engine {
 
 			// 权限管理路由（所有认证用户可查看权限列表）
 			authenticated.GET("/permissions", roleController.GetPermissions)
+
+			// 仪表盘路由（所有认证用户可访问）
+			dashboard := authenticated.Group("/dashboard")
+			{
+				dashboard.GET("", dashboardController.GetCompleteDashboard)
+				dashboard.GET("/stats", dashboardController.GetDashboardStats)
+				dashboard.GET("/recent-logins", dashboardController.GetRecentLogins)
+				dashboard.GET("/host-distribution", dashboardController.GetHostDistribution)
+				dashboard.GET("/activity-trends", dashboardController.GetActivityTrends)
+				dashboard.GET("/audit-summary", middleware.RequireAdmin(), dashboardController.GetAuditSummary)
+				dashboard.GET("/quick-access", dashboardController.GetQuickAccess)
+			}
 
 			// 用户管理路由（需要管理员权限）
 			users := authenticated.Group("/users")
