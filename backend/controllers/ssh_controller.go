@@ -19,10 +19,12 @@ import (
 
 // SSHController SSH控制器
 type SSHController struct {
-	sshService *services.SSHService
-	upgrader   websocket.Upgrader
-	cmdBuffer  map[string]*utils.CircularBuffer // sessionID -> 循环缓冲区
-	cmdMutex   sync.RWMutex                    // 命令缓冲区锁
+	sshService   *services.SSHService
+	upgrader     websocket.Upgrader
+	cmdBuffer    map[string]*utils.CircularBuffer // sessionID -> 循环缓冲区
+	cmdMutex     sync.RWMutex                    // 命令缓冲区锁
+	outputBuffer map[string]*utils.OutputBuffer   // sessionID -> 输出缓冲器
+	outputMutex  sync.RWMutex                    // 输出缓冲器锁
 }
 
 // WebSocketMessage WebSocket消息结构
@@ -51,6 +53,9 @@ type WebSocketConnection struct {
 	mu           sync.Mutex
 	lastPing     time.Time // 最后一次ping时间
 	isActive     bool      // 连接是否活跃
+	outputBuffer *utils.OutputBuffer // 输出缓冲器
+	writeChan    chan interface{} // 写入channel，实现无锁写入
+	writeStop    chan struct{}    // 写入goroutine停止信号
 }
 
 const MaxCommandBufferSize = 4096 // 4KB命令缓冲区限制
@@ -58,15 +63,17 @@ const MaxCommandBufferSize = 4096 // 4KB命令缓冲区限制
 // NewSSHController 创建SSH控制器实例
 func NewSSHController(sshService *services.SSHService) *SSHController {
 	return &SSHController{
-		sshService: sshService,
-		cmdBuffer:  make(map[string]*utils.CircularBuffer),
+		sshService:   sshService,
+		cmdBuffer:    make(map[string]*utils.CircularBuffer),
+		outputBuffer: make(map[string]*utils.OutputBuffer),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				// 在生产环境中应该检查Origin
 				return true
 			},
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
+			ReadBufferSize:    8192,  // 增大到8KB，适应高频输入
+			WriteBufferSize:   8192,  // 增大到8KB，适应大量输出
+			EnableCompression: true,  // 启用压缩以减少网络传输
 		},
 	}
 }
@@ -273,6 +280,47 @@ func (sc *SSHController) HandleWebSocket(c *gin.Context) {
 
 // handleWebSocketConnection 处理WebSocket连接
 func (sc *SSHController) handleWebSocketConnection(wsConn *WebSocketConnection) {
+	// 配置WebSocket连接参数
+	wsConn.conn.SetReadLimit(512 * 1024) // 设置最大读取消息大小为512KB
+	wsConn.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	wsConn.conn.SetPongHandler(func(string) error {
+		wsConn.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+	
+	// 初始化写入channel
+	wsConn.writeChan = make(chan interface{}, 256)
+	wsConn.writeStop = make(chan struct{})
+	
+	// 启动写入goroutine
+	go sc.handleWebSocketWrite(wsConn)
+	
+	// 启动心跳goroutine
+	go sc.handleWebSocketPing(wsConn)
+	
+	// 创建输出缓冲器
+	outputBuffer := utils.NewOutputBuffer(
+		4096, // 4KB缓冲区
+		50*time.Millisecond, // 50ms刷新间隔
+		func(messages [][]byte) error {
+			// 批量发送函数 - 通过channel发送，避免锁竞争
+			for _, msg := range messages {
+				select {
+				case wsConn.writeChan <- msg:
+				case <-wsConn.writeStop:
+					return fmt.Errorf("write channel closed")
+				}
+			}
+			return nil
+		},
+	)
+	wsConn.outputBuffer = outputBuffer
+	
+	// 将输出缓冲器存储到控制器映射中
+	sc.outputMutex.Lock()
+	sc.outputBuffer[wsConn.sessionID] = outputBuffer
+	sc.outputMutex.Unlock()
+	
 	// 注册到全局WebSocket服务，以便接收管理消息
 	var wsClient *services.Client
 	if services.GlobalWebSocketService != nil {
@@ -301,6 +349,19 @@ func (sc *SSHController) handleWebSocketConnection(wsConn *WebSocketConnection) 
 	}
 
 	defer func() {
+		// 停止写入goroutine
+		close(wsConn.writeStop)
+		
+		// 清理输出缓冲器
+		if wsConn.outputBuffer != nil {
+			wsConn.outputBuffer.Close()
+		}
+		
+		// 从控制器映射中移除输出缓冲器
+		sc.outputMutex.Lock()
+		delete(sc.outputBuffer, wsConn.sessionID)
+		sc.outputMutex.Unlock()
+		
 		// 注销WebSocket客户端
 		if wsClient != nil && services.GlobalWebSocketService != nil {
 			services.GlobalWebSocketService.UnregisterSSHClient(wsClient)
@@ -458,11 +519,7 @@ func (sc *SSHController) handleForceTerminate(wsConn *WebSocketConnection, wsMes
 	}
 	
 	// 发送强制终止消息到前端
-	wsConn.mu.Lock()
-	err := wsConn.conn.WriteJSON(terminalMessage)
-	wsConn.mu.Unlock()
-	
-	if err != nil {
+	if err := wsConn.WriteToWebSocket(terminalMessage); err != nil {
 		log.Printf("Failed to send force terminate message: %v", err)
 	} else {
 		log.Printf("Force terminate message sent to session %s", wsConn.sessionID)
@@ -488,11 +545,7 @@ func (sc *SSHController) handleSessionWarning(wsConn *WebSocketConnection, wsMes
 		}
 	}
 	
-	wsConn.mu.Lock()
-	err := wsConn.conn.WriteJSON(terminalMessage)
-	wsConn.mu.Unlock()
-	
-	if err != nil {
+	if err := wsConn.WriteToWebSocket(terminalMessage); err != nil {
 		log.Printf("Failed to send warning message: %v", err)
 	}
 }
@@ -512,11 +565,7 @@ func (sc *SSHController) handleSystemAlert(wsConn *WebSocketConnection, wsMessag
 		}
 	}
 	
-	wsConn.mu.Lock()
-	err := wsConn.conn.WriteJSON(terminalMessage)
-	wsConn.mu.Unlock()
-	
-	if err != nil {
+	if err := wsConn.WriteToWebSocket(terminalMessage); err != nil {
 		log.Printf("Failed to send alert message: %v", err)
 	}
 }
@@ -609,17 +658,29 @@ func (sc *SSHController) handleSSHOutput(ctx context.Context, wsConn *WebSocketC
 				}
 			}
 
-			// 发送给SSH WebSocket客户端
-			wsConn.mu.Lock()
-			err := wsConn.conn.WriteJSON(message)
-			wsConn.mu.Unlock()
-
-			if err != nil {
-				log.Printf("Failed to write to WebSocket for session %s: %v", wsConn.sessionID, err)
-				return
+			// 使用输出缓冲器批量发送
+			if wsConn.outputBuffer != nil {
+				// 将消息序列化为JSON
+				msgBytes, err := json.Marshal(message)
+				if err != nil {
+					log.Printf("Failed to marshal message for session %s: %v", wsConn.sessionID, err)
+					return
+				}
+				
+				// 写入输出缓冲器
+				if err := wsConn.outputBuffer.Write(msgBytes); err != nil {
+					log.Printf("Failed to write to output buffer for session %s: %v", wsConn.sessionID, err)
+					return
+				}
+			} else {
+				// 降级到直接发送
+				if err := wsConn.WriteToWebSocket(message); err != nil {
+					log.Printf("Failed to write to WebSocket for session %s: %v", wsConn.sessionID, err)
+					return
+				}
 			}
 			
-			log.Printf("SSH output sent to WebSocket for session %s", wsConn.sessionID)
+			log.Printf("SSH output buffered for session %s", wsConn.sessionID)
 			
 			// 🔧 新增：广播终端数据给监控WebSocket客户端
 			if services.GlobalWebSocketService != nil {
@@ -763,9 +824,7 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 								Data: blockedMessage,
 							}
 							
-							wsConn.mu.Lock()
-							wsConn.conn.WriteJSON(outputMessage)
-							wsConn.mu.Unlock()
+							wsConn.WriteToWebSocket(outputMessage)
 							
 							log.Printf("Command blocked for user %d in session %s: %s", wsConn.userID, wsConn.sessionID, command)
 							
@@ -809,11 +868,7 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 					Data: "pong",
 				}
 
-				wsConn.mu.Lock()
-				err = wsConn.conn.WriteJSON(pongMessage)
-				wsConn.mu.Unlock()
-
-				if err != nil {
+				if err := wsConn.WriteToWebSocket(pongMessage); err != nil {
 					log.Printf("Failed to send pong: %v", err)
 					return
 				}
@@ -849,9 +904,7 @@ func (sc *SSHController) handleWebSocketInput(ctx context.Context, wsConn *WebSo
 					Data: "Session closed successfully",
 				}
 				
-				wsConn.mu.Lock()
-				wsConn.conn.WriteJSON(ackMessage)
-				wsConn.mu.Unlock()
+				wsConn.WriteToWebSocket(ackMessage)
 				
 				// 关闭WebSocket连接
 				return
@@ -1469,5 +1522,73 @@ func (sc *SSHController) clearCommandBuffer(sessionID string) {
 	
 	if sc.cmdBuffer != nil {
 		delete(sc.cmdBuffer, sessionID)
+	}
+}
+
+// handleWebSocketWrite 处理WebSocket写入goroutine
+func (sc *SSHController) handleWebSocketWrite(wsConn *WebSocketConnection) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("WebSocket write handler panic: %v", r)
+		}
+	}()
+	
+	for {
+		select {
+		case <-wsConn.writeStop:
+			return
+			
+		case data := <-wsConn.writeChan:
+			// 根据数据类型处理
+			switch v := data.(type) {
+			case []byte:
+				// 原始字节数据（来自输出缓冲器）
+				if err := wsConn.conn.WriteMessage(websocket.TextMessage, v); err != nil {
+					log.Printf("Failed to write raw bytes to WebSocket for session %s: %v", wsConn.sessionID, err)
+					return
+				}
+			default:
+				// JSON数据
+				if err := wsConn.conn.WriteJSON(v); err != nil {
+					log.Printf("Failed to write JSON to WebSocket for session %s: %v", wsConn.sessionID, err)
+					return
+				}
+			}
+		}
+	}
+}
+
+// WriteToWebSocket 统一的WebSocket写入方法
+func (wsConn *WebSocketConnection) WriteToWebSocket(data interface{}) error {
+	select {
+	case wsConn.writeChan <- data:
+		return nil
+	case <-wsConn.writeStop:
+		return fmt.Errorf("WebSocket connection is closing")
+	default:
+		// Channel满了，记录警告但不阻塞
+		log.Printf("Warning: Write channel full for session %s, dropping message", wsConn.sessionID)
+		return fmt.Errorf("write channel full")
+	}
+}
+
+// handleWebSocketPing 定期发送ping消息
+func (sc *SSHController) handleWebSocketPing(wsConn *WebSocketConnection) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-ticker.C:
+			wsConn.mu.Lock()
+			wsConn.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := wsConn.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				wsConn.mu.Unlock()
+				return
+			}
+			wsConn.mu.Unlock()
+		case <-wsConn.writeStop:
+			return
+		}
 	}
 }

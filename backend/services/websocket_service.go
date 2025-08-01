@@ -76,12 +76,14 @@ func NewWebSocketService() *WebSocketService {
 		register:    make(chan *Client),
 		unregister:  make(chan *Client),
 		upgrader: websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
+			ReadBufferSize:  8192,  // 增大到8KB，适应高频输入
+			WriteBufferSize: 8192,  // 增大到8KB，适应大量输出
 			CheckOrigin: func(r *http.Request) bool {
 				// 允许跨域连接（生产环境需要严格验证）
 				return true
 			},
+			// 启用压缩以减少网络传输
+			EnableCompression: true,
 		},
 	}
 
