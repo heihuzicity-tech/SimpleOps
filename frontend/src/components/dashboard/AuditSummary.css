@@ -3,13 +3,14 @@
 }
 
 .audit-item {
-  padding: 16px;
-  border-radius: 4px;
+  padding: 20px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   transition: all 0.3s ease;
   cursor: pointer;
+  min-height: 100px;
 }
 
 .audit-item:hover {
@@ -17,8 +18,15 @@
 }
 
 .audit-icon {
-  font-size: 24px;
+  font-size: 28px;
   flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .audit-info {
@@ -27,13 +35,13 @@
 }
 
 .audit-value {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 600;
   line-height: 1.2;
 }
 
 .audit-label {
   font-size: 14px;
-  color: #8c8c8c;
+  color: #666;
   margin-top: 4px;
 }

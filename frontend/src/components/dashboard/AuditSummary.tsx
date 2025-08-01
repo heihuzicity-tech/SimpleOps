@@ -50,7 +50,7 @@ const AuditSummary: React.FC<AuditSummaryProps> = ({ summary, loading }) => {
     return (
       <Row gutter={[16, 16]} className="audit-summary">
         {[1, 2, 3, 4].map((index) => (
-          <Col span={12} key={index}>
+          <Col xs={24} sm={12} md={6} key={index}>
             <Skeleton.Button 
               active 
               size="large" 
@@ -66,7 +66,7 @@ const AuditSummary: React.FC<AuditSummaryProps> = ({ summary, loading }) => {
   return (
     <Row gutter={[16, 16]} className="audit-summary">
       {summaryData.map((item, index) => (
-        <Col span={12} key={index}>
+        <Col xs={24} sm={12} md={6} key={index}>
           <div 
             className="audit-item"
             style={{ backgroundColor: item.bgColor }}

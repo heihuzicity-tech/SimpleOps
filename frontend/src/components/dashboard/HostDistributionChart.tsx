@@ -83,7 +83,7 @@ const HostDistributionChart: React.FC<HostDistributionChartProps> = ({ distribut
         <div className="custom-tooltip">
           <p className="tooltip-label">{data.name}</p>
           <p className="tooltip-value">
-            数量: {data.value} ({data.payload.percent.toFixed(1)}%)
+            数量: {data.value} ({(data.payload.percent || 0).toFixed(1)}%)
           </p>
         </div>
       );
@@ -91,12 +91,19 @@ const HostDistributionChart: React.FC<HostDistributionChartProps> = ({ distribut
     return null;
   };
 
+  // 为Recharts准备数据，确保有name字段
+  const chartData = distribution.map(item => ({
+    ...item,
+    name: item.group_name,
+    value: item.count
+  }));
+
   return (
     <div className="host-distribution-chart">
       <ResponsiveContainer width="100%" height={280}>
         <PieChart>
           <Pie
-            data={distribution}
+            data={chartData}
             cx="50%"
             cy="50%"
             labelLine={false}
@@ -104,9 +111,9 @@ const HostDistributionChart: React.FC<HostDistributionChartProps> = ({ distribut
             outerRadius={80}
             innerRadius={40}
             fill="#8884d8"
-            dataKey="count"
+            dataKey="value"
           >
-            {distribution.map((entry, index) => (
+            {chartData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>

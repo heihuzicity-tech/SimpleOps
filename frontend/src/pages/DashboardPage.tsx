@@ -11,7 +11,6 @@ const StatsCards = React.lazy(() => import('../components/dashboard/StatsCards')
 const RecentLoginTable = React.lazy(() => import('../components/dashboard/RecentLoginTable'));
 const HostDistributionChart = React.lazy(() => import('../components/dashboard/HostDistributionChart'));
 const AuditSummary = React.lazy(() => import('../components/dashboard/AuditSummary'));
-const QuickAccessList = React.lazy(() => import('../components/dashboard/QuickAccessList'));
 
 const { Content } = Layout;
 
@@ -96,6 +95,23 @@ const DashboardPage: React.FC = () => {
         <StatsCards stats={data?.stats || null} loading={loading} />
       </Suspense>
 
+      {/* 审计统计概览 - 移至上方 */}
+      <Row gutter={24} style={{ marginBottom: 24 }}>
+        <Col span={24}>
+          <Card 
+            title="审计统计概览" 
+            className="content-card"
+          >
+            <Suspense fallback={<ComponentLoader />}>
+              <AuditSummary 
+                summary={data?.audit_summary || null} 
+                loading={loading}
+              />
+            </Suspense>
+          </Card>
+        </Col>
+      </Row>
+
       {/* 主要内容区域 */}
       <Row gutter={24} className="dashboard-content">
         <Col span={16}>
@@ -119,36 +135,6 @@ const DashboardPage: React.FC = () => {
             <Suspense fallback={<ComponentLoader />}>
               <HostDistributionChart 
                 distribution={data?.host_distribution || []} 
-                loading={loading}
-              />
-            </Suspense>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* 底部区域 */}
-      <Row gutter={24} className="dashboard-bottom">
-        <Col span={12}>
-          <Card 
-            title="审计统计概览" 
-            className="content-card"
-          >
-            <Suspense fallback={<ComponentLoader />}>
-              <AuditSummary 
-                summary={data?.audit_summary || null} 
-                loading={loading}
-              />
-            </Suspense>
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card 
-            title="我的主机 - 快速访问" 
-            className="content-card"
-          >
-            <Suspense fallback={<ComponentLoader />}>
-              <QuickAccessList 
-                hosts={data?.quick_access || []} 
                 loading={loading}
               />
             </Suspense>

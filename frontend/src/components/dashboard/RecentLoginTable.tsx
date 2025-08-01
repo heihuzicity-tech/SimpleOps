@@ -13,13 +13,14 @@ interface RecentLoginTableProps {
 }
 
 const RecentLoginTable: React.FC<RecentLoginTableProps> = ({ recentLogins, loading }) => {
-  // 格式化时长
-  const formatDuration = (seconds: number): string => {
-    if (seconds < 60) return `${seconds}秒`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}分钟`;
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}小时${minutes > 0 ? minutes + '分' : ''}`;
+  // 格式化时长（输入是分钟）
+  const formatDuration = (minutes: number): string => {
+    if (!minutes || minutes === 0) return '0秒';
+    if (minutes < 1) return `${Math.round(minutes * 60)}秒`;
+    if (minutes < 60) return `${Math.round(minutes)}分钟`;
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    return `${hours}小时${mins > 0 ? mins + '分' : ''}`;
   };
 
   const columns: ColumnsType<RecentLogin> = useMemo(() => [
@@ -61,7 +62,7 @@ const RecentLoginTable: React.FC<RecentLoginTableProps> = ({ recentLogins, loadi
       key: 'status',
       width: 80,
       render: (status: string) => {
-        const isOnline = status === 'online' || status === '在线';
+        const isOnline = status === 'active' || status === 'online' || status === '在线';
         return (
           <Tag color={isOnline ? 'green' : 'default'}>
             {isOnline ? '在线' : '已断开'}
