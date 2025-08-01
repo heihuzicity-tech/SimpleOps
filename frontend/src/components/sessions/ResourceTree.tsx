@@ -47,6 +47,15 @@ const ResourceTree: React.FC<ResourceTreeProps> = ({
   const [loading, setLoading] = useState(false);
   const [menuItems, setMenuItems] = useState<MenuProps['items']>([]);
   const [selectedMenuKeys, setSelectedMenuKeys] = useState<string[]>([]);
+  
+  // 同步外部传入的selectedKeys到Menu组件
+  useEffect(() => {
+    if (showHostDetails && externalSelectedKeys.length > 0) {
+      setSelectedMenuKeys(externalSelectedKeys as string[]);
+    } else if (showHostDetails && externalSelectedKeys.length === 0) {
+      setSelectedMenuKeys([]);
+    }
+  }, [showHostDetails, externalSelectedKeys]);
   const treeDataRef = useRef<DataNode[]>([]);
 
   // 加载资产分组数据（包含主机详情）

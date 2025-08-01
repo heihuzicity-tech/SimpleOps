@@ -47,6 +47,7 @@ const WorkspaceStandalone: React.FC = () => {
   const [tabs, setTabs] = useState<TabInfo[]>([]);
   const [activeTabId, setActiveTabId] = useState<string>('');
   const [connecting, setConnecting] = useState(false);
+  const [selectedResourceKeys, setSelectedResourceKeys] = useState<React.Key[]>([]);
   const autoConnectProcessedRef = useRef(false);
   const processedUrlRef = useRef('');
 
@@ -71,6 +72,8 @@ const WorkspaceStandalone: React.FC = () => {
     // 允许同一个主机打开多个标签页，直接打开凭证选择
     setSelectedAsset(asset);
     setCredentialSelectorVisible(true);
+    // 设置ResourceTree的选中状态
+    setSelectedResourceKeys([`asset-${asset.id}`]);
   }, []);
 
   // 处理树形菜单选择
@@ -131,11 +134,15 @@ const WorkspaceStandalone: React.FC = () => {
       setActiveTabId(newTab.id);
 
       // 连接成功，但不显示提示消息
+      // 清除选中状态
+      setSelectedResourceKeys([]);
     } catch (error: any) {
       message.error(`连接失败: ${error.message}`);
     } finally {
       setConnecting(false);
       setSelectedAsset(null);
+      // 无论成功还是失败都清除选中状态
+      setSelectedResourceKeys([]);
     }
   }, [selectedAsset, credentials, dispatch, connecting]);
 
@@ -502,6 +509,7 @@ const WorkspaceStandalone: React.FC = () => {
               <ResourceTree 
                 resourceType="host"
                 onSelect={handleTreeSelect}
+                selectedKeys={selectedResourceKeys}
                 totalCount={assets.filter(a => a.type === 'server').length}
                 hideSearch={true}
                 showHostDetails={true}
@@ -532,6 +540,8 @@ const WorkspaceStandalone: React.FC = () => {
         onCancel={() => {
           setCredentialSelectorVisible(false);
           setSelectedAsset(null);
+          // 清除ResourceTree的选中状态
+          setSelectedResourceKeys([]);
         }}
       />
 
