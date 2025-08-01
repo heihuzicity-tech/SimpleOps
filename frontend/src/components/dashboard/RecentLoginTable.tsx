@@ -13,13 +13,17 @@ interface RecentLoginTableProps {
 }
 
 const RecentLoginTable: React.FC<RecentLoginTableProps> = ({ recentLogins, loading }) => {
-  // 格式化时长（输入是分钟）
-  const formatDuration = (minutes: number): string => {
-    if (!minutes || minutes === 0) return '0秒';
-    if (minutes < 1) return `${Math.round(minutes * 60)}秒`;
-    if (minutes < 60) return `${Math.round(minutes)}分钟`;
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.round(minutes % 60);
+  // 格式化时长（输入是秒）
+  const formatDuration = (seconds: number): string => {
+    if (!seconds || seconds === 0) return '0秒';
+    if (seconds < 60) return `${Math.round(seconds)}秒`;
+    if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      const secs = Math.round(seconds % 60);
+      return `${minutes}分${secs > 0 ? secs + '秒' : ''}`;
+    }
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     return `${hours}小时${mins > 0 ? mins + '分' : ''}`;
   };
 
@@ -62,12 +66,25 @@ const RecentLoginTable: React.FC<RecentLoginTableProps> = ({ recentLogins, loadi
       key: 'status',
       width: 80,
       render: (status: string) => {
+        // 判断是否在线状态
         const isOnline = status === 'active' || status === 'online' || status === '在线';
-        return (
-          <Tag color={isOnline ? 'green' : 'default'}>
-            {isOnline ? '在线' : '已断开'}
-          </Tag>
-        );
+        
+        // 根据不同状态显示不同的标签
+        let color = 'default';
+        let text = '已断开';
+        
+        if (isOnline) {
+          color = 'green';
+          text = '在线';
+        } else if (status === 'closed' || status === '用户正常退出') {
+          color = 'default';
+          text = '已断开';
+        } else if (status === 'timeout' || status === 'SSH会话异常结束' || status === 'terminated') {
+          color = 'red';
+          text = '异常断开';
+        }
+        
+        return <Tag color={color}>{text}</Tag>;
       },
     },
   ], []);

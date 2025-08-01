@@ -1,6 +1,5 @@
-import React, { useEffect, Suspense, useCallback } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { Layout, Row, Col, Card, Spin, Alert, Space } from 'antd';
-import { SyncOutlined } from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../hooks';
 import { fetchDashboardData } from '../store/dashboardSlice';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -40,10 +39,6 @@ const DashboardPage: React.FC = () => {
     dispatch(fetchDashboardData());
   }, [dispatch]);
 
-  // 手动刷新
-  const handleRefresh = useCallback(() => {
-    dispatch(fetchDashboardData());
-  }, [dispatch]);
 
   if (loading && !data) {
     return (
@@ -65,7 +60,7 @@ const DashboardPage: React.FC = () => {
           showIcon
           action={
             <Space>
-              <button onClick={handleRefresh}>重新加载</button>
+              <button onClick={() => dispatch(fetchDashboardData())}>重新加载</button>
             </Space>
           }
         />
@@ -76,27 +71,13 @@ const DashboardPage: React.FC = () => {
   return (
     <ErrorBoundary>
       <Content className="dashboard-page">
-      <div className="dashboard-header">
-        <h1>堡垒机仪表盘</h1>
-        <div className="dashboard-actions">
-          <button 
-            className="refresh-btn"
-            onClick={handleRefresh}
-            disabled={loading}
-          >
-            <SyncOutlined spin={loading} />
-            {loading ? '刷新中...' : '刷新'}
-          </button>
-        </div>
-      </div>
-
       {/* 统计卡片 */}
       <Suspense fallback={<ComponentLoader />}>
         <StatsCards stats={data?.stats || null} loading={loading} />
       </Suspense>
 
       {/* 审计统计概览 - 移至上方 */}
-      <Row gutter={24} style={{ marginBottom: 24 }}>
+      <Row gutter={24} style={{ marginBottom: 24, padding: '0 24px' }}>
         <Col span={24}>
           <Card 
             title="审计统计概览" 
@@ -113,7 +94,7 @@ const DashboardPage: React.FC = () => {
       </Row>
 
       {/* 主要内容区域 */}
-      <Row gutter={24} className="dashboard-content">
+      <Row gutter={24} className="dashboard-content" style={{ padding: '0 24px' }}>
         <Col span={16}>
           <Card 
             title="最近登录历史" 
@@ -129,7 +110,7 @@ const DashboardPage: React.FC = () => {
         </Col>
         <Col span={8}>
           <Card 
-            title="主机分组分布" 
+            title="资产统计" 
             className="content-card"
           >
             <Suspense fallback={<ComponentLoader />}>

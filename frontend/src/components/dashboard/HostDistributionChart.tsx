@@ -1,6 +1,5 @@
 import React from 'react';
-import { Empty, Spin } from 'antd';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { Empty, Spin, Progress } from 'antd';
 import { HostDistribution } from '../../store/dashboardSlice';
 import './HostDistributionChart.css';
 
@@ -31,104 +30,32 @@ const HostDistributionChart: React.FC<HostDistributionChartProps> = ({ distribut
   // 计算总数
   const total = distribution.reduce((sum, item) => sum + item.count, 0);
 
-  // 自定义标签
-  const renderCustomizedLabel = ({
-    cx,
-    cy,
-    innerRadius,
-    outerRadius,
-    percent,
-  }: any) => {
-    if (percent < 0.05) return null; // 小于5%不显示标签
-    
-    return (
-      <text 
-        x={cx} 
-        y={cy} 
-        fill="#333" 
-        textAnchor="middle" 
-        dominantBaseline="central"
-        fontSize="14"
-        fontWeight="600"
-      >
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-    );
-  };
-
-  // 自定义图例
-  const renderLegend = () => {
-    return (
-      <ul className="custom-legend">
-        {distribution.map((item, index) => (
-          <li key={`item-${index}`} className="legend-item">
-            <span 
-              className="legend-dot" 
-              style={{ backgroundColor: COLORS[index % COLORS.length] }}
-            />
-            <span className="legend-text">
-              {item.group_name} ({item.count})
-            </span>
-          </li>
-        ))}
-      </ul>
-    );
-  };
-
-  // 自定义提示框
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0];
-      return (
-        <div className="custom-tooltip">
-          <p className="tooltip-label">{data.name}</p>
-          <p className="tooltip-value">
-            数量: {data.value} ({(data.payload.percent || 0).toFixed(1)}%)
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // 为Recharts准备数据，确保有name字段
-  const chartData = distribution.map(item => ({
-    ...item,
-    name: item.group_name,
-    value: item.count
-  }));
+  // 模拟资产类型数据（实际应该从后端获取）
+  const assetTypes = [
+    { name: '主机', count: total, color: '#52c41a', icon: '💻' },
+    { name: '数据库', count: 0, color: '#fa8c16', icon: '🗄️' },
+    { name: '网络设备', count: 0, color: '#1890ff', icon: '🌐' }
+  ];
 
   return (
-    <div className="host-distribution-chart">
-      <ResponsiveContainer width="100%" height={280}>
-        <PieChart>
-          <Pie
-            data={chartData}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            label={renderCustomizedLabel}
-            outerRadius={80}
-            innerRadius={40}
-            fill="#8884d8"
-            dataKey="value"
-          >
-            {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip content={<CustomTooltip />} />
-          <Legend 
-            verticalAlign="bottom" 
-            height={100}
-            content={renderLegend}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+    <div className="asset-distribution">
+      <div className="asset-total">
+        <span className="total-label">资产总数</span>
+        <span className="total-value">{total}</span>
+      </div>
       
-      <div className="chart-center-info">
-        <div className="center-value">{total}</div>
-        <div className="center-label">主机总数</div>
+      <div className="asset-list">
+        {assetTypes.map((asset, index) => (
+          <div key={index} className="asset-item">
+            <div className="asset-icon">{asset.icon}</div>
+            <div className="asset-info">
+              <div className="asset-name">{asset.name}</div>
+              <div className="asset-count" style={{ color: asset.color }}>
+                {asset.count}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

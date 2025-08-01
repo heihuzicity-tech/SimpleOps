@@ -32,7 +32,7 @@ type RecentLogin struct {
 	AssetAddress   string    `json:"asset_address"`
 	CredentialName string    `json:"credential_name"`
 	LoginTime      time.Time `json:"login_time"`
-	Duration       int       `json:"duration"` // 执行时长（分钟）
+	Duration       int       `json:"duration"` // 执行时长（秒）
 	Status         string    `json:"status"`   // online/offline
 	SessionID      string    `json:"session_id"`
 }

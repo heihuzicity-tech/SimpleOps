@@ -1,9 +1,85 @@
-.host-distribution-chart {
-  position: relative;
-  width: 100%;
+/* 资产分布容器 */
+.asset-distribution {
+  padding: 0;
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
+/* 总数显示 */
+.asset-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #f6f8fa;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.total-label {
+  font-size: 14px;
+  color: #595959;
+  font-weight: 400;
+}
+
+.total-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1890ff;
+}
+
+/* 资产列表 */
+.asset-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  flex: 1;
+}
+
+/* 资产项 */
+.asset-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 12px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.asset-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.asset-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+.asset-info {
+  text-align: center;
+}
+
+.asset-name {
+  font-size: 13px;
+  color: #595959;
+  margin-bottom: 6px;
+}
+
+.asset-count {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* 加载和空状态 */
+.chart-loading,
 .chart-empty {
   display: flex;
   align-items: center;
@@ -11,80 +87,18 @@
   height: 280px;
 }
 
-.chart-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 280px;
-}
-
-.chart-center-info {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -60%);
-  text-align: center;
-  pointer-events: none;
-}
-
-.center-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #333;
-  line-height: 1;
-}
-
-.center-label {
-  font-size: 14px;
-  color: #8c8c8c;
-  margin-top: 4px;
-}
-
-.custom-legend {
-  list-style: none;
-  padding: 0;
-  margin: 16px 0 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 16px;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  font-size: 14px;
-}
-
-.legend-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  margin-right: 8px;
-  flex-shrink: 0;
-}
-
-.legend-text {
-  color: #666;
-}
-
-.custom-tooltip {
-  background: rgba(0, 0, 0, 0.8);
-  padding: 8px 12px;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.tooltip-label {
-  margin: 0 0 4px 0;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.tooltip-value {
-  margin: 0;
-  color: #fff;
-  font-size: 12px;
-  opacity: 0.8;
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .distribution-summary {
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  
+  .summary-value {
+    font-size: 28px;
+  }
+  
+  .distribution-item {
+    padding: 10px 12px;
+  }
 }

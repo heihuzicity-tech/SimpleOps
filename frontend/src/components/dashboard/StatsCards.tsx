@@ -51,7 +51,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, loading }) => {
   ];
 
   return (
-    <Row gutter={16} className="stats-cards">
+    <Row gutter={16} className="stats-cards" style={{ padding: '0 24px' }}>
       {cardData.map((card, index) => (
         <Col span={6} key={index}>
           <Card 

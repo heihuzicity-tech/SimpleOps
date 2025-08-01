@@ -206,12 +206,12 @@ func (s *DashboardService) GetRecentLogins(userID uint, isAdmin bool, limit int)
 			Status:       string(session.Status),
 		}
 
-		// 计算执行时长
+		// 计算执行时长（以秒为单位，前端会转换为合适的显示格式）
 		if session.EndTime != nil {
-			duration := session.EndTime.Sub(session.StartTime).Minutes()
+			duration := session.EndTime.Sub(session.StartTime).Seconds()
 			login.Duration = int(duration)
 		} else if session.Status == "active" {
-			duration := time.Since(session.StartTime).Minutes()
+			duration := time.Since(session.StartTime).Seconds()
 			login.Duration = int(duration)
 		}
 
