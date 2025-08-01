@@ -83,7 +83,6 @@ const SimpleWorkspace: React.FC = () => {
           <Button 
             style={{ marginLeft: 8 }}
             onClick={() => {
-              console.log('手动重新获取用户信息');
               dispatch(getCurrentUser());
             }}
           >

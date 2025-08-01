@@ -44,7 +44,6 @@ export class WebSocketClient {
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
-          console.log('WebSocket connected');
           this.isConnecting = false;
           this.reconnectAttempts = 0;
           this.startHeartbeat();
@@ -62,7 +61,6 @@ export class WebSocketClient {
         };
 
         this.ws.onclose = (event) => {
-          console.log('WebSocket disconnected', event);
           this.isConnecting = false;
           this.stopHeartbeat();
           this.onConnectionChange?.(false);
@@ -121,7 +119,6 @@ export class WebSocketClient {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
-      console.warn('WebSocket is not connected, message not sent:', message);
     }
   }
 
@@ -156,7 +153,6 @@ export class WebSocketClient {
 
   // 处理接收到的消息
   private handleMessage(message: WSMessage): void {
-    console.log('Received WebSocket message:', message);
     
     // 处理心跳响应
     if (message.type === 'heartbeat_pong') {
@@ -193,7 +189,6 @@ export class WebSocketClient {
     this.reconnectAttempts++;
     const delay = Math.min(this.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1), 30000);
     
-    console.log(`WebSocket reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
     
     setTimeout(() => {
       if (this.reconnectAttempts <= this.maxReconnectAttempts) {

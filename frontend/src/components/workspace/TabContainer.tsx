@@ -241,10 +241,10 @@ const TabContainer: React.FC<TabContainerProps> = ({
               <WorkspaceTerminal
                 tab={tab}
                 onReconnect={() => {
-                  console.log(`重新连接到 ${tab.assetInfo.name}`);
+                  // 重新连接处理
                 }}
                 onDisconnect={() => {
-                  console.log(`断开与 ${tab.assetInfo.name} 的连接`);
+                  // 断开连接处理
                 }}
               />
             </div>

@@ -124,13 +124,9 @@ const CommandFilterManagement: React.FC = () => {
   const loadUsers = async () => {
     try {
       const response = await getUsers({ page: 1, page_size: 100 });
-      console.log('用户列表响应:', response.data);
       // 使用统一的响应格式
       if (response.data?.data?.items) {
-        console.log('设置用户数据:', response.data.data.items);
         setUsers(response.data.data.items);
-      } else {
-        console.error('用户API响应格式不符合统一标准:', response.data);
       }
     } catch (error) {
       console.error('加载用户列表失败:', error);
@@ -140,13 +136,9 @@ const CommandFilterManagement: React.FC = () => {
   const loadAssets = async () => {
     try {
       const response = await getAssets({ page: 1, page_size: 100 });
-      console.log('资产列表响应:', response.data);
       // 使用统一的响应格式
       if (response.data?.data?.items) {
-        console.log('设置资产数据:', response.data.data.items);
         setAssets(response.data.data.items);
-      } else {
-        console.error('资产API响应格式不符合统一标准:', response.data);
       }
     } catch (error) {
       console.error('加载资产列表失败:', error);
@@ -156,23 +148,16 @@ const CommandFilterManagement: React.FC = () => {
   const loadCredentials = async () => {
     try {
       const response = await getCredentials({ page: 1, page_size: 100 });
-      console.log('凭证列表响应:', response.data);
-      
       // 使用统一的响应格式
       if (response.data?.data?.items) {
         const credentialList = response.data.data.items;
-        console.log('凭证数据:', credentialList);
         setCredentials(credentialList);
         
         // 提取唯一的账号名称
         const uniqueAccounts = Array.from(new Set(
           credentialList.map((cred: Credential) => cred.username)
         )).filter(Boolean).sort();
-        
-        console.log('可用账号列表:', uniqueAccounts);
         setAvailableAccounts(uniqueAccounts);
-      } else {
-        console.error('凭证API响应格式不符合统一标准:', response.data);
       }
     } catch (error) {
       console.error('加载凭证列表失败:', error);

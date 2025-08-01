@@ -68,8 +68,6 @@ const WorkspaceStandalone: React.FC = () => {
 
   // 主机选择处理 - 直接使用资产数据
   const handleHostSelect = useCallback((asset: Asset) => {
-    console.log('选中主机:', asset);
-    
     // 允许同一个主机打开多个标签页，直接打开凭证选择
     setSelectedAsset(asset);
     setCredentialSelectorVisible(true);
@@ -77,8 +75,6 @@ const WorkspaceStandalone: React.FC = () => {
 
   // 处理树形菜单选择
   const handleTreeSelect = useCallback((selectedKeys: React.Key[], info: any) => {
-    console.log('树形选择:', selectedKeys, info);
-    
     // 检查是否选中了具体的主机资产
     if (selectedKeys.length > 0) {
       const selectedKey = selectedKeys[0] as string;
@@ -165,10 +161,8 @@ const WorkspaceStandalone: React.FC = () => {
             'Authorization': `Bearer ${token}`
           }
         });
-        console.log(`会话 ${targetTab.sessionId} 已关闭`);
       }
     } catch (error) {
-      console.warn('关闭会话失败:', error);
       // 即使后端调用失败，也要关闭前端标签页
     }
 
@@ -279,8 +273,6 @@ const WorkspaceStandalone: React.FC = () => {
     }
 
     if (targetAsset) {
-      console.log('自动连接主机:', targetAsset);
-      
       // 直接打开凭证选择对话框，不显示额外提示
       setTimeout(() => {
         setSelectedAsset(targetAsset!);
@@ -320,14 +312,12 @@ const WorkspaceStandalone: React.FC = () => {
                 },
                 keepalive: true // 关键：页面卸载后仍保持请求活跃
               }).catch(err => {
-                console.warn(`关闭会话 ${sessionId} 失败:`, err);
+                // 静默处理会话关闭失败
               });
             } catch (error) {
-              console.warn(`批量关闭会话失败:`, error);
+              // 静默处理批量关闭会话失败
             }
           }
-          
-          console.log(`页面卸载，批量清理 ${sessionsToClose.length} 个会话`);
         }
       }
     };
@@ -356,8 +346,7 @@ const WorkspaceStandalone: React.FC = () => {
           if (navigator.sendBeacon && sessionsToClose.length > 0) {
             // 注意：sendBeacon 只能发送到同源，且有数据大小限制
             const cleanupUrl = '/api/v1/ssh/sessions/batch-cleanup';
-            const success = navigator.sendBeacon(cleanupUrl, cleanupData);
-            console.log(`使用 sendBeacon 清理会话${success ? '成功' : '失败'}`);
+            navigator.sendBeacon(cleanupUrl, cleanupData);
           }
         }
       }

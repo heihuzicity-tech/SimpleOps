@@ -23,7 +23,6 @@ import RecordingAuditPage from './pages/audit/RecordingAuditPage';
 import GroupManagePage from './pages/GroupManagePage';
 import TerminalPage from './pages/connect/TerminalPage';
 import WorkspaceStandalone from './pages/connect/WorkspaceStandalone';
-import CompactHostListTest from './pages/test/CompactHostListTest';
 import CommandFilterPage from './pages/AccessControl/CommandFilterPage';
 
 // 配置全局消息
@@ -179,7 +178,6 @@ const App: React.FC = () => {
                       </PermissionGuard>
                     } 
                   />
-                  <Route path="/test/compact-host-list" element={<CompactHostListTest />} />
                 </Routes>
               </DashboardLayout>
             ) : (

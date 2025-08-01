@@ -91,7 +91,6 @@ export const closeTabWithCleanup = createAsyncThunk(
           await sshAPI.closeConnection(sessionId);
           // 服务端会话清理成功
         } catch (error: any) {
-          console.warn('closeTabWithCleanup: 服务端会话清理失败', error);
           
           // 如果不是强制关闭，则抛出错误
           if (!force) {
@@ -196,11 +195,6 @@ const workspaceSlice = createSlice({
 
       // 获取要关闭的标签页信息，用于后续清理
       const tabToClose = state.tabs[tabIndex];
-      console.log('Redux closeTab: 准备关闭标签页', {
-        tabId,
-        sessionId: tabToClose.sessionId,
-        connectionStatus: tabToClose.connectionStatus
-      });
 
       state.tabs.splice(tabIndex, 1);
 
@@ -396,14 +390,12 @@ const workspaceSlice = createSlice({
       })
       .addCase(closeTabWithCleanup.fulfilled, (state, action) => {
         const { tabId } = action.payload;
-        console.log('closeTabWithCleanup.fulfilled: 标签页清理完成', tabId);
         state.loading = false;
         state.error = null;
         // 注意：实际的标签页移除是在action内部通过dispatch(closeTab)完成的
       })
       .addCase(closeTabWithCleanup.rejected, (state, action) => {
         const payload = action.payload as { tabId: string; error: string };
-        console.error('closeTabWithCleanup.rejected: 标签页清理失败', payload);
         
         const tab = state.tabs.find(t => t.id === payload.tabId);
         if (tab) {
