@@ -31,6 +31,7 @@ type SSHService struct {
 	sessions        map[string]*SSHSession // 内存中的SSH连接
 	sessionsMu      sync.RWMutex
 	redisSession    *RedisSessionService // Redis会话管理
+	resourceManager *utils.SessionResourceManager // 会话资源管理器
 }
 
 // SSHSession SSH会话
@@ -49,6 +50,7 @@ type SSHSession struct {
 	LastActive   time.Time           `json:"last_active"`
 	Commands     []SSHCommand        `json:"commands,omitempty"`
 	recorder     *SessionRecorder    `json:"-"` // 会话录制器
+	resources    *utils.SessionResources `json:"-"` // 会话资源管理
 	mu           sync.RWMutex        `json:"-"`
 }
 
@@ -109,6 +111,7 @@ func NewSSHService(db *gorm.DB) *SSHService {
 		timeoutService:  timeoutService,
 		sessions:        make(map[string]*SSHSession),
 		redisSession:    redisSessionService,
+		resourceManager: utils.NewSessionResourceManager(),
 	}
 	
 	// 🆕 设置超时回调 (简化版，仅处理超时，不处理警告)
@@ -217,6 +220,9 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		return nil, fmt.Errorf("failed to get stdin pipe: %w", err)
 	}
 
+	// 创建会话资源管理器
+	resources, ctx := s.resourceManager.CreateSession(sessionID)
+	
 	// 创建会话对象
 	session := &SSHSession{
 		ID:           sessionID,
@@ -232,7 +238,23 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 		UpdatedAt:    time.Now(),
 		LastActive:   time.Now(),
 		Commands:     make([]SSHCommand, 0),
+		resources:    resources,
 	}
+	
+	// 注册SSH连接资源
+	resources.AddCloseFunc("ssh-client", func() error {
+		if clientConn != nil {
+			return clientConn.Close()
+		}
+		return nil
+	})
+	
+	resources.AddCloseFunc("ssh-session", func() error {
+		if sessionConn != nil {
+			return sessionConn.Close()
+		}
+		return nil
+	})
 
 	// 启动shell
 	log.Printf("Starting shell for session %s", sessionID)
@@ -247,6 +269,11 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 	log.Printf("SSH shell started for session %s, no initialization commands sent", sessionID)
 
 	// 启动会话监控goroutine，检测SSH会话自然结束
+	resources.AddCloseFunc("session-monitor", func() error {
+		// 这个函数会在资源清理时被调用，确保goroutine退出
+		return nil
+	})
+	
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -254,13 +281,26 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 			}
 		}()
 		
-		// 等待SSH会话结束
-		if err := sessionConn.Wait(); err != nil {
-			log.Printf("SSH session %s ended with error: %v", sessionID, err)
-			s.CloseSessionWithReason(sessionID, "SSH会话异常结束")
-		} else {
-			log.Printf("SSH session %s ended normally (user exit/logout)", sessionID)
-			s.CloseSessionWithReason(sessionID, "用户正常退出")
+		// 创建一个channel来监听会话结束
+		done := make(chan error, 1)
+		go func() {
+			done <- sessionConn.Wait()
+		}()
+		
+		select {
+		case <-ctx.Done():
+			// Context被取消，会话正在被清理
+			log.Printf("SSH session %s monitor stopped due to context cancellation", sessionID)
+			return
+		case err := <-done:
+			// SSH会话结束
+			if err != nil {
+				log.Printf("SSH session %s ended with error: %v", sessionID, err)
+				s.CloseSessionWithReason(sessionID, "SSH会话异常结束")
+			} else {
+				log.Printf("SSH session %s ended normally (user exit/logout)", sessionID)
+				s.CloseSessionWithReason(sessionID, "用户正常退出")
+			}
 		}
 	}()
 
@@ -307,34 +347,66 @@ func (s *SSHService) CreateSession(userID uint, request *SSHSessionRequest) (*SS
 	}
 
 	// 📝 记录会话到数据库（重要：这确保在线监控能看到会话）
-	go s.recordSessionToDB(session, asset, credential)
+	resources.AddCloseFunc("record-session-db", func() error {
+		// 这个函数会在资源清理时被调用
+		return nil
+	})
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			s.recordSessionToDB(session, asset, credential)
+		}
+	}()
 
 	// 记录会话开始到审计日志（统一使用审计服务）
 	clientIP := "127.0.0.1" // 这里需要从上下文中获取真实IP
-	go s.auditService.RecordSessionStart(
-		sessionID,
-		userID,
-		user.Username,
-		asset.ID,
-		asset.Name,
-		fmt.Sprintf("%s:%d", asset.Address, asset.Port),
-		credential.ID,
-		request.Protocol,
-		clientIP,
-	)
+	resources.AddCloseFunc("record-session-start", func() error {
+		// 这个函数会在资源清理时被调用
+		return nil
+	})
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			s.auditService.RecordSessionStart(
+				sessionID,
+				userID,
+				user.Username,
+				asset.ID,
+				asset.Name,
+				fmt.Sprintf("%s:%d", asset.Address, asset.Port),
+				credential.ID,
+				request.Protocol,
+				clientIP,
+			)
+		}
+	}()
 
 	// 更新操作审计记录的SessionID和ResourceID（补充中间件记录）
 	// 中间件已经记录了操作日志，这里需要更新完整的会话标识信息
 	resourceInfo := fmt.Sprintf("SSH连接到 %s (%s:%d) 使用凭证 %s", 
 		asset.Name, asset.Address, asset.Port, credential.Username)
-	go s.auditService.UpdateOperationLogWithResourceInfo(
-		userID,
-		"/api/v1/ssh/sessions",
-		sessionID,
-		asset.ID, // 设置resource_id为asset的ID
-		resourceInfo,
-		time.Now(),
-	)
+	resources.AddCloseFunc("update-operation-log", func() error {
+		return nil
+	})
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			s.auditService.UpdateOperationLogWithResourceInfo(
+				userID,
+				"/api/v1/ssh/sessions",
+				sessionID,
+				asset.ID, // 设置resource_id为asset的ID
+				resourceInfo,
+				time.Now(),
+			)
+		}
+	}()
 
 	return &SSHSessionResponse{
 		ID:         sessionID,
@@ -448,26 +520,58 @@ func (s *SSHService) CloseSessionWithReason(sessionID string, reason string) err
 	var user models.User
 	if err := s.db.Where("id = ?", session.UserID).First(&user).Error; err == nil {
 		// 记录会话结束到审计日志，包含关闭原因
-		go s.auditService.RecordSessionEnd(sessionID, reason)
+		if session.resources != nil {
+			session.resources.AddCloseFunc("record-session-end", func() error {
+				s.auditService.RecordSessionEnd(sessionID, reason)
+				return nil
+			})
+		} else {
+			// 兼容旧代码
+			go s.auditService.RecordSessionEnd(sessionID, reason)
+		}
 
 		// 记录操作日志
-		go s.auditService.RecordOperationLog(
-			session.UserID,
-			user.Username,
-			"127.0.0.1",
-			"DELETE",
-			fmt.Sprintf("/api/v1/ssh/sessions/%s", sessionID),
-			"delete",
-			"session",
-			0,
-			sessionID, // 记录关闭的会话ID
-			200,
-			"SSH session closed successfully",
-			nil,
-			nil,
-			0,
-			false, // isSystemOperation=false，SSH会话关闭是正常业务操作
-		)
+		if session.resources != nil {
+			session.resources.AddCloseFunc("record-operation-log", func() error {
+				s.auditService.RecordOperationLog(
+					session.UserID,
+					user.Username,
+					"127.0.0.1",
+					"DELETE",
+					fmt.Sprintf("/api/v1/ssh/sessions/%s", sessionID),
+					"delete",
+					"session",
+					0,
+					sessionID, // 记录关闭的会话ID
+					200,
+					"SSH session closed successfully",
+					nil,
+					nil,
+					0,
+					false, // isSystemOperation=false，SSH会话关闭是正常业务操作
+				)
+				return nil
+			})
+		} else {
+			// 兼容旧代码
+			go s.auditService.RecordOperationLog(
+				session.UserID,
+				user.Username,
+				"127.0.0.1",
+				"DELETE",
+				fmt.Sprintf("/api/v1/ssh/sessions/%s", sessionID),
+				"delete",
+				"session",
+				0,
+				sessionID, // 记录关闭的会话ID
+				200,
+				"SSH session closed successfully",
+				nil,
+				nil,
+				0,
+				false, // isSystemOperation=false，SSH会话关闭是正常业务操作
+			)
+		}
 	}
 
 	session.Close()
@@ -478,6 +582,11 @@ func (s *SSHService) CloseSessionWithReason(sessionID string, reason string) err
 
 // cleanupSessionFromAllSources 统一清理所有数据源中的会话
 func (s *SSHService) cleanupSessionFromAllSources(sessionID string) {
+	// 清理资源管理器
+	if s.resourceManager != nil {
+		s.resourceManager.RemoveSession(sessionID)
+	}
+	
 	// 🆕 首先清理超时配置
 	if s.timeoutService != nil {
 		if err := s.timeoutService.DeleteTimeout(sessionID); err != nil {
@@ -757,10 +866,16 @@ func (s *SSHService) WriteToSession(sessionID string, data []byte) error {
 	session.UpdatedAt = time.Now()
 	
 	// 🆕 更新超时管理服务中的活动时间
-	if s.timeoutService != nil {
+	if s.timeoutService != nil && session.resources != nil {
+		// 使用会话的context来控制goroutine
 		go func() {
-			if err := s.timeoutService.UpdateActivity(sessionID); err != nil {
-				logrus.WithError(err).WithField("session_id", sessionID).Debug("Failed to update session activity")
+			select {
+			case <-session.resources.Context().Done():
+				return
+			default:
+				if err := s.timeoutService.UpdateActivity(sessionID); err != nil {
+					logrus.WithError(err).WithField("session_id", sessionID).Debug("Failed to update session activity")
+				}
 			}
 		}()
 	}
@@ -918,14 +1033,21 @@ func (session *SSHSession) Close() {
 	session.Status = "closed"
 	session.UpdatedAt = time.Now()
 
-	if session.SessionConn != nil {
-		session.SessionConn.Close()
-		session.SessionConn = nil
-	}
+	// 使用资源管理器清理所有资源
+	if session.resources != nil {
+		session.resources.Close()
+		session.resources = nil
+	} else {
+		// 兼容旧代码，如果没有资源管理器则手动清理
+		if session.SessionConn != nil {
+			session.SessionConn.Close()
+			session.SessionConn = nil
+		}
 
-	if session.ClientConn != nil {
-		session.ClientConn.Close()
-		session.ClientConn = nil
+		if session.ClientConn != nil {
+			session.ClientConn.Close()
+			session.ClientConn = nil
+		}
 	}
 }
 
@@ -984,17 +1106,25 @@ func (s *SSHService) createDefaultTimeoutConfig(sessionID string) {
 		MaxExtensions:  3,                         // 默认最多延期3次
 	}
 	
-	go func() {
-		if _, err := s.timeoutService.CreateTimeout(req); err != nil {
-			logrus.WithError(err).WithField("session_id", sessionID).Debug("Failed to create default timeout config")
-		} else {
-			logrus.WithFields(logrus.Fields{
-				"session_id":       sessionID,
-				"timeout_minutes":  defaultTimeoutMinutes,
-				"policy":          models.TimeoutPolicyFixed,
-			}).Debug("Created default timeout configuration")
-		}
-	}()
+	// 获取会话来使用其context
+	if session, exists := s.sessions[sessionID]; exists && session.resources != nil {
+		go func() {
+			select {
+			case <-session.resources.Context().Done():
+				return
+			default:
+				if _, err := s.timeoutService.CreateTimeout(req); err != nil {
+					logrus.WithError(err).WithField("session_id", sessionID).Debug("Failed to create default timeout config")
+				} else {
+					logrus.WithFields(logrus.Fields{
+						"session_id":       sessionID,
+						"timeout_minutes":  defaultTimeoutMinutes,
+						"policy":          models.TimeoutPolicyFixed,
+					}).Debug("Created default timeout configuration")
+				}
+			}
+		}()
+	}
 }
 
 // handleSessionTimeout 处理会话超时回调
@@ -1010,10 +1140,25 @@ func (s *SSHService) handleSessionTimeout(sessionID string) {
 		s.sendTimeoutNotification(sessionID)
 		
 		// 执行会话清理
-		go func() {
-			time.Sleep(5 * time.Second) // 给前端5秒时间显示超时消息
-			s.cleanupSessionFromAllSources(sessionID)
-		}()
+		if session.resources != nil {
+			go func() {
+				timer := time.NewTimer(5 * time.Second)
+				defer timer.Stop()
+				
+				select {
+				case <-session.resources.Context().Done():
+					return
+				case <-timer.C:
+					s.cleanupSessionFromAllSources(sessionID)
+				}
+			}()
+		} else {
+			// 如果没有资源管理器，直接调度清理
+			go func() {
+				time.Sleep(5 * time.Second)
+				s.cleanupSessionFromAllSources(sessionID)
+			}()
+		}
 	} else {
 		// 会话在内存中不存在，直接清理数据库和Redis
 		s.forceCleanupSession(sessionID, time.Now())

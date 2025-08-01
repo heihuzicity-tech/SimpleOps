@@ -251,7 +251,7 @@ const OnlineSessionsTable: React.FC<OnlineSessionsTableProps> = ({ className }) 
       lineHeight: 1.3,
       cursorBlink: false,
       allowTransparency: false,
-      scrollback: 5000,
+      scrollback: 1000,
       disableStdin: true,
       rows: 28, // 减少行数为底部留出空间
       cols: 120,

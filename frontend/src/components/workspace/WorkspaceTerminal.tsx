@@ -142,6 +142,7 @@ const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
       lineHeight: 1.4, // 增加行高，提升可读性
       cursorBlink: true,
       allowTransparency: true,
+      scrollback: 1000, // 统一限制scrollback为1000行
       rows: 20, // 减少到20行，为底部留出空间
       cols: 80
     });

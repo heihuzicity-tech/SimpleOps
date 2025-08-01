@@ -21,8 +21,8 @@ import (
 type SSHController struct {
 	sshService *services.SSHService
 	upgrader   websocket.Upgrader
-	cmdBuffer  map[string]string // sessionID -> 当前输入缓冲区
-	cmdMutex   sync.RWMutex      // 命令缓冲区锁
+	cmdBuffer  map[string]*utils.CircularBuffer // sessionID -> 循环缓冲区
+	cmdMutex   sync.RWMutex                    // 命令缓冲区锁
 }
 
 // WebSocketMessage WebSocket消息结构
@@ -53,11 +53,13 @@ type WebSocketConnection struct {
 	isActive     bool      // 连接是否活跃
 }
 
+const MaxCommandBufferSize = 4096 // 4KB命令缓冲区限制
+
 // NewSSHController 创建SSH控制器实例
 func NewSSHController(sshService *services.SSHService) *SSHController {
 	return &SSHController{
 		sshService: sshService,
-		cmdBuffer:  make(map[string]string),
+		cmdBuffer:  make(map[string]*utils.CircularBuffer),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				// 在生产环境中应该检查Origin
@@ -1410,8 +1412,11 @@ func (sc *SSHController) updateCommandBuffer(sessionID, input string) {
 	sc.cmdMutex.Lock()
 	defer sc.cmdMutex.Unlock()
 	
-	if sc.cmdBuffer == nil {
-		sc.cmdBuffer = make(map[string]string)
+	// 获取或创建会话的循环缓冲区
+	buffer, exists := sc.cmdBuffer[sessionID]
+	if !exists {
+		buffer = utils.NewCircularBuffer(MaxCommandBufferSize)
+		sc.cmdBuffer[sessionID] = buffer
 	}
 	
 	// 如果是回车，不要立即清空缓冲区，等命令检查完成后再清空
@@ -1421,20 +1426,23 @@ func (sc *SSHController) updateCommandBuffer(sessionID, input string) {
 	
 	// 如果是退格键，删除最后一个字符
 	if input == "\b" || input == "\x7f" {
-		if current, exists := sc.cmdBuffer[sessionID]; exists && len(current) > 0 {
-			sc.cmdBuffer[sessionID] = current[:len(current)-1]
-		}
+		buffer.RemoveLast()
 		return
 	}
 	
 	// 如果是Ctrl+C或其他控制字符，清空缓冲区
 	if len(input) == 1 && (input[0] < 32 && input[0] != 9) { // 非打印字符（除了Tab）
-		delete(sc.cmdBuffer, sessionID)
+		buffer.Clear()
 		return
 	}
 	
 	// 累积普通字符
-	sc.cmdBuffer[sessionID] += input
+	buffer.WriteString(input)
+	
+	// 如果缓冲区满了，记录警告
+	if buffer.IsFull() {
+		log.Printf("[WARN] Command buffer full for session %s, old data will be overwritten", sessionID)
+	}
 }
 
 // getCommandFromBuffer 从缓冲区获取命令
@@ -1446,7 +1454,12 @@ func (sc *SSHController) getCommandFromBuffer(sessionID string) string {
 		return ""
 	}
 	
-	return sc.cmdBuffer[sessionID]
+	buffer, exists := sc.cmdBuffer[sessionID]
+	if !exists {
+		return ""
+	}
+	
+	return buffer.String()
 }
 
 // clearCommandBuffer 清空指定会话的命令缓冲区
