@@ -8,6 +8,7 @@ import { AppDispatch } from '../../store';
 import { setConnectionStatus, updateSessionStatus } from '../../store/sshSessionSlice';
 import { sshAPI } from '../../services/sshAPI';
 import { WSMessage, ConnectionStatus } from '../../types/ssh';
+import { InputAggregator } from '../../utils/InputAggregator';
 import '@xterm/xterm/css/xterm.css';
 
 // const { Text } = Typography; // 暂时未使用
@@ -29,6 +30,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
   const terminal = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
   const websocket = useRef<WebSocket | null>(null);
+  const inputAggregator = useRef<InputAggregator | null>(null);
   const dispatch = useDispatch<AppDispatch>();
   
   const [connectionStatus, setLocalConnectionStatus] = useState<ConnectionStatus>('disconnected');
@@ -90,14 +92,21 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
         }
       }, 10);
 
-      // 监听数据输入
-      terminal.current.onData((data) => {
+      // 创建输入聚合器
+      inputAggregator.current = new InputAggregator((aggregatedData) => {
         if (websocket.current?.readyState === WebSocket.OPEN) {
           const message: WSMessage = {
             type: 'input',
-            data: data,
+            data: aggregatedData,
           };
           websocket.current.send(JSON.stringify(message));
+        }
+      }, 50); // 50ms延迟
+
+      // 监听数据输入 - 使用输入聚合器
+      terminal.current.onData((data) => {
+        if (inputAggregator.current) {
+          inputAggregator.current.add(data);
         }
       });
 
@@ -285,6 +294,11 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
         setIsConnecting(false);
         updateConnectionStatus('disconnected');
         
+        // Flush输入聚合器的缓冲区
+        if (inputAggregator.current) {
+          inputAggregator.current.flush();
+        }
+        
         // ✅ 修复：检查关闭原因，避免组件卸载时的重连
         const isNormalClose = event.code === 1000 || event.code === 1001;
         const isComponentUnmounting = event.reason === 'Component unmounting';
@@ -425,6 +439,10 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
       console.log('Cleaning up WebTerminal component...');
       
       // 清理资源
+      if (inputAggregator.current) {
+        inputAggregator.current.dispose();
+        inputAggregator.current = null;
+      }
       if (websocket.current) {
         websocket.current.close(1000, 'Component unmounting');
         websocket.current = null;
