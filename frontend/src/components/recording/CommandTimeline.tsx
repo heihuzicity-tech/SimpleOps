@@ -10,12 +10,37 @@ import {
 } from '@ant-design/icons';
 import { RecordingResponse } from '../../services/recordingAPI';
 
-// 添加CSS动画
+// 添加CSS动画和滚动条样式
 const style = document.createElement('style');
 style.textContent = `
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+  
+  /* 自定义滚动条样式 */
+  .command-list-container::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .command-list-container::-webkit-scrollbar-track {
+    background: #2d2d2d;
+    border-radius: 4px;
+  }
+  
+  .command-list-container::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+  }
+  
+  .command-list-container::-webkit-scrollbar-thumb:hover {
+    background: #666;
+  }
+  
+  /* Firefox滚动条样式 */
+  .command-list-container {
+    scrollbar-width: thin;
+    scrollbar-color: #555 #2d2d2d;
   }
 `;
 document.head.appendChild(style);
@@ -230,6 +255,7 @@ const CommandTimeline: React.FC<CommandTimelineProps> = ({
         border: '1px solid #404040',
         borderRadius: '2px',
         boxShadow: 'none',
+        minHeight: 0,  // 允许flex子元素正确收缩
       }}
       headStyle={{
         backgroundColor: '#3d3d3d',
@@ -252,7 +278,13 @@ const CommandTimeline: React.FC<CommandTimelineProps> = ({
       }}
     >
       {/* 命令时间轴列表 */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div 
+        className="command-list-container"
+        style={{ 
+          flex: 1, 
+          overflow: 'auto',
+          minHeight: 0,  // 关键：允许容器在flex布局中正确收缩
+        }}>
         {loading ? (
           <div style={{ 
             textAlign: 'center', 

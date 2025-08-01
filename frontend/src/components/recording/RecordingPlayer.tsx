@@ -439,8 +439,20 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscre
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Row gutter={isFullscreen ? 4 : 8} style={{ flex: 1, minHeight: 0, alignItems: 'stretch' }}>
+    <div style={{ 
+      width: '100%', 
+      height: isFullscreen ? '100%' : 'calc(85vh - 32px)',  // 全屏时100%，非全屏时固定高度
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden'   // 防止内容溢出
+    }}>
+      <Row gutter={isFullscreen ? 4 : 8} style={{ 
+        flex: 1, 
+        minHeight: 0, 
+        alignItems: 'stretch',
+        display: 'flex',
+        overflow: 'hidden'  // 防止内容溢出
+      }}>
         {/* 左侧播放器 */}
         <Col span={isFullscreen ? 19 : 17} style={{ display: 'flex', flexDirection: 'column' }}>
           {/* 播放器容器 */}
@@ -569,7 +581,12 @@ const RecordingPlayer: React.FC<RecordingPlayerProps> = ({ recording, onFullscre
         </Col>
 
         {/* 右侧命令时间轴 */}
-        <Col span={isFullscreen ? 5 : 7} style={{ display: 'flex', flexDirection: 'column' }}>
+        <Col span={isFullscreen ? 5 : 7} style={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          height: '100%',  // 确保Col占满高度
+          minHeight: 0,    // 允许flex收缩
+        }}>
           <CommandTimeline
             recording={recording}
             recordingData={recordingData}
