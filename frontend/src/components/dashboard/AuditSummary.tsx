@@ -93,4 +93,4 @@ const AuditSummary: React.FC<AuditSummaryProps> = ({ summary, loading }) => {
   );
 };
 
-export default AuditSummary;
+export default React.memo(AuditSummary);

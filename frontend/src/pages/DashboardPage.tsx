@@ -1,16 +1,31 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, useCallback } from 'react';
 import { Layout, Row, Col, Card, Spin, Alert, Space } from 'antd';
 import { SyncOutlined } from '@ant-design/icons';
 import { useAppDispatch, useAppSelector } from '../hooks';
 import { fetchDashboardData } from '../store/dashboardSlice';
-import StatsCards from '../components/dashboard/StatsCards';
-import RecentLoginTable from '../components/dashboard/RecentLoginTable';
-import HostDistributionChart from '../components/dashboard/HostDistributionChart';
-import AuditSummary from '../components/dashboard/AuditSummary';
-import QuickAccessList from '../components/dashboard/QuickAccessList';
+import ErrorBoundary from '../components/ErrorBoundary';
 import './DashboardPage.css';
 
+// 懒加载组件
+const StatsCards = React.lazy(() => import('../components/dashboard/StatsCards'));
+const RecentLoginTable = React.lazy(() => import('../components/dashboard/RecentLoginTable'));
+const HostDistributionChart = React.lazy(() => import('../components/dashboard/HostDistributionChart'));
+const AuditSummary = React.lazy(() => import('../components/dashboard/AuditSummary'));
+const QuickAccessList = React.lazy(() => import('../components/dashboard/QuickAccessList'));
+
 const { Content } = Layout;
+
+// 组件加载时的占位组件
+const ComponentLoader: React.FC = () => (
+  <div style={{ 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    minHeight: 100 
+  }}>
+    <Spin />
+  </div>
+);
 
 const DashboardPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -27,9 +42,9 @@ const DashboardPage: React.FC = () => {
   }, [dispatch]);
 
   // 手动刷新
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     dispatch(fetchDashboardData());
-  };
+  }, [dispatch]);
 
   if (loading && !data) {
     return (
@@ -60,7 +75,8 @@ const DashboardPage: React.FC = () => {
   }
 
   return (
-    <Content className="dashboard-page">
+    <ErrorBoundary>
+      <Content className="dashboard-page">
       <div className="dashboard-header">
         <h1>堡垒机仪表盘</h1>
         <div className="dashboard-actions">
@@ -76,7 +92,9 @@ const DashboardPage: React.FC = () => {
       </div>
 
       {/* 统计卡片 */}
-      <StatsCards stats={data?.stats || null} loading={loading} />
+      <Suspense fallback={<ComponentLoader />}>
+        <StatsCards stats={data?.stats || null} loading={loading} />
+      </Suspense>
 
       {/* 主要内容区域 */}
       <Row gutter={24} className="dashboard-content">
@@ -85,10 +103,12 @@ const DashboardPage: React.FC = () => {
             title="最近登录历史" 
             className="content-card"
           >
-            <RecentLoginTable 
-              recentLogins={data?.recent_logins || []} 
-              loading={loading}
-            />
+            <Suspense fallback={<ComponentLoader />}>
+              <RecentLoginTable 
+                recentLogins={data?.recent_logins || []} 
+                loading={loading}
+              />
+            </Suspense>
           </Card>
         </Col>
         <Col span={8}>
@@ -96,10 +116,12 @@ const DashboardPage: React.FC = () => {
             title="主机分组分布" 
             className="content-card"
           >
-            <HostDistributionChart 
-              distribution={data?.host_distribution || []} 
-              loading={loading}
-            />
+            <Suspense fallback={<ComponentLoader />}>
+              <HostDistributionChart 
+                distribution={data?.host_distribution || []} 
+                loading={loading}
+              />
+            </Suspense>
           </Card>
         </Col>
       </Row>
@@ -111,10 +133,12 @@ const DashboardPage: React.FC = () => {
             title="审计统计概览" 
             className="content-card"
           >
-            <AuditSummary 
-              summary={data?.audit_summary || null} 
-              loading={loading}
-            />
+            <Suspense fallback={<ComponentLoader />}>
+              <AuditSummary 
+                summary={data?.audit_summary || null} 
+                loading={loading}
+              />
+            </Suspense>
           </Card>
         </Col>
         <Col span={12}>
@@ -122,14 +146,17 @@ const DashboardPage: React.FC = () => {
             title="我的主机 - 快速访问" 
             className="content-card"
           >
-            <QuickAccessList 
-              hosts={data?.quick_access || []} 
-              loading={loading}
-            />
+            <Suspense fallback={<ComponentLoader />}>
+              <QuickAccessList 
+                hosts={data?.quick_access || []} 
+                loading={loading}
+              />
+            </Suspense>
           </Card>
         </Col>
       </Row>
     </Content>
+    </ErrorBoundary>
   );
 };
 

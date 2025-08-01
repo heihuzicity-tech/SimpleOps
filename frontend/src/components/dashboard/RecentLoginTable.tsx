@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Table, Tag, Space } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import { RecentLogin } from '../../store/dashboardSlice';
@@ -22,7 +22,7 @@ const RecentLoginTable: React.FC<RecentLoginTableProps> = ({ recentLogins, loadi
     return `${hours}小时${minutes > 0 ? minutes + '分' : ''}`;
   };
 
-  const columns: ColumnsType<RecentLogin> = [
+  const columns: ColumnsType<RecentLogin> = useMemo(() => [
     {
       title: '登录用户',
       dataIndex: 'username',
@@ -69,7 +69,7 @@ const RecentLoginTable: React.FC<RecentLoginTableProps> = ({ recentLogins, loadi
         );
       },
     },
-  ];
+  ], []);
 
   return (
     <Table
@@ -88,4 +88,4 @@ const RecentLoginTable: React.FC<RecentLoginTableProps> = ({ recentLogins, loadi
   );
 };
 
-export default RecentLoginTable;
+export default React.memo(RecentLoginTable);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { List, Button, Space, Tag, Empty, message, Skeleton } from 'antd';
 import { LinkOutlined, DesktopOutlined } from '@ant-design/icons';
 import { QuickAccessHost } from '../../store/dashboardSlice';
@@ -13,7 +13,7 @@ interface QuickAccessListProps {
 const QuickAccessList: React.FC<QuickAccessListProps> = ({ hosts, loading }) => {
   const navigate = useNavigate();
 
-  const handleConnect = (host: QuickAccessHost) => {
+  const handleConnect = useCallback((host: QuickAccessHost) => {
     // 导航到连接页面
     message.info(`正在连接到 ${host.name}...`);
     // 实际连接逻辑应该通过创建会话API
@@ -23,7 +23,7 @@ const QuickAccessList: React.FC<QuickAccessListProps> = ({ hosts, loading }) => 
         credentialId: host.credential_id 
       } 
     });
-  };
+  }, [navigate]);
 
   if (loading) {
     return (
@@ -93,4 +93,4 @@ const QuickAccessList: React.FC<QuickAccessListProps> = ({ hosts, loading }) => 
   );
 };
 
-export default QuickAccessList;
+export default React.memo(QuickAccessList);

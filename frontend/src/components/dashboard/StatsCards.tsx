@@ -91,4 +91,4 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, loading }) => {
   );
 };
 
-export default StatsCards;
+export default React.memo(StatsCards);

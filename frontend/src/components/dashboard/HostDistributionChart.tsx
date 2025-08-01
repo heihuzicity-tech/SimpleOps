@@ -127,4 +127,4 @@ const HostDistributionChart: React.FC<HostDistributionChartProps> = ({ distribut
   );
 };
 
-export default HostDistributionChart;
+export default React.memo(HostDistributionChart);
