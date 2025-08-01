@@ -218,6 +218,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     let selectedKeys = [currentPath];
     let openKeys: string[] = [];
 
+    // 如果是根路径，选中仪表盘
+    if (currentPath === '/') {
+      selectedKeys = ['/dashboard'];
+    }
+
     // 如果是审计子页面，需要展开审计菜单
     if (currentPath.startsWith('/audit/')) {
       openKeys = ['/audit'];
@@ -262,9 +267,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         alignItems: 'center', 
         height: '100vh' 
       }}>
-        <Spin size="large" tip="加载中...">
-          <div />
-        </Spin>
+        <Spin size="large" />
       </div>
     );
   }

@@ -92,7 +92,7 @@ const initialState: DashboardState = {
   loading: false,
   error: null,
   lastFetchTime: null,
-  autoRefreshEnabled: true,
+  autoRefreshEnabled: false, // 禁用自动刷新
   refreshInterval: 30, // 默认30秒刷新
 };
 

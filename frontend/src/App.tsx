@@ -6,6 +6,7 @@ import { RootState } from './store';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './components/DashboardLayout';
 import PermissionGuard from './components/PermissionGuard';
+import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
 import AssetsPage from './pages/AssetsPage';
 import CredentialsPage from './pages/CredentialsPage';
@@ -24,8 +25,6 @@ import TerminalPage from './pages/connect/TerminalPage';
 import WorkspaceStandalone from './pages/connect/WorkspaceStandalone';
 import CompactHostListTest from './pages/test/CompactHostListTest';
 import CommandFilterPage from './pages/AccessControl/CommandFilterPage';
-
-const { Content } = Layout;
 
 // 配置全局消息
 message.config({
@@ -190,23 +189,6 @@ const App: React.FC = () => {
         />
       </Routes>
     </div>
-  );
-};
-
-// 临时的仪表板页面
-const DashboardPage: React.FC = () => {
-  return (
-    <Content style={{ padding: '24px' }}>
-      <div style={{ 
-        background: '#fff', 
-        padding: '24px', 
-        borderRadius: '8px',
-        textAlign: 'center' 
-      }}>
-        <h1>欢迎使用运维堡垒机系统</h1>
-        <p>请选择左侧菜单进行操作</p>
-      </div>
-    </Content>
   );
 };
 

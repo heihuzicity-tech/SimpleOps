@@ -121,11 +121,12 @@ func (s *DashboardService) getUserStats(stats *models.DashboardStats) error {
 	}
 	stats.Users.Total = int(totalUsers)
 
-	// 在线用户数（根据最近活动时间判断）
+	// 在线用户数（根据最近登录记录判断）
 	var onlineUsers int64
 	thirtyMinutesAgo := time.Now().Add(-30 * time.Minute)
-	if err := s.db.Model(&models.User{}).
-		Where("last_login_at > ?", thirtyMinutesAgo).
+	if err := s.db.Model(&models.LoginLog{}).
+		Where("created_at > ? AND status = ?", thirtyMinutesAgo, "success").
+		Group("user_id").
 		Count(&onlineUsers).Error; err != nil {
 		return err
 	}

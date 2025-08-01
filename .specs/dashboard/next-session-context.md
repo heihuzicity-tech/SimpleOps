@@ -10,20 +10,36 @@ git status  # 当前在 feature/dashboard 分支
 我们正在为堡垒机系统开发仪表盘功能。目前已完成：
 1. **后端API开发** - 100% 完成，已提交到Git
 2. **前端环境准备** - 100% 完成（Redux状态管理、API服务、图表库安装）
-3. **总体进度** - 约40% 完成
+3. **前端核心组件** - 100% 完成（所有6个组件已创建并集成）
+4. **总体进度** - 约65% 完成
+
+## 本次会话完成的工作
+1. ✅ 创建了DashboardPage主组件及其样式
+2. ✅ 实现了6个子组件：
+   - StatsCards - 统计卡片
+   - RecentLoginTable - 最近登录表格
+   - HostDistributionChart - 主机分布图表
+   - AuditSummary - 审计统计概览
+   - QuickAccessList - 快速访问列表
+3. ✅ 修复了编译错误：
+   - 安装了moment依赖
+   - 修复了TypeScript类型错误
+   - 清理了未使用的导入
+4. ✅ 前端服务已成功启动并可访问
 
 ## 下次会话任务
-需要开始前端核心组件开发，第一个任务是创建仪表盘页面主组件：
+主要任务是完成剩余的优化和测试工作：
 
 ```bash
 # 使用 Kiro 命令继续开发
-/kiro next  # 将自动开始任务 3.1：创建仪表盘页面主组件
+/kiro next  # 将继续下一个待完成任务
 ```
 
-或直接执行特定任务：
-```bash
-/kiro exec 3.1  # 创建 DashboardPage.tsx
-```
+具体待完成任务：
+1. 更新导航菜单（确保仪表盘菜单项正确配置）
+2. 实现30秒自动刷新机制的完善
+3. 性能优化和响应式布局测试
+4. 编写测试用例
 
 ## 关键文件位置
 ### 已完成的文件
@@ -78,6 +94,29 @@ git status  # 当前在 feature/dashboard 分支
   ```
 
 ## 快速启动开发环境
+
+### 使用manage.sh脚本（推荐）
+```bash
+cd /Users/skip/workspace/bastion
+
+# 查看服务状态
+./manage.sh status
+
+# 启动所有服务
+./manage.sh start
+
+# 仅启动后端
+./manage.sh start backend
+
+# 仅启动前端
+./manage.sh start frontend
+
+# 查看日志
+./manage.sh logs backend
+./manage.sh logs frontend
+```
+
+### 手动启动（备选）
 ```bash
 # 终端1 - 启动后端
 cd backend
@@ -87,6 +126,11 @@ go run main.go
 cd frontend
 npm start
 ```
+
+### 访问地址
+- 前端界面：http://localhost:3000
+- 仪表盘页面：http://localhost:3000/dashboard
+- 后端API：http://localhost:8080
 
 ## 问题排查
 如果遇到问题：

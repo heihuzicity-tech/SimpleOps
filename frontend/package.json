@@ -5,6 +5,7 @@
   "description": "运维堡垒机系统前端界面",
   "dependencies": {
     "@reduxjs/toolkit": "^1.9.7",
+    "@types/moment": "^2.11.29",
     "@types/node": "^16.18.0",
     "@types/react": "^18.2.33",
     "@types/react-dom": "^18.2.14",
@@ -15,6 +16,7 @@
     "antd": "^5.11.0",
     "axios": "^1.6.0",
     "immer": "^10.1.1",
+    "moment": "^2.30.1",
     "nanoid": "^5.1.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

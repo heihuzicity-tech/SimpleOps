@@ -1,0 +1,39 @@
+.audit-summary {
+  width: 100%;
+}
+
+.audit-item {
+  padding: 16px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.audit-item:hover {
+  transform: translateX(4px);
+}
+
+.audit-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.audit-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.audit-value {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.audit-label {
+  font-size: 14px;
+  color: #8c8c8c;
+  margin-top: 4px;
+}
