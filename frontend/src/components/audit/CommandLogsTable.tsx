@@ -53,6 +53,10 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
   const [currentRecording, setCurrentRecording] = useState<RecordingResponse | null>(null);
   const [loadingRecording, setLoadingRecording] = useState(false);
   
+  // 批量选择状态
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchDeleting, setBatchDeleting] = useState(false);
+  
 
   // 获取命令日志列表
   const fetchCommandLogs = useCallback(async (params: CommandLogListParams = {}) => {
@@ -160,6 +164,34 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
     setPagination({ ...pagination, current: 1 });
     fetchCommandLogs({});
   };
+
+  // 批量删除处理
+  const handleBatchDelete = useCallback(async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请选择要删除的命令记录');
+      return;
+    }
+    
+    setBatchDeleting(true);
+    try {
+      const ids = selectedRowKeys.map(key => Number(key));
+      const reason = '批量删除操作';
+      const response = await AuditAPI.batchDeleteCommandLogs(ids, reason);
+      
+      if (response.success && response.data) {
+        setSelectedRowKeys([]);
+        fetchCommandLogs();
+        message.success(`成功删除 ${response.data.deleted_count} 个命令记录`);
+      } else {
+        message.error('批量删除失败');
+      }
+    } catch (error) {
+      console.error('批量删除失败:', error);
+      message.error('批量删除失败');
+    } finally {
+      setBatchDeleting(false);
+    }
+  }, [selectedRowKeys, fetchCommandLogs]);
 
 
 
@@ -318,6 +350,11 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
           rowKey="id"
           loading={loading}
           size="small"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+            preserveSelectedRowKeys: true,
+          }}
           pagination={{
             current: pagination.current,
             pageSize: pagination.pageSize,
@@ -331,6 +368,38 @@ const CommandLogsTable: React.FC<CommandLogsTableProps> = ({ className }) => {
           }}
           scroll={{ x: 'max-content' }}
         />
+        
+        {/* 批量删除按钮 - 与分页器保持同一水平高度 */}
+        <div style={{ 
+          marginTop: -40, 
+          display: 'flex', 
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          height: '32px'
+        }}>
+          <Popconfirm
+            title={`确定要删除这 ${selectedRowKeys.length} 个命令记录吗？`}
+            onConfirm={handleBatchDelete}
+            okText="确定"
+            cancelText="取消"
+            disabled={selectedRowKeys.length === 0}
+          >
+            <Button 
+              danger 
+              icon={<DeleteOutlined />}
+              loading={batchDeleting}
+              disabled={selectedRowKeys.length === 0}
+              title={selectedRowKeys.length === 0 ? "请先选择要删除的命令记录" : `删除选中的 ${selectedRowKeys.length} 个命令记录`}
+            >
+              批量删除 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            </Button>
+          </Popconfirm>
+          {selectedRowKeys.length > 0 && (
+            <span style={{ marginLeft: 12, color: '#666' }}>
+              已选择 {selectedRowKeys.length} 个命令记录
+            </span>
+          )}
+        </div>
       </Card>
 
 

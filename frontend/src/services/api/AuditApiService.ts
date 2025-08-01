@@ -123,6 +123,14 @@ export class AuditApiService extends BaseApiService {
     };
   }
 
+  async batchDeleteCommandLogs(request: BatchDeleteRequest): Promise<{ success: boolean; data: { deleted_count: number } }> {
+    const data = await this.post<{ deleted_count: number }>('/command-logs/batch-delete', request);
+    return {
+      success: true,
+      data
+    };
+  }
+
 
   // ==================== 统计数据 ====================
   async getAuditStatistics(): Promise<{ success: boolean; data: AuditStatistics }> {
@@ -212,6 +220,7 @@ export const deleteSessionRecord = (sessionId: string) => auditApiService.delete
 export const batchDeleteSessionRecords = (request: BatchDeleteRequest) => auditApiService.batchDeleteSessionRecords(request);
 export const getCommandLogs = (params?: CommandLogListParams) => auditApiService.getCommandLogs(params);
 export const getCommandLog = (id: number) => auditApiService.getCommandLog(id);
+export const batchDeleteCommandLogs = (request: BatchDeleteRequest) => auditApiService.batchDeleteCommandLogs(request);
 export const getAuditStatistics = () => auditApiService.getAuditStatistics();
 export const cleanupAuditLogs = () => auditApiService.cleanupAuditLogs();
 export const getActiveSessions = (params?: SessionRecordListParams) => auditApiService.getActiveSessions(params);

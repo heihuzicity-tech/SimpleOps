@@ -502,3 +502,59 @@ func (ac *AuditController) BatchDeleteOperationLogs(c *gin.Context) {
 	})
 }
 
+// BatchDeleteCommandLogs 批量删除命令日志
+// @Summary      批量删除命令日志
+// @Description  批量删除指定的命令日志
+// @Tags         审计管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body  object  true  "批量删除请求"
+// @Success      200  {object}  map[string]interface{}  "删除成功"
+// @Failure      400  {object}  map[string]interface{}  "请求参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Failure      500  {object}  map[string]interface{}  "服务器错误"
+// @Router       /audit/command-logs/batch-delete [post]
+func (ac *AuditController) BatchDeleteCommandLogs(c *gin.Context) {
+	var req struct {
+		IDs    []uint `json:"ids" binding:"required,min=1"`
+		Reason string `json:"reason" binding:"required,max=200"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.RespondWithValidationError(c, "Invalid request parameters")
+		return
+	}
+
+	if len(req.IDs) == 0 {
+		utils.RespondWithValidationError(c, "Command log IDs cannot be empty")
+		return
+	}
+
+	// 获取当前用户信息（用于审计日志）
+	userInterface, exists := c.Get("user")
+	if !exists {
+		utils.RespondWithUnauthorized(c, "User not found")
+		return
+	}
+
+	user := userInterface.(*models.User)
+
+	// 检查权限（只有管理员可以删除命令日志）
+	if !user.HasRole("admin") {
+		utils.RespondWithForbidden(c, "Permission denied")
+		return
+	}
+
+	// 执行批量删除操作
+	deletedCount, err := ac.auditService.BatchDeleteCommandLogs(req.IDs, user.Username, c.ClientIP(), req.Reason)
+	if err != nil {
+		utils.RespondWithError(c, http.StatusInternalServerError, "批量删除失败")
+		return
+	}
+
+	utils.RespondWithData(c, gin.H{
+		"deleted_count": deletedCount,
+	})
+}
+

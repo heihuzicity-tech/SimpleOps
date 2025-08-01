@@ -1088,3 +1088,58 @@ func (a *AuditService) BatchDeleteOperationLogs(ids []uint, username, ip, reason
 
 	return nil
 }
+
+// BatchDeleteCommandLogs 批量删除命令日志
+func (a *AuditService) BatchDeleteCommandLogs(ids []uint, username, ip, reason string) (int, error) {
+	if len(ids) == 0 {
+		return 0, fmt.Errorf("command log IDs cannot be empty")
+	}
+
+	// 检查所有命令日志是否存在
+	var existingLogs []models.CommandLog
+	if err := a.db.Where("id IN ?", ids).Find(&existingLogs).Error; err != nil {
+		logrus.WithError(err).Error("Failed to find command logs")
+		return 0, err
+	}
+
+	if len(existingLogs) == 0 {
+		return 0, fmt.Errorf("no command logs found")
+	}
+
+	// 批量删除命令日志（物理删除）
+	result := a.db.Unscoped().Where("id IN ?", ids).Delete(&models.CommandLog{})
+	if result.Error != nil {
+		logrus.WithError(result.Error).Error("Failed to batch delete command logs")
+		return 0, result.Error
+	}
+
+	deletedCount := int(result.RowsAffected)
+
+	// 记录批量删除操作到操作日志
+	auditLog := &models.OperationLog{
+		UserID:   0, // 系统记录，不关联具体用户ID
+		Username: username,
+		IP:       ip,
+		Method:   "POST",
+		URL:      "/api/audit/command-logs/batch-delete",
+		Action:   "delete",
+		Resource: "command_log",
+		Status:   200,
+		Message:  fmt.Sprintf("批量删除了 %d 条命令日志，原因：%s", deletedCount, reason),
+		Duration: 0,
+	}
+	
+	if err := a.db.Create(auditLog).Error; err != nil {
+		logrus.WithError(err).Error("Failed to create audit log for batch delete command logs")
+		// 不影响主要操作
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"command_log_ids": ids,
+		"deleted_count":   deletedCount,
+		"username":        username,
+		"reason":          reason,
+	}).Info("Command logs batch deleted")
+
+	return deletedCount, nil
+}

@@ -23,7 +23,7 @@ func NewAuthService(db *gorm.DB) *AuthService {
 func (s *AuthService) Login(request *models.UserLoginRequest) (*utils.TokenResponse, error) {
 	// 根据用户名查找用户
 	var user models.User
-	if err := s.db.Preload("Roles").Where("username = ?", request.Username).First(&user).Error; err != nil {
+	if err := s.db.Preload("Roles.Permissions").Where("username = ?", request.Username).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("invalid username or password")
 		}
@@ -67,7 +67,8 @@ func (s *AuthService) RefreshToken(tokenString string) (*utils.TokenResponse, er
 // GetProfile 获取用户资料
 func (s *AuthService) GetProfile(userID uint) (*models.UserResponse, error) {
 	var user models.User
-	if err := s.db.Preload("Roles").Where("id = ?", userID).First(&user).Error; err != nil {
+	// 预加载Roles和Permissions以便计算用户权限
+	if err := s.db.Preload("Roles.Permissions").Where("id = ?", userID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user not found")
 		}

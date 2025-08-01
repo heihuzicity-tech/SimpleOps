@@ -213,6 +213,7 @@ func SetupRouter() *gin.Engine {
 				// 命令日志
 				audit.GET("/command-logs", auditController.GetCommandLogs)
 				audit.GET("/command-logs/:id", auditController.GetCommandLog)
+				audit.POST("/command-logs/batch-delete", middleware.RequirePermission("audit:delete"), auditController.BatchDeleteCommandLogs)
 
 				// 统计数据
 				audit.GET("/statistics", auditController.GetAuditStatistics)

@@ -282,6 +282,11 @@ export class AuditAPI {
   static async batchDeleteOperationLogs(ids: number[], reason: string) {
     return await auditApiService.batchDeleteOperationLogs({ ids, reason });
   }
+
+  // 批量删除命令日志
+  static async batchDeleteCommandLogs(ids: number[], reason: string) {
+    return await auditApiService.batchDeleteCommandLogs({ ids, reason });
+  }
 }
 
 export default AuditAPI;

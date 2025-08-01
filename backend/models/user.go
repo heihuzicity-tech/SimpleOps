@@ -101,14 +101,15 @@ type UserLoginRequest struct {
 
 // UserResponse 用户响应
 type UserResponse struct {
-	ID        uint      `json:"id"`
-	Username  string    `json:"username"`
-	Email     string    `json:"email"`
-	Phone     string    `json:"phone"`
-	Status    int       `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Roles     []Role    `json:"roles"`
+	ID          uint      `json:"id"`
+	Username    string    `json:"username"`
+	Email       string    `json:"email"`
+	Phone       string    `json:"phone"`
+	Status      int       `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Roles       []Role    `json:"roles"`
+	Permissions []string  `json:"permissions"` // 添加permissions字段
 }
 
 // PasswordChangeRequest 密码修改请求
@@ -171,15 +172,35 @@ func (RolePermission) TableName() string {
 
 // ToResponse 转换为响应格式
 func (u *User) ToResponse() *UserResponse {
+	// 安全计算用户的所有权限（检查是否预加载）
+	permissionSet := make(map[string]bool)
+	if u.Roles != nil {
+		for _, role := range u.Roles {
+			// 检查Permissions是否被预加载
+			if role.Permissions != nil {
+				for _, permission := range role.Permissions {
+					permissionSet[permission.Name] = true
+				}
+			}
+		}
+	}
+	
+	// 转换为slice
+	permissions := make([]string, 0, len(permissionSet))
+	for permission := range permissionSet {
+		permissions = append(permissions, permission)
+	}
+	
 	return &UserResponse{
-		ID:        u.ID,
-		Username:  u.Username,
-		Email:     u.Email,
-		Phone:     u.Phone,
-		Status:    u.Status,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
-		Roles:     u.Roles,
+		ID:          u.ID,
+		Username:    u.Username,
+		Email:       u.Email,
+		Phone:       u.Phone,
+		Status:      u.Status,
+		CreatedAt:   u.CreatedAt,
+		UpdatedAt:   u.UpdatedAt,
+		Roles:       u.Roles,
+		Permissions: permissions,
 	}
 }
 
