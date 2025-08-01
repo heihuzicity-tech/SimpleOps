@@ -9,8 +9,6 @@ import { AppDispatch } from '../../store';
 import { setConnectionStatus, updateSessionStatus } from '../../store/sshSessionSlice';
 import { sshAPI } from '../../services/sshAPI';
 import { WSMessage, ConnectionStatus } from '../../types/ssh';
-import { InputAggregator } from '../../utils/InputAggregator';
-import { TerminalWriter } from '../../utils/TerminalWriter';
 import '@xterm/xterm/css/xterm.css';
 
 // const { Text } = Typography; // 暂时未使用
@@ -32,8 +30,6 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
   const terminal = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
   const websocket = useRef<WebSocket | null>(null);
-  const inputAggregator = useRef<InputAggregator | null>(null);
-  const terminalWriter = useRef<TerminalWriter | null>(null);
   const dispatch = useDispatch<AppDispatch>();
   
   const [connectionStatus, setLocalConnectionStatus] = useState<ConnectionStatus>('disconnected');
@@ -64,7 +60,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
     try {
       // 创建终端实例 - 优化配置
       terminal.current = new Terminal({
-        cursorBlink: true,
+        cursorBlink: false,
         fontSize: 14,
         fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
         lineHeight: 1.4, // 增加行高，提升可读性
@@ -74,7 +70,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
           cursor: '#ffffff',
           selectionBackground: '#264f78',
         },
-        scrollback: 1000,
+        scrollback: 200,
         tabStopWidth: 4,
         cols: 80,
         rows: 20, // 减少到20行，为底部留出空间
@@ -84,7 +80,7 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
         scrollSensitivity: 1,
         // 渲染优化
         allowProposedApi: true,
-        smoothScrollDuration: 125,
+        smoothScrollDuration: 0,
         // 其他优化
         windowOptions: {
           setWinSizePixels: true,
@@ -110,24 +106,14 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
         }
       }, 10);
 
-      // 创建输入聚合器
-      inputAggregator.current = new InputAggregator((aggregatedData) => {
+      // 监听数据输入 - 直接发送
+      terminal.current.onData((data) => {
         if (websocket.current?.readyState === WebSocket.OPEN) {
           const message: WSMessage = {
             type: 'input',
-            data: aggregatedData,
+            data: data,
           };
           websocket.current.send(JSON.stringify(message));
-        }
-      }, 50); // 50ms延迟
-      
-      // 创建终端批量写入器
-      terminalWriter.current = new TerminalWriter(terminal.current);
-
-      // 监听数据输入 - 使用输入聚合器
-      terminal.current.onData((data) => {
-        if (inputAggregator.current) {
-          inputAggregator.current.add(data);
         }
       });
 
@@ -225,9 +211,9 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
           
           switch (wsMessage.type) {
             case 'output':
-              if (wsMessage.data && terminalWriter.current) {
-                // 使用批量写入器替代直接写入
-                terminalWriter.current.write(wsMessage.data);
+              if (wsMessage.data && terminal.current) {
+                // 直接写入终端
+                terminal.current.write(wsMessage.data);
               }
               break;
             case 'error':
@@ -316,15 +302,6 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
         setIsConnecting(false);
         updateConnectionStatus('disconnected');
         
-        // Flush输入聚合器的缓冲区
-        if (inputAggregator.current) {
-          inputAggregator.current.flush();
-        }
-        
-        // Flush终端写入器的缓冲区
-        if (terminalWriter.current) {
-          terminalWriter.current.flush();
-        }
         
         // ✅ 修复：检查关闭原因，避免组件卸载时的重连
         const isNormalClose = event.code === 1000 || event.code === 1001;
@@ -466,14 +443,6 @@ const WebTerminal: React.FC<WebTerminalProps> = ({
       console.log('Cleaning up WebTerminal component...');
       
       // 清理资源
-      if (inputAggregator.current) {
-        inputAggregator.current.dispose();
-        inputAggregator.current = null;
-      }
-      if (terminalWriter.current) {
-        terminalWriter.current.dispose();
-        terminalWriter.current = null;
-      }
       if (websocket.current) {
         websocket.current.close(1000, 'Component unmounting');
         websocket.current = null;
