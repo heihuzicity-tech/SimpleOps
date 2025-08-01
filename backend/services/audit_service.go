@@ -740,7 +740,7 @@ func (a *AuditService) parseResourceInfo(method, path, requestBody string) (stri
 // determineAction 确定操作类型
 func (a *AuditService) determineAction(method, path string) string {
 	// 特殊路径处理
-	if strings.Contains(path, "/delete") {
+	if strings.Contains(path, "/delete") || strings.Contains(path, "batch-delete") {
 		return "delete"
 	}
 	if strings.Contains(path, "/archive") {
