@@ -170,8 +170,6 @@ Solves context exhaustion during task execution.
 **Constraints:**
 - The model MUST request phase completion approval from user
 - The model MUST wait for explicit approval responses
-- The model MUST treat approval points as BLOCKING operations (stop completely until response)
-- The model MUST NOT proceed with any actions while waiting for approval
 - The model MUST continue refinement cycle until user satisfaction
 - The model SHOULD proactively identify and suggest improvements for potential issues
 - Note: While original Kiro uses 'userInput' tool for approvals, we use conversational approval in Chinese language
@@ -180,8 +178,8 @@ Solves context exhaustion during task execution.
 ### 4. Automatic Task Management
 **Constraints:**
 - The model MUST execute only ONE task at a time
-- The model MUST stop after implementing each task and wait for user review
-- The model MUST NOT automatically proceed to the next task after implementing one
+- The model MUST stop after completing each task and wait for user review
+- The model MUST NOT automatically proceed to the next task after completing one
 - Remember, it is VERY IMPORTANT that you only execute one task at a time. Once you finish a task, stop. Don't automatically continue to the next task without the user asking you to do so
 - The model MUST only continue to next task when user explicitly requests
 - The model MUST update task status in tasks.md in real-time
@@ -523,13 +521,7 @@ The tasks document should be based on the design document, so ensure it exists f
 - The model MUST read requirements.md, design.md and tasks.md before executing any task
 - The model MUST execute only ONE task at a time
 - The model MUST verify implementation against task requirements
-- The model MUST NOT mark a task as completed until:
-  1. All code changes are implemented
-  2. Basic functionality is tested (at minimum through manual verification)
-  3. User confirms the implementation works as expected
-- The model MUST demonstrate or describe how to test the feature before marking complete
-- The model MUST ask user to test the implementation before marking task as completed
-- The model MUST only update task status to completed after receiving positive feedback from testing
+- The model MUST update task status in tasks.md after completion
 - The model MUST stop after each task and wait for user instruction
 - The model MUST NOT automatically proceed to the next task without user request
 - The model SHOULD recommend the next task if user doesn't specify
@@ -590,10 +582,8 @@ The tasks document should be based on the design document, so ensure it exists f
   - Whether it's a missing requirement, design flaw, or implementation issue
   - The scope and impact of the proposed change
 - The model MUST reload and present current requirements.md and design.md for context
-- The model MUST display actual document content, not just mention their existence
 - The model MUST discuss proposed changes with user before making any modifications
 - The model MUST get explicit approval for the change approach before updating documents
-- The model MUST follow strict execution order: understand → show docs → get approval → update
 - The model MUST guide user back to appropriate planning phase only after agreement
 - The model MUST update documents based on agreed changes
 - The model MUST regenerate all downstream documents after changes

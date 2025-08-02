@@ -99,7 +99,7 @@ const CommandFilterManagement: React.FC = () => {
       }
     } catch (error: any) {
       console.error('加载过滤规则列表失败:', error);
-      message.error('加载过滤规则列表失败');
+      message.error(error?.response?.data?.message || '加载过滤规则列表失败');
     } finally {
       setLoading(false);
     }
@@ -117,6 +117,7 @@ const CommandFilterManagement: React.FC = () => {
       }
     } catch (error) {
       console.error('加载命令组列表失败:', error);
+      message.error('加载命令组列表失败');
     }
   };
 
@@ -134,6 +135,7 @@ const CommandFilterManagement: React.FC = () => {
       }
     } catch (error) {
       console.error('加载用户列表失败:', error);
+      message.error('加载用户列表失败');
     }
   };
 
@@ -146,6 +148,7 @@ const CommandFilterManagement: React.FC = () => {
       }
     } catch (error) {
       console.error('加载资产列表失败:', error);
+      message.error('加载资产列表失败');
     }
   };
 
@@ -165,6 +168,7 @@ const CommandFilterManagement: React.FC = () => {
       }
     } catch (error) {
       console.error('加载凭证列表失败:', error);
+      message.error('加载凭证列表失败');
     }
   };
 
@@ -181,9 +185,9 @@ const CommandFilterManagement: React.FC = () => {
         setEditingFilter(response.data);
         setIsModalVisible(true);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('加载过滤规则详情失败:', error);
-      message.error('加载过滤规则详情失败');
+      message.error(error?.response?.data?.message || '加载过滤规则详情失败');
     }
   };
 
@@ -195,7 +199,7 @@ const CommandFilterManagement: React.FC = () => {
       loadFilters();
     } catch (error: any) {
       console.error('删除过滤规则失败:', error);
-      message.error('删除过滤规则失败');
+      message.error(error?.response?.data?.message || '删除过滤规则失败');
     } finally {
       setDeleteLoading(null);
     }
@@ -209,7 +213,7 @@ const CommandFilterManagement: React.FC = () => {
       loadFilters();
     } catch (error: any) {
       console.error('切换状态失败:', error);
-      message.error('切换状态失败');
+      message.error(error?.response?.data?.message || '切换状态失败');
     } finally {
       setToggleLoading(null);
     }
@@ -228,7 +232,7 @@ const CommandFilterManagement: React.FC = () => {
       loadFilters();
     } catch (error: any) {
       console.error('保存过滤规则失败:', error);
-      message.error('保存过滤规则失败');
+      message.error(error?.response?.data?.message || '保存过滤规则失败');
       throw error; // 抛出错误让向导组件处理
     }
   };
@@ -236,6 +240,9 @@ const CommandFilterManagement: React.FC = () => {
   const handleSearch = (value: string) => {
     setSearchKeyword(value);
     setPagination({ ...pagination, current: 1 });
+    if (value) {
+      message.info(`正在搜索: ${value}`);
+    }
     loadFilters();
   };
 
@@ -410,7 +417,10 @@ const CommandFilterManagement: React.FC = () => {
           </Button>
           <Button
             icon={<ReloadOutlined />}
-            onClick={loadFilters}
+            onClick={() => {
+              loadFilters();
+              message.success('刷新成功');
+            }}
             loading={loading}
           >
             刷新

@@ -70,7 +70,7 @@ const CommandListManagement: React.FC = () => {
       }
     } catch (error: any) {
       console.error('加载命令列表失败:', error);
-      message.error('加载命令列表失败');
+      message.error(error?.response?.data?.message || '加载命令列表失败');
     } finally {
       setLoading(false);
     }
@@ -100,7 +100,7 @@ const CommandListManagement: React.FC = () => {
       loadCommands();
     } catch (error: any) {
       console.error('删除命令失败:', error);
-      message.error('删除命令失败');
+      message.error(error?.response?.data?.message || '删除命令失败');
     } finally {
       setDeleteLoading(null);
     }
@@ -130,7 +130,7 @@ const CommandListManagement: React.FC = () => {
       loadCommands();
     } catch (error: any) {
       console.error('保存命令失败:', error);
-      message.error('保存命令失败');
+      message.error(error?.response?.data?.message || '保存命令失败');
     } finally {
       setSubmitLoading(false);
     }
@@ -139,6 +139,9 @@ const CommandListManagement: React.FC = () => {
   const handleSearch = (value: string) => {
     setSearchKeyword(value);
     setPagination({ ...pagination, current: 1 });
+    if (value) {
+      message.info(`正在搜索: ${value}`);
+    }
   };
 
   const columns = [
@@ -234,7 +237,10 @@ const CommandListManagement: React.FC = () => {
           </Button>
           <Button
             icon={<ReloadOutlined />}
-            onClick={loadCommands}
+            onClick={() => {
+              loadCommands();
+              message.success('刷新成功');
+            }}
             loading={loading}
           >
             刷新

@@ -223,6 +223,9 @@ const CommandGroupManagement: React.FC = () => {
   const handleSearch = (value: string) => {
     setSearchKeyword(value);
     setPagination({ ...pagination, current: 1 });
+    if (value) {
+      message.info(`正在搜索: ${value}`);
+    }
   };
 
   const handleAddCommand = () => {
@@ -252,6 +255,7 @@ const CommandGroupManagement: React.FC = () => {
     const newItems = [...commandItems];
     newItems.splice(index, 1);
     setCommandItems(newItems);
+    message.success('已移除');
   };
 
   const columns = [
@@ -346,7 +350,10 @@ const CommandGroupManagement: React.FC = () => {
           )}
           <Button
             icon={<ReloadOutlined />}
-            onClick={loadCommandGroups}
+            onClick={() => {
+              loadCommandGroups();
+              message.success('刷新成功');
+            }}
             loading={loading}
           >
             刷新
@@ -588,7 +595,10 @@ const CommandGroupManagement: React.FC = () => {
               commandItems.length > 0 && (
                 <Popconfirm
                   title="确定要清空所有已添加的项吗？"
-                  onConfirm={() => setCommandItems([])}
+                  onConfirm={() => {
+                    setCommandItems([]);
+                    message.success('已清空所有项');
+                  }}
                 >
                   <Button type="link" size="small" danger>
                     清空全部
