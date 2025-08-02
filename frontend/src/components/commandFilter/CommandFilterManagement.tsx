@@ -43,6 +43,7 @@ import { adaptPaginatedResponse } from '../../services/responseAdapter';
 import { getUsers, User } from '../../services/userAPI';
 import { getAssets } from '../../services/assetAPI';
 import { getCredentials } from '../../services/credentialAPI';
+import FilterRuleWizard from './FilterRuleWizard';
 
 const { Search } = Input;
 const { TextArea } = Input;
@@ -60,7 +61,6 @@ const CommandFilterManagement: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingFilter, setEditingFilter] = useState<CommandFilter | null>(null);
-  const [form] = Form.useForm();
   const [searchKeyword, setSearchKeyword] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   
@@ -70,10 +70,6 @@ const CommandFilterManagement: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
-  const [selectedUserKeys, setSelectedUserKeys] = useState<string[]>([]);
-  const [selectedAssetKeys, setSelectedAssetKeys] = useState<string[]>([]);
-  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
-  const [attributes, setAttributes] = useState<FilterAttribute[]>([]);
 
   useEffect(() => {
     loadFilters();
@@ -166,55 +162,16 @@ const CommandFilterManagement: React.FC = () => {
 
   const handleAdd = () => {
     setEditingFilter(null);
-    setSelectedUserKeys([]);
-    setSelectedAssetKeys([]);
-    setSelectedAccounts([]);
-    setAttributes([]);
     setIsModalVisible(true);
-    form.resetFields();
-    form.setFieldsValue({
-      priority: 50,
-      enabled: true,
-      user_type: 'all',
-      asset_type: 'all',
-      account_type: 'all',
-      action: 'deny',
-    });
   };
 
   const handleEdit = async (filter: CommandFilter) => {
-    setEditingFilter(filter);
-    
     // 加载详细信息
     try {
       const response = await commandFilterService.filter.getFilter(filter.id);
       if (response.data) {
-        const detailFilter = response.data;
-        setSelectedUserKeys((detailFilter.user_ids || []).map((id: number) => id.toString()));
-        setSelectedAssetKeys((detailFilter.asset_ids || []).map((id: number) => id.toString()));
-        setAttributes(detailFilter.attributes || []);
-        
-        // 设置选中的账号
-        if (detailFilter.account_names) {
-          const accounts = detailFilter.account_names.split(',').map(s => s.trim()).filter(Boolean);
-          setSelectedAccounts(accounts);
-        } else {
-          setSelectedAccounts([]);
-        }
-        
+        setEditingFilter(response.data);
         setIsModalVisible(true);
-        form.setFieldsValue({
-          name: detailFilter.name,
-          priority: detailFilter.priority,
-          enabled: detailFilter.enabled,
-          user_type: detailFilter.user_type,
-          asset_type: detailFilter.asset_type,
-          account_type: detailFilter.account_type,
-          account_names: detailFilter.account_names,
-          command_group_id: detailFilter.command_group_id,
-          action: detailFilter.action,
-          remark: detailFilter.remark,
-        });
       }
     } catch (error) {
       console.error('加载过滤规则详情失败:', error);
@@ -244,17 +201,8 @@ const CommandFilterManagement: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (data: CommandFilterCreateRequest | CommandFilterUpdateRequest) => {
     try {
-      const data: CommandFilterCreateRequest | CommandFilterUpdateRequest = {
-        ...values,
-        user_ids: values.user_type === 'specific' ? selectedUserKeys.map(key => parseInt(key)) : undefined,
-        asset_ids: values.asset_type === 'specific' ? selectedAssetKeys.map(key => parseInt(key)) : undefined,
-        attributes: values.user_type === 'attribute' || values.asset_type === 'attribute' ? attributes : undefined,
-        // 处理账号选择
-        account_names: values.account_type === 'specific' ? selectedAccounts.join(',') : undefined,
-      };
-
       if (editingFilter) {
         await commandFilterService.filter.updateFilter(editingFilter.id, data);
         message.success('更新成功');
@@ -267,6 +215,7 @@ const CommandFilterManagement: React.FC = () => {
     } catch (error: any) {
       console.error('保存过滤规则失败:', error);
       message.error('保存过滤规则失败');
+      throw error; // 抛出错误让向导组件处理
     }
   };
 
@@ -427,43 +376,6 @@ const CommandFilterManagement: React.FC = () => {
     },
   ];
 
-  // 用户Transfer数据源
-  const userDataSource: TransferItem[] = users.map(user => ({
-    key: user.id.toString(),
-    title: user.username,
-    description: user.email,
-  }));
-
-  // 资产Transfer数据源
-  const assetDataSource: TransferItem[] = assets.map(asset => ({
-    key: asset.id.toString(),
-    title: asset.name,
-    description: `${asset.type} - ${asset.address}:${asset.port}`,
-  }));
-
-  // 添加属性
-  const handleAddAttribute = () => {
-    const newAttribute: FilterAttribute = {
-      id: Date.now(),
-      filter_id: editingFilter?.id || 0,
-      target_type: 'user',
-      name: '',
-      value: '',
-    };
-    setAttributes([...attributes, newAttribute]);
-  };
-
-  // 删除属性
-  const handleRemoveAttribute = (id: number) => {
-    setAttributes(attributes.filter(attr => attr.id !== id));
-  };
-
-  // 更新属性
-  const handleUpdateAttribute = (id: number, field: string, value: any) => {
-    setAttributes(attributes.map(attr => 
-      attr.id === id ? { ...attr, [field]: value } : attr
-    ));
-  };
 
   return (
     <div>
@@ -535,286 +447,20 @@ const CommandFilterManagement: React.FC = () => {
         }}
       />
 
-      {/* 过滤规则编辑模态框 */}
-      <Modal
-        title={editingFilter ? '编辑过滤规则' : '新增过滤规则'}
-        open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
-        footer={null}
-        width={900}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-        >
-          <Form.Item
-            label="规则名称"
-            name="name"
-            rules={[
-              { required: true, message: '请输入规则名称' },
-              { max: 100, message: '规则名称最多100个字符' },
-            ]}
-          >
-            <Input placeholder="请输入规则名称" />
-          </Form.Item>
-
-          <Form.Item
-            label="优先级"
-            name="priority"
-            rules={[
-              { required: true, message: '请输入优先级' },
-              { type: 'number', min: 1, max: 100, message: '优先级范围为1-100' },
-            ]}
-            extra="数字越小优先级越高"
-          >
-            <InputNumber min={1} max={100} style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item
-            label="启用状态"
-            name="enabled"
-            valuePropName="checked"
-          >
-            <Switch checkedChildren="启用" unCheckedChildren="禁用" />
-          </Form.Item>
-
-          <Form.Item
-            label="用户范围"
-            name="user_type"
-            rules={[{ required: true, message: '请选择用户范围' }]}
-          >
-            <Select>
-              <Option value="all">所有用户</Option>
-              <Option value="specific">指定用户</Option>
-              <Option value="attribute">属性筛选</Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item noStyle shouldUpdate>
-            {() => {
-              const userType = form.getFieldValue('user_type');
-              if (userType === 'specific') {
-                return (
-                  <Form.Item label="选择用户">
-                    <Transfer
-                      dataSource={userDataSource}
-                      titles={['可选用户', '已选用户']}
-                      targetKeys={selectedUserKeys}
-                      onChange={(targetKeys) => setSelectedUserKeys(targetKeys as string[])}
-                      render={item => `${item.title} ${item.description ? `(${item.description})` : ''}`}
-                      showSearch
-                      filterOption={(inputValue, option) =>
-                        option.title?.toLowerCase().includes(inputValue.toLowerCase()) ||
-                        option.description?.toLowerCase().includes(inputValue.toLowerCase()) || false
-                      }
-                      style={{ marginBottom: 16 }}
-                      listStyle={{
-                        width: 350,
-                        height: 250,
-                      }}
-                    />
-                  </Form.Item>
-                );
-              }
-              return null;
-            }}
-          </Form.Item>
-
-          <Form.Item
-            label="资产范围"
-            name="asset_type"
-            rules={[{ required: true, message: '请选择资产范围' }]}
-          >
-            <Select>
-              <Option value="all">所有资产</Option>
-              <Option value="specific">指定资产</Option>
-              <Option value="attribute">属性筛选</Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item noStyle shouldUpdate>
-            {() => {
-              const assetType = form.getFieldValue('asset_type');
-              if (assetType === 'specific') {
-                return (
-                  <Form.Item label="选择资产">
-                    <Transfer
-                      dataSource={assetDataSource}
-                      titles={['可选资产', '已选资产']}
-                      targetKeys={selectedAssetKeys}
-                      onChange={(targetKeys) => setSelectedAssetKeys(targetKeys as string[])}
-                      render={item => `${item.title} ${item.description ? `(${item.description})` : ''}`}
-                      showSearch
-                      filterOption={(inputValue, option) =>
-                        option.title?.toLowerCase().includes(inputValue.toLowerCase()) ||
-                        option.description?.toLowerCase().includes(inputValue.toLowerCase()) || false
-                      }
-                      style={{ marginBottom: 16 }}
-                      listStyle={{
-                        width: 350,
-                        height: 250,
-                      }}
-                    />
-                  </Form.Item>
-                );
-              }
-              return null;
-            }}
-          </Form.Item>
-
-          <Form.Item noStyle shouldUpdate>
-            {() => {
-              const userType = form.getFieldValue('user_type');
-              const assetType = form.getFieldValue('asset_type');
-              if (userType === 'attribute' || assetType === 'attribute') {
-                return (
-                  <Form.Item label="属性筛选条件">
-                    <Space direction="vertical" style={{ width: '100%' }}>
-                      {attributes.map((attr) => (
-                        <Space key={attr.id} style={{ width: '100%' }}>
-                          <Select
-                            value={attr.target_type}
-                            onChange={(value) => handleUpdateAttribute(attr.id, 'target_type', value)}
-                            style={{ width: 120 }}
-                          >
-                            <Option value="user">用户属性</Option>
-                            <Option value="asset">资产属性</Option>
-                          </Select>
-                          <Input
-                            placeholder="属性名称"
-                            value={attr.name}
-                            onChange={(e) => handleUpdateAttribute(attr.id, 'name', e.target.value)}
-                            style={{ width: 200 }}
-                          />
-                          <Input
-                            placeholder="属性值"
-                            value={attr.value}
-                            onChange={(e) => handleUpdateAttribute(attr.id, 'value', e.target.value)}
-                            style={{ width: 200 }}
-                          />
-                          <Button
-                            type="text"
-                            danger
-                            onClick={() => handleRemoveAttribute(attr.id)}
-                          >
-                            删除
-                          </Button>
-                        </Space>
-                      ))}
-                      <Button type="dashed" onClick={handleAddAttribute} style={{ width: '100%' }}>
-                        添加属性条件
-                      </Button>
-                    </Space>
-                  </Form.Item>
-                );
-              }
-              return null;
-            }}
-          </Form.Item>
-
-          <Form.Item
-            label="账号范围"
-            name="account_type"
-            rules={[{ required: true, message: '请选择账号范围' }]}
-          >
-            <Select>
-              <Option value="all">所有账号</Option>
-              <Option value="specific">指定账号</Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item noStyle shouldUpdate>
-            {() => {
-              const accountType = form.getFieldValue('account_type');
-              if (accountType === 'specific') {
-                return (
-                  <Form.Item label="选择账号">
-                    <Transfer
-                      dataSource={availableAccounts.map(account => ({
-                        key: account,
-                        title: account,
-                      }))}
-                      titles={['可选账号', '已选账号']}
-                      targetKeys={selectedAccounts}
-                      onChange={(targetKeys) => setSelectedAccounts(targetKeys as string[])}
-                      render={item => item.title}
-                      showSearch
-                      filterOption={(inputValue, option) =>
-                        option.title?.toLowerCase().includes(inputValue.toLowerCase()) || false
-                      }
-                      style={{ marginBottom: 16 }}
-                      listStyle={{
-                        width: 350,
-                        height: 250,
-                      }}
-                    />
-                  </Form.Item>
-                );
-              }
-              return null;
-            }}
-          </Form.Item>
-
-          <Form.Item
-            label="关联命令组"
-            name="command_group_id"
-            rules={[{ required: true, message: '请选择命令组' }]}
-          >
-            <Select placeholder="请选择命令组">
-              {commandGroups.map(group => (
-                <Option key={group.id} value={group.id}>
-                  {group.name}
-                  {group.is_preset && <Tag color="gold" style={{ marginLeft: 8 }}>预设</Tag>}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            label="执行动作"
-            name="action"
-            rules={[{ required: true, message: '请选择执行动作' }]}
-          >
-            <Select>
-              <Option value={FilterAction.DENY}>
-                <Tag color="red">拒绝</Tag> - 阻止命令执行
-              </Option>
-              <Option value={FilterAction.ALLOW}>
-                <Tag color="green">允许</Tag> - 允许命令执行
-              </Option>
-              <Option value={FilterAction.ALERT}>
-                <Tag color="orange">告警</Tag> - 记录告警但允许执行
-              </Option>
-              <Option value={FilterAction.PROMPT_ALERT}>
-                <Tag color="gold">提示并告警</Tag> - 提示用户并记录告警
-              </Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            label="备注"
-            name="remark"
-            rules={[{ max: 500, message: '备注最多500个字符' }]}
-          >
-            <TextArea
-              placeholder="请输入备注信息"
-              rows={3}
-            />
-          </Form.Item>
-
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit">
-                {editingFilter ? '更新' : '创建'}
-              </Button>
-              <Button onClick={() => setIsModalVisible(false)}>
-                取消
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+      {/* 使用向导式组件替代原有的Modal */}
+      <FilterRuleWizard
+        visible={isModalVisible}
+        editingFilter={editingFilter}
+        commandGroups={commandGroups}
+        users={users}
+        assets={assets}
+        availableAccounts={availableAccounts}
+        onCancel={() => {
+          setIsModalVisible(false);
+          setEditingFilter(null);
+        }}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 };
