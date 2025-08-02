@@ -293,9 +293,20 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             borderBottom: '1px solid #f0f0f0',
           }}
         >
-          <Text strong style={{ fontSize: collapsed ? 12 : 14 }}>
-            {collapsed ? '堡垒机' : '运维堡垒机系统'}
-          </Text>
+          <img 
+            src="/logo.png" 
+            alt="黑胡子堡垒机" 
+            style={{ 
+              width: collapsed ? '30px' : '40px', 
+              height: collapsed ? '30px' : '40px',
+              marginRight: collapsed ? 0 : 8
+            }}
+          />
+          {!collapsed && (
+            <Text strong style={{ fontSize: 14 }}>
+              黑胡子堡垒机
+            </Text>
+          )}
         </div>
         <Menu
           theme="light"

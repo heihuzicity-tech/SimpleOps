@@ -41,8 +41,13 @@ const LoginPage: React.FC = () => {
       <Card className="login-form">
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div style={{ textAlign: 'center' }}>
+            <img 
+              src="/logo.png" 
+              alt="黑胡子堡垒机" 
+              style={{ width: '120px', height: '120px', marginBottom: 16 }}
+            />
             <Title level={2} style={{ color: '#1890ff', marginBottom: 8 }}>
-              运维堡垒机系统
+              黑胡子堡垒机
             </Title>
             <Text type="secondary">安全的企业级运维管理平台</Text>
           </div>
