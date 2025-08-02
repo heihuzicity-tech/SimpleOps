@@ -488,22 +488,34 @@ const CommandGroupManagement: React.FC = () => {
                 rules={[
                   { required: true, message: '请输入命令组名称' },
                   { max: 100, message: '命令组名称最多100个字符' },
+                  { pattern: /^[a-zA-Z0-9_\-\u4e00-\u9fa5]+$/, message: '命令组名称只能包含中文、字母、数字、下划线和横线' },
                 ]}
+                validateTrigger={['onChange', 'onBlur']}
+                hasFeedback
               >
-                <Input placeholder="请输入命令组名称" />
+                <Input 
+                  placeholder="请输入命令组名称，如：危险命令组、系统维护命令" 
+                  onBlur={() => form.validateFields(['name'])}
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
                 label="描述"
                 name="remark"
-                rules={[{ max: 500, message: '描述最多500个字符' }]}
+                rules={[
+                  { max: 500, message: '描述最多500个字符' },
+                  { whitespace: true, message: '描述不能为纯空格' },
+                ]}
+                validateTrigger={['onBlur']}
+                hasFeedback
               >
                 <TextArea 
                   placeholder="请输入命令组的描述信息" 
                   rows={2}
                   showCount
                   maxLength={500}
+                  onBlur={() => form.validateFields(['remark'])}
                 />
               </Form.Item>
             </Col>
@@ -571,7 +583,27 @@ const CommandGroupManagement: React.FC = () => {
             <div style={{ marginTop: 16 }}>
               <TextArea
                 value={commandContent}
-                onChange={(e) => setCommandContent(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCommandContent(value);
+                  
+                  // 实时验证正则表达式
+                  if (commandType === 'regex' && value.trim()) {
+                    const lines = value.trim().split('\n').filter(line => line.trim());
+                    const invalidRegex = lines.find(line => {
+                      try {
+                        new RegExp(line.trim());
+                        return false;
+                      } catch {
+                        return true;
+                      }
+                    });
+                    
+                    if (invalidRegex) {
+                      message.warning(`正则表达式语法错误：${invalidRegex}`);
+                    }
+                  }
+                }}
                 placeholder={commandType === 'command' 
                   ? "请输入命令，每行一个，例如：\nrm -rf\nreboot\nshutdown\nkill -9" 
                   : "请输入正则表达式，每行一个，例如：\n^rm\\s+-rf\n.*password.*\n^sudo\\s+.*"}

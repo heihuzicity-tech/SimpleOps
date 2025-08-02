@@ -80,6 +80,7 @@ const FilterRuleWizard: React.FC<FilterRuleWizardProps> = ({
   const [selectedAssetKeys, setSelectedAssetKeys] = useState<string[]>([]);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [attributes, setAttributes] = useState<FilterAttribute[]>([]);
+  const [attributeErrors, setAttributeErrors] = useState<{ [key: number]: { name?: string; value?: string } }>({});
 
   // 重置状态
   useEffect(() => {
@@ -235,6 +236,37 @@ const FilterRuleWizard: React.FC<FilterRuleWizardProps> = ({
     setAttributes(attributes.map(attr => 
       attr.id === id ? { ...attr, [field]: value } : attr
     ));
+    
+    // 实时验证属性
+    const errors = { ...attributeErrors };
+    if (!errors[id]) {
+      errors[id] = {};
+    }
+    
+    if (field === 'name') {
+      if (!value || !value.trim()) {
+        errors[id].name = '属性名称不能为空';
+      } else if (!/^[a-zA-Z0-9_\-]+$/.test(value)) {
+        errors[id].name = '属性名称只能包含字母、数字、下划线和横线';
+      } else {
+        delete errors[id].name;
+      }
+    }
+    
+    if (field === 'value') {
+      if (!value || !value.trim()) {
+        errors[id].value = '属性值不能为空';
+      } else {
+        delete errors[id].value;
+      }
+    }
+    
+    // 如果该属性没有错误了，删除整个错误对象
+    if (errors[id] && Object.keys(errors[id]).length === 0) {
+      delete errors[id];
+    }
+    
+    setAttributeErrors(errors);
   };
 
   // 渲染步骤内容
@@ -249,9 +281,16 @@ const FilterRuleWizard: React.FC<FilterRuleWizardProps> = ({
               rules={[
                 { required: true, message: '请输入规则名称' },
                 { max: 100, message: '规则名称最多100个字符' },
+                { pattern: /^[a-zA-Z0-9_\-\u4e00-\u9fa5\s]+$/, message: '规则名称只能包含中文、字母、数字、下划线、横线和空格' },
               ]}
+              validateTrigger={['onChange', 'onBlur']}
+              hasFeedback
             >
-              <Input placeholder="请输入规则名称，例如：禁止删除文件" size="large" />
+              <Input 
+                placeholder="请输入规则名称，例如：禁止删除文件" 
+                size="large" 
+                onBlur={() => form.validateFields(['name'])}
+              />
             </Form.Item>
 
             <Row gutter={16}>
@@ -264,8 +303,16 @@ const FilterRuleWizard: React.FC<FilterRuleWizardProps> = ({
                     { type: 'number', min: 1, max: 100, message: '优先级范围为1-100' },
                   ]}
                   extra="数字越小优先级越高"
+                  validateTrigger={['onChange', 'onBlur']}
+                  hasFeedback
                 >
-                  <InputNumber min={1} max={100} style={{ width: '100%' }} size="large" />
+                  <InputNumber 
+                    min={1} 
+                    max={100} 
+                    style={{ width: '100%' }} 
+                    size="large"
+                    onBlur={() => form.validateFields(['priority'])}
+                  />
                 </Form.Item>
               </Col>
               <Col span={12}>
@@ -395,33 +442,53 @@ const FilterRuleWizard: React.FC<FilterRuleWizardProps> = ({
                     <Form.Item label="用户属性筛选条件">
                       <Space direction="vertical" style={{ width: '100%' }}>
                         {attributes.filter(attr => attr.target_type === 'user').map((attr) => (
-                          <Space key={attr.id} style={{ width: '100%' }}>
-                            <Input
-                              placeholder="属性名称"
-                              value={attr.name}
-                              onChange={(e) => handleUpdateAttribute(attr.id, 'name', e.target.value)}
-                              style={{ width: 200 }}
-                            />
-                            <Input
-                              placeholder="属性值"
-                              value={attr.value}
-                              onChange={(e) => handleUpdateAttribute(attr.id, 'value', e.target.value)}
-                              style={{ width: 200 }}
-                            />
-                            <Popconfirm
-                              title="确定要删除这个属性吗？"
-                              onConfirm={() => handleRemoveAttribute(attr.id)}
-                              okText="确定"
-                              cancelText="取消"
-                            >
-                              <Button
-                                type="text"
-                                danger
+                          <div key={attr.id} style={{ marginBottom: 8 }}>
+                            <Space style={{ width: '100%' }}>
+                              <div>
+                                <Input
+                                  placeholder="属性名称"
+                                  value={attr.name}
+                                  onChange={(e) => handleUpdateAttribute(attr.id, 'name', e.target.value)}
+                                  onBlur={() => handleUpdateAttribute(attr.id, 'name', attr.name)}
+                                  style={{ width: 200 }}
+                                  status={attributeErrors[attr.id]?.name ? 'error' : ''}
+                                />
+                                {attributeErrors[attr.id]?.name && (
+                                  <div style={{ color: '#ff4d4f', fontSize: 12, marginTop: 4 }}>
+                                    {attributeErrors[attr.id].name}
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <Input
+                                  placeholder="属性值"
+                                  value={attr.value}
+                                  onChange={(e) => handleUpdateAttribute(attr.id, 'value', e.target.value)}
+                                  onBlur={() => handleUpdateAttribute(attr.id, 'value', attr.value)}
+                                  style={{ width: 200 }}
+                                  status={attributeErrors[attr.id]?.value ? 'error' : ''}
+                                />
+                                {attributeErrors[attr.id]?.value && (
+                                  <div style={{ color: '#ff4d4f', fontSize: 12, marginTop: 4 }}>
+                                    {attributeErrors[attr.id].value}
+                                  </div>
+                                )}
+                              </div>
+                              <Popconfirm
+                                title="确定要删除这个属性吗？"
+                                onConfirm={() => handleRemoveAttribute(attr.id)}
+                                okText="确定"
+                                cancelText="取消"
                               >
-                                删除
-                              </Button>
-                            </Popconfirm>
-                          </Space>
+                                <Button
+                                  type="text"
+                                  danger
+                                >
+                                  删除
+                                </Button>
+                              </Popconfirm>
+                            </Space>
+                          </div>
                         ))}
                         <Button 
                           type="dashed" 
@@ -493,33 +560,53 @@ const FilterRuleWizard: React.FC<FilterRuleWizardProps> = ({
                     <Form.Item label="资产属性筛选条件">
                       <Space direction="vertical" style={{ width: '100%' }}>
                         {attributes.filter(attr => attr.target_type === 'asset').map((attr) => (
-                          <Space key={attr.id} style={{ width: '100%' }}>
-                            <Input
-                              placeholder="属性名称"
-                              value={attr.name}
-                              onChange={(e) => handleUpdateAttribute(attr.id, 'name', e.target.value)}
-                              style={{ width: 200 }}
-                            />
-                            <Input
-                              placeholder="属性值"
-                              value={attr.value}
-                              onChange={(e) => handleUpdateAttribute(attr.id, 'value', e.target.value)}
-                              style={{ width: 200 }}
-                            />
-                            <Popconfirm
-                              title="确定要删除这个属性吗？"
-                              onConfirm={() => handleRemoveAttribute(attr.id)}
-                              okText="确定"
-                              cancelText="取消"
-                            >
-                              <Button
-                                type="text"
-                                danger
+                          <div key={attr.id} style={{ marginBottom: 8 }}>
+                            <Space style={{ width: '100%' }}>
+                              <div>
+                                <Input
+                                  placeholder="属性名称"
+                                  value={attr.name}
+                                  onChange={(e) => handleUpdateAttribute(attr.id, 'name', e.target.value)}
+                                  onBlur={() => handleUpdateAttribute(attr.id, 'name', attr.name)}
+                                  style={{ width: 200 }}
+                                  status={attributeErrors[attr.id]?.name ? 'error' : ''}
+                                />
+                                {attributeErrors[attr.id]?.name && (
+                                  <div style={{ color: '#ff4d4f', fontSize: 12, marginTop: 4 }}>
+                                    {attributeErrors[attr.id].name}
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <Input
+                                  placeholder="属性值"
+                                  value={attr.value}
+                                  onChange={(e) => handleUpdateAttribute(attr.id, 'value', e.target.value)}
+                                  onBlur={() => handleUpdateAttribute(attr.id, 'value', attr.value)}
+                                  style={{ width: 200 }}
+                                  status={attributeErrors[attr.id]?.value ? 'error' : ''}
+                                />
+                                {attributeErrors[attr.id]?.value && (
+                                  <div style={{ color: '#ff4d4f', fontSize: 12, marginTop: 4 }}>
+                                    {attributeErrors[attr.id].value}
+                                  </div>
+                                )}
+                              </div>
+                              <Popconfirm
+                                title="确定要删除这个属性吗？"
+                                onConfirm={() => handleRemoveAttribute(attr.id)}
+                                okText="确定"
+                                cancelText="取消"
                               >
-                                删除
-                              </Button>
-                            </Popconfirm>
-                          </Space>
+                                <Button
+                                  type="text"
+                                  danger
+                                >
+                                  删除
+                                </Button>
+                              </Popconfirm>
+                            </Space>
+                          </div>
                         ))}
                         <Button 
                           type="dashed" 
@@ -647,13 +734,19 @@ const FilterRuleWizard: React.FC<FilterRuleWizardProps> = ({
               <Form.Item
                 label="备注说明"
                 name="remark"
-                rules={[{ max: 500, message: '备注最多500个字符' }]}
+                rules={[
+                  { max: 500, message: '备注最多500个字符' },
+                  { whitespace: true, message: '备注不能为纯空格' },
+                ]}
+                validateTrigger={['onBlur']}
+                hasFeedback
               >
                 <TextArea
                   placeholder="请输入备注信息（可选）"
                   rows={3}
                   showCount
                   maxLength={500}
+                  onBlur={() => form.validateFields(['remark'])}
                 />
               </Form.Item>
             </Space>

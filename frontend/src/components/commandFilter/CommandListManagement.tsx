@@ -326,9 +326,15 @@ const CommandListManagement: React.FC = () => {
             rules={[
               { required: true, message: '请输入命令名称' },
               { max: 100, message: '命令名称最多100个字符' },
+              { pattern: /^[a-zA-Z0-9_\-./\\*]+$/, message: '命令名称只能包含字母、数字、下划线、横线、斜杠、点号和星号' },
             ]}
+            validateTrigger={['onChange', 'onBlur']}
+            hasFeedback
           >
-            <Input placeholder="请输入命令名称" />
+            <Input 
+              placeholder="请输入命令名称，如: ls, rm -rf, git *" 
+              onBlur={() => form.validateFields(['name'])}
+            />
           </Form.Item>
 
           <Form.Item
@@ -345,11 +351,19 @@ const CommandListManagement: React.FC = () => {
           <Form.Item
             label="描述"
             name="description"
-            rules={[{ max: 500, message: '描述最多500个字符' }]}
+            rules={[
+              { max: 500, message: '描述最多500个字符' },
+              { whitespace: true, message: '描述不能为纯空格' },
+            ]}
+            validateTrigger={['onBlur']}
+            hasFeedback
           >
             <TextArea 
               rows={4} 
               placeholder="请输入描述信息（可选）"
+              showCount
+              maxLength={500}
+              onBlur={() => form.validateFields(['description'])}
             />
           </Form.Item>
 
