@@ -18,6 +18,7 @@ import {
   Alert,
   Row,
   Col,
+  Popconfirm,
 } from 'antd';
 import {
   InfoCircleOutlined,
@@ -226,6 +227,7 @@ const FilterRuleWizard: React.FC<FilterRuleWizardProps> = ({
   // 删除属性
   const handleRemoveAttribute = (id: number) => {
     setAttributes(attributes.filter(attr => attr.id !== id));
+    message.success('已删除属性');
   };
 
   // 更新属性
@@ -406,13 +408,19 @@ const FilterRuleWizard: React.FC<FilterRuleWizardProps> = ({
                               onChange={(e) => handleUpdateAttribute(attr.id, 'value', e.target.value)}
                               style={{ width: 200 }}
                             />
-                            <Button
-                              type="text"
-                              danger
-                              onClick={() => handleRemoveAttribute(attr.id)}
+                            <Popconfirm
+                              title="确定要删除这个属性吗？"
+                              onConfirm={() => handleRemoveAttribute(attr.id)}
+                              okText="确定"
+                              cancelText="取消"
                             >
-                              删除
-                            </Button>
+                              <Button
+                                type="text"
+                                danger
+                              >
+                                删除
+                              </Button>
+                            </Popconfirm>
                           </Space>
                         ))}
                         <Button 
@@ -498,13 +506,19 @@ const FilterRuleWizard: React.FC<FilterRuleWizardProps> = ({
                               onChange={(e) => handleUpdateAttribute(attr.id, 'value', e.target.value)}
                               style={{ width: 200 }}
                             />
-                            <Button
-                              type="text"
-                              danger
-                              onClick={() => handleRemoveAttribute(attr.id)}
+                            <Popconfirm
+                              title="确定要删除这个属性吗？"
+                              onConfirm={() => handleRemoveAttribute(attr.id)}
+                              okText="确定"
+                              cancelText="取消"
                             >
-                              删除
-                            </Button>
+                              <Button
+                                type="text"
+                                danger
+                              >
+                                删除
+                              </Button>
+                            </Popconfirm>
                           </Space>
                         ))}
                         <Button 

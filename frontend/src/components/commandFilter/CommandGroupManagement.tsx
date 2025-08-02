@@ -310,8 +310,11 @@ const CommandGroupManagement: React.FC = () => {
           </Button>
           <Popconfirm
             title="确定要删除这个命令组吗？"
-            description="删除后将无法恢复"
+            description="删除后将无法恢复，所有引用此命令组的过滤规则也将受到影响。"
             onConfirm={() => handleDelete(record.id)}
+            okText="确定删除"
+            okType="danger"
+            cancelText="取消"
           >
             <Button 
               type="text" 
@@ -595,6 +598,10 @@ const CommandGroupManagement: React.FC = () => {
               commandItems.length > 0 && (
                 <Popconfirm
                   title="确定要清空所有已添加的项吗？"
+                  description="此操作不可恢复，您需要重新添加命令或正则表达式。"
+                  okText="确定清空"
+                  okType="danger"
+                  cancelText="取消"
                   onConfirm={() => {
                     setCommandItems([]);
                     message.success('已清空所有项');

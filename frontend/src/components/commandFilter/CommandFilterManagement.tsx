@@ -387,7 +387,11 @@ const CommandFilterManagement: React.FC = () => {
           </Button>
           <Popconfirm
             title="确定要删除这个过滤规则吗？"
+            description="删除后将无法恢复，且所有关联的用户和资产将不再受此规则限制。"
             onConfirm={() => handleDelete(record.id)}
+            okText="确定删除"
+            okType="danger"
+            cancelText="取消"
           >
             <Button 
               type="text" 

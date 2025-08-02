@@ -207,8 +207,11 @@ const CommandListManagement: React.FC = () => {
           </Button>
           <Popconfirm
             title="确定要删除这个命令吗？"
-            description="删除后将无法恢复"
+            description="删除后将无法恢复，所有引用此命令的命令组也将受到影响。"
             onConfirm={() => handleDelete(record.id)}
+            okText="确定删除"
+            okType="danger"
+            cancelText="取消"
           >
             <Button 
               type="text" 
