@@ -17,6 +17,7 @@ import {
   Card,
   Row,
   Col,
+  Empty,
 } from 'antd';
 import {
   PlusOutlined,
@@ -54,6 +55,8 @@ const CommandGroupManagement: React.FC = () => {
   const [form] = Form.useForm();
   const [searchKeyword, setSearchKeyword] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   
   // 命令项表单数据
   const [commandItems, setCommandItems] = useState<CommandGroupItem[]>([]);
@@ -79,6 +82,8 @@ const CommandGroupManagement: React.FC = () => {
         const adaptedData = adaptPaginatedResponse<CommandGroup>(response);
         setCommandGroups(adaptedData.items);
         setTotal(adaptedData.total);
+        // 清空选中项
+        setSelectedRowKeys([]);
       }
     } catch (error: any) {
       console.error('加载命令组列表失败:', error);
@@ -133,6 +138,40 @@ const CommandGroupManagement: React.FC = () => {
       console.error('删除命令组失败:', error);
       message.error('删除命令组失败');
     }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要删除的命令组');
+      return;
+    }
+
+    Modal.confirm({
+      title: '批量删除确认',
+      content: `确定要删除选中的 ${selectedRowKeys.length} 个命令组吗？此操作不可恢复。`,
+      okText: '确定删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        setDeleteLoading(true);
+        try {
+          // 逐个删除选中的命令组
+          const deletePromises = selectedRowKeys.map(id => 
+            commandFilterService.commandGroup.deleteCommandGroup(id)
+          );
+          await Promise.all(deletePromises);
+          
+          message.success(`成功删除 ${selectedRowKeys.length} 个命令组`);
+          setSelectedRowKeys([]);
+          loadCommandGroups();
+        } catch (error: any) {
+          console.error('批量删除命令组失败:', error);
+          message.error('批量删除命令组失败');
+        } finally {
+          setDeleteLoading(false);
+        }
+      },
+    });
   };
 
   const handleSubmit = async (values: any) => {
@@ -202,48 +241,44 @@ const CommandGroupManagement: React.FC = () => {
 
   const columns = [
     {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 80,
-    },
-    {
       title: '命令组名称',
       dataIndex: 'name',
       key: 'name',
-      render: (text: string) => (
+      render: (text: string, record: CommandGroup) => (
         <Space>
           <GroupOutlined />
-          {text}
+          <span style={{ fontWeight: 500 }}>{text}</span>
+          <Badge 
+            count={record.items?.length || 0} 
+            color="blue"
+            showZero
+            style={{ marginLeft: 8 }}
+          />
         </Space>
-      ),
-    },
-    {
-      title: '备注',
-      dataIndex: 'remark',
-      key: 'remark',
-      ellipsis: true,
-    },
-    {
-      title: '命令数量',
-      key: 'command_count',
-      render: (_: any, record: CommandGroup) => (
-        <Badge 
-          count={record.items?.length || 0} 
-          color="blue"
-          showZero
-        />
       ),
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
+      width: 200,
       render: (text: string) => new Date(text).toLocaleString(),
+    },
+    {
+      title: '描述',
+      dataIndex: 'remark',
+      key: 'remark',
+      ellipsis: true,
+      render: (text: string) => (
+        <Tooltip title={text}>
+          <span>{text || '-'}</span>
+        </Tooltip>
+      ),
     },
     {
       title: '操作',
       key: 'action',
+      width: 200,
       render: (_: any, record: CommandGroup) => (
         <Space size="small">
           <Button
@@ -279,6 +314,16 @@ const CommandGroupManagement: React.FC = () => {
           >
             新增命令组
           </Button>
+          {selectedRowKeys.length > 0 && (
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={handleBatchDelete}
+              loading={deleteLoading}
+            >
+              批量删除 ({selectedRowKeys.length})
+            </Button>
+          )}
           <Button
             icon={<ReloadOutlined />}
             onClick={loadCommandGroups}
@@ -301,31 +346,82 @@ const CommandGroupManagement: React.FC = () => {
         dataSource={commandGroups}
         loading={loading}
         rowKey="id"
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (newSelectedRowKeys: React.Key[]) => {
+            setSelectedRowKeys(newSelectedRowKeys as number[]);
+          },
+          getCheckboxProps: (record: CommandGroup) => ({
+            disabled: record.is_preset, // 预设命令组不能删除
+          }),
+        }}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <span>
+                  暂无命令组数据
+                  {!searchKeyword && (
+                    <>
+                      <br />
+                      <span style={{ color: '#999' }}>
+                        点击"新增命令组"按钮创建第一个命令组
+                      </span>
+                    </>
+                  )}
+                </span>
+              }
+            >
+              {!searchKeyword && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={handleAdd}
+                >
+                  新增命令组
+                </Button>
+              )}
+            </Empty>
+          ),
+        }}
         expandable={{
           expandedRowRender: (record: CommandGroup) => (
-            <div style={{ padding: '8px 24px' }}>
-              <h4>包含的命令/正则表达式：</h4>
-              <Space wrap>
-                {(record.items || []).map((item, index) => (
-                  <Tag 
-                    key={index}
-                    color={item.type === 'command' ? 'blue' : 'orange'}
-                    icon={item.type === 'command' ? <CodeOutlined /> : <RegexIcon />}
-                  >
-                    <code>{item.content}</code>
-                    {item.ignore_case && (
-                      <Tooltip title="忽略大小写">
-                        <span style={{ marginLeft: 4 }}>(i)</span>
-                      </Tooltip>
-                    )}
-                  </Tag>
-                ))}
-                {(!record.items || record.items.length === 0) && (
-                  <span style={{ color: '#999' }}>暂无命令</span>
+            <div style={{ padding: '16px 48px', backgroundColor: '#fafafa', borderRadius: 4 }}>
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ fontWeight: 500, color: '#666' }}>包含的命令/正则表达式：</span>
+                <span style={{ marginLeft: 8, color: '#999' }}>
+                  共 {record.items?.length || 0} 项
+                </span>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                {(record.items || []).length > 0 ? (
+                  <Space wrap size={[8, 8]}>
+                    {(record.items || []).map((item, index) => (
+                      <Tag 
+                        key={index}
+                        color={item.type === 'command' ? 'blue' : 'orange'}
+                        icon={item.type === 'command' ? <CodeOutlined /> : <RegexIcon />}
+                        style={{ margin: 0 }}
+                      >
+                        <code style={{ fontSize: 13 }}>{item.content}</code>
+                        {item.ignore_case && (
+                          <Tooltip title="忽略大小写">
+                            <span style={{ marginLeft: 4, fontSize: 11, opacity: 0.7 }}>(i)</span>
+                          </Tooltip>
+                        )}
+                      </Tag>
+                    ))}
+                  </Space>
+                ) : (
+                  <div style={{ color: '#999', fontStyle: 'italic' }}>
+                    暂无命令或正则表达式
+                  </div>
                 )}
-              </Space>
+              </div>
             </div>
           ),
+          rowExpandable: (record) => true,
         }}
         pagination={{
           current: pagination.current,
@@ -368,91 +464,151 @@ const CommandGroupManagement: React.FC = () => {
             </Col>
             <Col span={12}>
               <Form.Item
-                label="备注"
+                label="描述"
                 name="remark"
-                rules={[{ max: 500, message: '备注最多500个字符' }]}
+                rules={[{ max: 500, message: '描述最多500个字符' }]}
               >
-                <Input placeholder="请输入备注信息" />
+                <TextArea 
+                  placeholder="请输入命令组的描述信息" 
+                  rows={2}
+                  showCount
+                  maxLength={500}
+                />
               </Form.Item>
             </Col>
           </Row>
 
-          <Card title="添加命令或正则表达式" style={{ marginBottom: 16 }}>
-            <Row gutter={16}>
+          <Card 
+            title={
+              <span>
+                <PlusOutlined style={{ marginRight: 8 }} />
+                添加命令或正则表达式
+              </span>
+            } 
+            style={{ marginBottom: 16 }}
+            extra={
+              <Space>
+                <span style={{ color: '#999', fontSize: 12 }}>
+                  支持批量添加，每行一个
+                </span>
+              </Space>
+            }
+          >
+            <Row gutter={16} align="middle">
               <Col span={6}>
-                <Form.Item label="类型">
-                  <Select
-                    value={commandType}
-                    onChange={setCommandType}
-                    style={{ width: '100%' }}
-                  >
-                    <Option value="command">
-                      <CodeOutlined /> 命令
-                    </Option>
-                    <Option value="regex">
-                      <RegexIcon /> 正则表达式
-                    </Option>
-                  </Select>
-                </Form.Item>
+                <Select
+                  value={commandType}
+                  onChange={setCommandType}
+                  style={{ width: '100%' }}
+                  size="large"
+                >
+                  <Option value="command">
+                    <Space>
+                      <CodeOutlined />
+                      <span>命令</span>
+                    </Space>
+                  </Option>
+                  <Option value="regex">
+                    <Space>
+                      <RegexIcon />
+                      <span>正则表达式</span>
+                    </Space>
+                  </Option>
+                </Select>
               </Col>
-              <Col span={4}>
-                <Form.Item label="忽略大小写">
-                  <Checkbox
-                    checked={ignoreCase}
-                    onChange={(e) => setIgnoreCase(e.target.checked)}
-                  >
-                    忽略大小写
-                  </Checkbox>
-                </Form.Item>
+              <Col span={6}>
+                <Checkbox
+                  checked={ignoreCase}
+                  onChange={(e) => setIgnoreCase(e.target.checked)}
+                  style={{ marginTop: 8 }}
+                >
+                  忽略大小写
+                </Checkbox>
+              </Col>
+              <Col span={12} style={{ textAlign: 'right' }}>
+                <Button 
+                  type="primary" 
+                  onClick={handleAddCommand}
+                  disabled={!commandContent.trim()}
+                  icon={<PlusOutlined />}
+                >
+                  添加到命令组
+                </Button>
               </Col>
             </Row>
-            <Form.Item
-              label={
-                <span>
-                  内容（每行一个）
-                  <Tooltip title={commandType === 'command' ? '每行输入一个命令' : '每行输入一个正则表达式'}>
-                    <QuestionCircleOutlined style={{ marginLeft: 4 }} />
-                  </Tooltip>
-                </span>
-              }
-            >
+            <div style={{ marginTop: 16 }}>
               <TextArea
                 value={commandContent}
                 onChange={(e) => setCommandContent(e.target.value)}
                 placeholder={commandType === 'command' 
-                  ? "请输入命令，每行一个，例如：\nrm\nreboot\nshutdown" 
-                  : "请输入正则表达式，每行一个，例如：\n^rm\\s+-rf\n.*password.*"}
-                rows={4}
+                  ? "请输入命令，每行一个，例如：\nrm -rf\nreboot\nshutdown\nkill -9" 
+                  : "请输入正则表达式，每行一个，例如：\n^rm\\s+-rf\n.*password.*\n^sudo\\s+.*"}
+                rows={5}
+                style={{ fontFamily: 'monospace' }}
               />
-            </Form.Item>
-            <Button type="primary" onClick={handleAddCommand}>
-              添加到命令组
-            </Button>
+              {commandContent.trim() && (
+                <div style={{ marginTop: 8, color: '#666', fontSize: 12 }}>
+                  将添加 {commandContent.trim().split('\n').filter(line => line.trim()).length} 个{commandType === 'command' ? '命令' : '正则表达式'}
+                </div>
+              )}
+            </div>
           </Card>
 
-          <Card title="已添加的命令/正则表达式" style={{ marginBottom: 16 }}>
-            {commandItems.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#999', padding: '20px 0' }}>
-                暂未添加任何命令或正则表达式
-              </div>
-            ) : (
-              <Space direction="vertical" style={{ width: '100%' }}>
-                {commandItems.map((item, index) => (
-                  <Tag
-                    key={index}
-                    closable
-                    onClose={() => handleRemoveItem(index)}
-                    color={item.type === 'command' ? 'blue' : 'orange'}
-                    style={{ margin: '4px' }}
-                  >
-                    <Space>
-                      {item.type === 'command' ? <CodeOutlined /> : <RegexIcon />}
-                      <code>{item.content}</code>
-                      {item.ignore_case && <span>(忽略大小写)</span>}
-                    </Space>
-                  </Tag>
-                ))}
+          <Card 
+            title={
+              <Space>
+                <span>已添加的命令/正则表达式</span>
+                <Badge count={commandItems.length} showZero color="blue" />
               </Space>
+            }
+            style={{ marginBottom: 16 }}
+            extra={
+              commandItems.length > 0 && (
+                <Popconfirm
+                  title="确定要清空所有已添加的项吗？"
+                  onConfirm={() => setCommandItems([])}
+                >
+                  <Button type="link" size="small" danger>
+                    清空全部
+                  </Button>
+                </Popconfirm>
+              )
+            }
+          >
+            {commandItems.length === 0 ? (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="暂未添加任何命令或正则表达式"
+              />
+            ) : (
+              <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                <Space wrap size={[8, 8]}>
+                  {commandItems.map((item, index) => (
+                    <Tag
+                      key={index}
+                      closable
+                      onClose={() => handleRemoveItem(index)}
+                      color={item.type === 'command' ? 'blue' : 'orange'}
+                      style={{ 
+                        margin: 0,
+                        padding: '4px 8px',
+                        fontSize: 13,
+                        lineHeight: '20px'
+                      }}
+                    >
+                      <Space size={4}>
+                        {item.type === 'command' ? <CodeOutlined /> : <RegexIcon />}
+                        <code style={{ fontWeight: 500 }}>{item.content}</code>
+                        {item.ignore_case && (
+                          <Tooltip title="忽略大小写">
+                            <span style={{ fontSize: 11, opacity: 0.7 }}>(i)</span>
+                          </Tooltip>
+                        )}
+                      </Space>
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
             )}
           </Card>
 

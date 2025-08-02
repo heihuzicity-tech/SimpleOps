@@ -11,6 +11,7 @@ import {
   message,
   Tooltip,
   Select,
+  Empty,
 } from 'antd';
 import {
   PlusOutlined,
@@ -21,6 +22,7 @@ import {
   CodeOutlined,
   ExclamationCircleOutlined,
   CheckCircleOutlined,
+  FileAddOutlined,
 } from '@ant-design/icons';
 import { commandFilterService } from '../../services/commandFilterService';
 import { adaptPaginatedResponse } from '../../services/responseAdapter';
@@ -239,6 +241,36 @@ const CommandListManagement: React.FC = () => {
         dataSource={commands}
         loading={loading}
         rowKey="id"
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <span>
+                  暂无命令数据
+                  {!searchKeyword && (
+                    <>
+                      <br />
+                      <span style={{ color: '#999' }}>
+                        点击"新增命令"按钮创建第一个命令
+                      </span>
+                    </>
+                  )}
+                </span>
+              }
+            >
+              {!searchKeyword && (
+                <Button
+                  type="primary"
+                  icon={<FileAddOutlined />}
+                  onClick={handleAdd}
+                >
+                  新增命令
+                </Button>
+              )}
+            </Empty>
+          ),
+        }}
         pagination={{
           current: pagination.current,
           pageSize: pagination.pageSize,
