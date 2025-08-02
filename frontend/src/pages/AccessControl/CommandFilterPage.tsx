@@ -4,11 +4,11 @@ import {
   SecurityScanOutlined,
   GroupOutlined,
   FilterOutlined,
-  UnorderedListOutlined,
+  // UnorderedListOutlined, // TODO: 命令列表功能暂时屏蔽
 } from '@ant-design/icons';
 import CommandGroupManagement from '../../components/commandFilter/CommandGroupManagement';
 import CommandFilterManagement from '../../components/commandFilter/CommandFilterManagement';
-import CommandListManagement from '../../components/commandFilter/CommandListManagement';
+// import CommandListManagement from '../../components/commandFilter/CommandListManagement'; // TODO: 命令列表功能暂时屏蔽
 
 const { Title } = Typography;
 
@@ -21,21 +21,24 @@ const CommandFilterPage: React.FC = () => {
       label: (
         <span>
           <FilterOutlined />
-          命令策略
+          过滤规则
         </span>
       ),
       children: <CommandFilterManagement />,
     },
-    {
-      key: 'command-list',
-      label: (
-        <span>
-          <UnorderedListOutlined />
-          命令列表
-        </span>
-      ),
-      children: <CommandListManagement />,
-    },
+    // TODO: 命令列表功能暂时屏蔽，待后端API开发完成后启用
+    // 后端需要实现 /command-filter/commands 相关API
+    // 详见：.specs/开发命令过滤功能/requirements.md
+    // {
+    //   key: 'command-list',
+    //   label: (
+    //     <span>
+    //       <UnorderedListOutlined />
+    //       命令列表
+    //     </span>
+    //   ),
+    //   children: <CommandListManagement />,
+    // },
     {
       key: 'command-groups',
       label: (
