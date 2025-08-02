@@ -73,6 +73,12 @@ export const commandGroupAPI = {
     return response.data;
   },
 
+  // 获取命令组详情
+  getCommandGroupDetail: async (id: number): Promise<ApiResponse<CommandGroup>> => {
+    const response = await apiClient.get(`${BASE_URL}/groups/${id}`);
+    return response.data;
+  },
+
   // 删除命令组
   deleteCommandGroup: async (id: number): Promise<ApiResponse<void>> => {
     const response = await apiClient.delete(`${BASE_URL}/groups/${id}`);

@@ -30,51 +30,24 @@ import {
 } from '@ant-design/icons';
 import { commandFilterService } from '../../services/commandFilterService';
 import { adaptPaginatedResponse } from '../../services/responseAdapter';
+import { 
+  CommandGroup, 
+  CommandGroupItem, 
+  CommandGroupListRequest, 
+  CommandGroupCreateRequest, 
+  CommandGroupUpdateRequest,
+  CommandGroupResponse 
+} from '../../types';
 
 const { Search } = Input;
 const { TextArea } = Input;
 const { Option } = Select;
 
-// TypeScript接口定义
-interface CommandGroup {
-  id: number;
-  name: string;
-  remark?: string;
-  items: CommandGroupItem[];
-  created_at: string;
-  updated_at: string;
-}
-
-interface CommandGroupItem {
-  id?: number;
-  command_group_id?: number;
-  type: 'command' | 'regex';
-  content: string;
-  ignore_case: boolean;
-  sort_order?: number;
-}
-
-interface CommandGroupListRequest {
-  page?: number;
-  page_size?: number;
-  name?: string;
-}
-
-interface CommandGroupCreateRequest {
-  name: string;
-  remark?: string;
-  items: CommandGroupItem[];
-}
-
-interface CommandGroupUpdateRequest {
-  name?: string;
-  remark?: string;
-  items?: CommandGroupItem[];
-}
 
 const CommandGroupManagement: React.FC = () => {
   const [commandGroups, setCommandGroups] = useState<CommandGroup[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingGroup, setEditingGroup] = useState<CommandGroup | null>(null);
@@ -125,17 +98,30 @@ const CommandGroupManagement: React.FC = () => {
     setIgnoreCase(false);
   };
 
-  const handleEdit = (group: CommandGroup) => {
-    setEditingGroup(group);
-    setCommandItems(group.items || []);
-    setIsModalVisible(true);
-    form.setFieldsValue({
-      name: group.name,
-      remark: group.remark,
-    });
-    setCommandType('command');
-    setCommandContent('');
-    setIgnoreCase(false);
+  const handleEdit = async (group: CommandGroup) => {
+    setEditLoading(true);
+    try {
+      // 获取命令组详情，确保包含完整的 items 数据
+      const response = await commandFilterService.commandGroup.getCommandGroupDetail(group.id);
+      if (response.data) {
+        const detailedGroup = response.data;
+        setEditingGroup(detailedGroup);
+        setCommandItems(detailedGroup.items || []);
+        setIsModalVisible(true);
+        form.setFieldsValue({
+          name: detailedGroup.name,
+          remark: detailedGroup.remark,
+        });
+        setCommandType('command');
+        setCommandContent('');
+        setIgnoreCase(false);
+      }
+    } catch (error: any) {
+      console.error('获取命令组详情失败:', error);
+      message.error('获取命令组详情失败');
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -264,6 +250,7 @@ const CommandGroupManagement: React.FC = () => {
             type="text"
             icon={<EditOutlined />}
             onClick={() => handleEdit(record)}
+            loading={editLoading}
           >
             编辑
           </Button>
