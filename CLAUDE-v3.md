@@ -112,10 +112,6 @@ Solves context exhaustion during task execution.
 3. **Generate Session Prompt**:
    - Extract current feature name and phase from tasks.md
    - Identify current task and progress from tasks.md
-   - Get current branch name using: git rev-parse --abbrev-ref HEAD
-   - Get modified files in feature using: git diff --name-only main...HEAD
-   - Filter and group files by directory for better context
-   - Include key file locations in the continuation prompt
    - Create concise continuation prompt based on latest progress
 
 4. **Output Display**:
@@ -124,7 +120,6 @@ Solves context exhaustion during task execution.
    I am developing [feature_name] using Kiro SPECS
    Current phase: [execution_phase]
    Latest progress: Completed task [X.X] - [task_description]
-   Key files: [main_directory]/*.tsx (or specific files if few)
    Please continue with: /kiro next
    
    Please load project context first to understand current progress.
@@ -637,10 +632,6 @@ The tasks document should be based on the design document, so ensure it exists f
 2. **Load project info**: Auto-read `.specs/project-info.md` if exists
 3. **Load current context**: Check for active features and tasks.md files with progress information
 4. **Directory safety**: Ensure operations happen in project root directory
-5. **Git context loading** (for task execution):
-   - Get current branch: `git rev-parse --abbrev-ref HEAD`
-   - If on feature branch, get modified files: `git diff --name-only main...HEAD`
-   - Use file list to understand working context without searching
 
 ## Implicit Rules - Phase-Aware Behavior Guidelines
 

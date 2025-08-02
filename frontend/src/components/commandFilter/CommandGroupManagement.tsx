@@ -13,7 +13,6 @@ import {
   Tooltip,
   Select,
   Checkbox,
-  InputNumber,
   Card,
   Row,
   Col,
@@ -23,7 +22,6 @@ import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  SearchOutlined,
   ReloadOutlined,
   GroupOutlined,
   CodeOutlined,
@@ -263,16 +261,10 @@ const CommandGroupManagement: React.FC = () => {
       title: '命令组名称',
       dataIndex: 'name',
       key: 'name',
-      render: (text: string, record: CommandGroup) => (
+      render: (text: string) => (
         <Space>
           <GroupOutlined />
           <span style={{ fontWeight: 500 }}>{text}</span>
-          <Badge 
-            count={record.items?.length || 0} 
-            color="blue"
-            showZero
-            style={{ marginLeft: 8 }}
-          />
         </Space>
       ),
     },

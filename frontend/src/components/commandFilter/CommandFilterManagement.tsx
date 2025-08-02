@@ -4,8 +4,6 @@ import {
   Button,
   Space,
   Input,
-  Modal,
-  Form,
   Tag,
   Popconfirm,
   message,
@@ -351,11 +349,12 @@ const CommandFilterManagement: React.FC = () => {
     },
     {
       title: '命令组',
-      dataIndex: 'command_group',
       key: 'command_group',
-      render: (commandGroup: CommandGroup) => (
-        <Tag color="blue">{commandGroup?.name || '-'}</Tag>
-      ),
+      render: (record: CommandFilter) => {
+        // 查找对应的命令组
+        const commandGroup = commandGroups.find(g => g.id === record.command_group_id);
+        return <Tag color="blue">{commandGroup?.name || '-'}</Tag>;
+      },
     },
     {
       title: '动作',

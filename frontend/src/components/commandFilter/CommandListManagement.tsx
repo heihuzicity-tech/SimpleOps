@@ -17,10 +17,8 @@ import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  SearchOutlined,
   ReloadOutlined,
   CodeOutlined,
-  ExclamationCircleOutlined,
   CheckCircleOutlined,
   FileAddOutlined,
 } from '@ant-design/icons';
@@ -70,7 +68,12 @@ const CommandListManagement: React.FC = () => {
       }
     } catch (error: any) {
       console.error('加载命令列表失败:', error);
-      message.error(error?.response?.data?.message || '加载命令列表失败');
+      // 如果是 404 错误，表示 API 尚未实现
+      if (error?.response?.status === 404) {
+        message.info('命令列表功能尚在开发中');
+      } else {
+        message.error(error?.response?.data?.message || '加载命令列表失败');
+      }
     } finally {
       setLoading(false);
     }
@@ -100,7 +103,11 @@ const CommandListManagement: React.FC = () => {
       loadCommands();
     } catch (error: any) {
       console.error('删除命令失败:', error);
-      message.error(error?.response?.data?.message || '删除命令失败');
+      if (error?.response?.status === 404) {
+        message.info('命令删除功能尚在开发中');
+      } else {
+        message.error(error?.response?.data?.message || '删除命令失败');
+      }
     } finally {
       setDeleteLoading(null);
     }
@@ -130,7 +137,11 @@ const CommandListManagement: React.FC = () => {
       loadCommands();
     } catch (error: any) {
       console.error('保存命令失败:', error);
-      message.error(error?.response?.data?.message || '保存命令失败');
+      if (error?.response?.status === 404) {
+        message.info('命令管理功能尚在开发中');
+      } else {
+        message.error(error?.response?.data?.message || '保存命令失败');
+      }
     } finally {
       setSubmitLoading(false);
     }
