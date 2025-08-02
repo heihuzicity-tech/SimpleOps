@@ -172,12 +172,15 @@ Solves context exhaustion during task execution.
 - The model MUST wait for explicit approval responses
 - The model MUST continue refinement cycle until user satisfaction
 - The model SHOULD proactively identify and suggest improvements for potential issues
+- Note: While original Kiro uses 'userInput' tool for approvals, we use conversational approval in Chinese language
+- The approval mechanism is dialogue-based rather than tool-based
 
 ### 4. Automatic Task Management
 **Constraints:**
 - The model MUST execute only ONE task at a time
 - The model MUST stop after completing each task and wait for user review
 - The model MUST NOT automatically proceed to the next task after completing one
+- Remember, it is VERY IMPORTANT that you only execute one task at a time. Once you finish a task, stop. Don't automatically continue to the next task without the user asking you to do so
 - The model MUST only continue to next task when user explicitly requests
 - The model MUST update task status in tasks.md in real-time
 - The model MUST provide completion summary after each task
@@ -225,6 +228,7 @@ Solves context exhaustion during task execution.
 
 ### Phase 1: Requirements Clarification
 Transform user ideas into structured requirements through guided discovery and iterative refinement.
+Don't focus on code exploration in this phase. Instead, just focus on writing requirements which will later be turned into a design.
 
 **Constraints:**
 - The model MUST use a hybrid approach for requirements gathering:
@@ -241,11 +245,13 @@ Transform user ideas into structured requirements through guided discovery and i
     - A user story in the format "As a [role], I want [feature], so that [benefit]"
     - Acceptance criteria in EARS (Easy Approach to Requirements Syntax) format
 - The model MUST present 3-5 key requirement points for user review after generation
-- The model MUST request approval in Chinese, asking if requirements look good and if ready to proceed to design phase
-- The model MUST continue refinement cycle until user satisfaction
+- The model MUST request approval in Chinese with content: "Requirements include following points: [list points]. How does it look? Can we proceed to design phase?"
+- The model MUST make modifications to the requirements document if user requests changes or does not explicitly approve
+- The model MUST ask for explicit approval after every iteration of edits to the requirements document
+- The model MUST NOT proceed to design phase until receiving clear approval (such as "yes", "approved", "looks good", "ok", "continue", etc.)
+- The model MUST continue the feedback-revision cycle until explicit approval is received
 - The model SHOULD ask about edge cases user might not have considered
 - The model SHOULD identify potential conflicts or missing information
-- The model MUST NOT proceed to design phase without explicit user approval
 
 **Output**: `.specs/{feature_name}/requirements.md`
 ```markdown
@@ -277,12 +283,16 @@ Transform user ideas into structured requirements through guided discovery and i
 
 ### Phase 2: Design & Research
 After the user approves the Requirements, develop a comprehensive design document based on the feature requirements, conducting necessary research during the design process.
+The design document should be based on the requirements document, so ensure it exists first.
 
 **Constraints:**
 - The model MUST create a `.specs/{feature_name}/design.md` file if it doesn't already exist
 - The model MUST identify areas where research is needed based on the feature requirements
 - The model MUST conduct research and build up context in the conversation thread
+- The model MUST summarize key findings that will inform the feature design
+- The model SHOULD cite sources and include relevant links in the conversation
 - The model SHOULD NOT create separate research files, but instead use the research as context for the design
+- The model MUST incorporate research findings directly into the design process
 - The model MUST create a detailed design document at `.specs/{feature_name}/design.md`
 - The model MUST include the following sections in the design document:
   - Overview
@@ -291,11 +301,16 @@ After the user approves the Requirements, develop a comprehensive design documen
   - Data Models
   - Error Handling
   - Testing Strategy
-- The model SHOULD include diagrams or visual representations when appropriate
+- The model SHOULD include diagrams or visual representations when appropriate (use Mermaid for diagrams if applicable)
 - The model MUST ensure the design addresses all feature requirements identified during the clarification process
 - The model SHOULD highlight design decisions and their rationales
-- The model MUST make modifications to the design document if the user requests changes
-- The model MUST NOT proceed to the implementation plan until receiving clear approval
+- The model MAY ask the user for input on specific technical decisions during the design process
+- After updating the design document, the model MUST ask the user in Chinese with content: "Design solution contains: [core architecture points]. How does the design look? If good, we can proceed to implementation plan phase."
+- The model MUST make modifications to the design document if the user requests changes or does not explicitly approve
+- The model MUST ask for explicit approval after every iteration of edits to the design document
+- The model MUST NOT proceed to the implementation plan until receiving clear approval (such as "yes", "approved", "looks good", "ok", "continue", etc.)
+- The model MUST continue the feedback-revision cycle until explicit approval is received
+- The model MUST incorporate all user feedback into the design document before proceeding
 - The model MUST offer to return to requirements phase if gaps are identified during design
 - The model MUST regenerate design document completely if requirements have changed
 
@@ -352,6 +367,7 @@ interface Entity2 {
 
 ### Phase 3: Task Planning
 After the user approves the Design, create an actionable implementation plan with a checklist of coding tasks based on the requirements and design.
+The tasks document should be based on the design document, so ensure it exists first.
 
 **Constraints:**
 - The model MUST create a `.specs/{feature_name}/tasks.md` file if it doesn't already exist
@@ -366,13 +382,20 @@ After the user approves the Design, create an actionable implementation plan wit
   with wiring things together. There should be no hanging or orphaned code that isn't integrated into a 
   previous step. Focus ONLY on tasks that involve writing, modifying, or testing code.
   ```
-- The model MUST format the implementation plan as a numbered checkbox list with a maximum of two levels of hierarchy
+- The model MUST format the implementation plan as a numbered checkbox list with a maximum of two levels of hierarchy:
+  - Top-level items (like epics) should be used only when needed
+  - Sub-tasks should be numbered with decimal notation (e.g., 1.1, 1.2, 2.1)
+  - Each item must be a checkbox
+  - Simple structure is preferred
 - The model MUST ensure each task item includes:
   - A clear objective as the task description that involves writing, modifying, or testing code
-  - Specific references to requirements from the requirements document
+  - Additional information as sub-bullets under the task
+  - Specific references to requirements from the requirements document (referencing granular sub-requirements, not just user stories)
 - The model MUST ensure each task builds incrementally on previous steps
 - The model SHOULD prioritize test-driven development where appropriate
 - The model MUST ensure the plan covers all aspects of the design that can be implemented through code
+- The model SHOULD sequence steps to validate core functionality early through code
+- The model MUST ensure that all requirements are covered by the implementation tasks
 - The model MUST treat each task as a self-contained prompt that another LLM can execute
 - The model MUST ensure incremental complexity progression:
   - Start with simple structures and interfaces
@@ -380,9 +403,33 @@ After the user approves the Design, create an actionable implementation plan wit
   - End with integration and wiring tasks
 - The model MUST avoid orphaned code by ensuring each task connects to the overall system
 - The model MUST ONLY include tasks that can be performed by a coding agent (writing code, creating tests, etc.)
-- The model MUST NOT include tasks related to user testing, deployment, or other non-coding activities
-- The model MUST make modifications to the tasks document if the user requests changes
-- The model MUST NOT consider the workflow complete until receiving clear approval
+- The model MUST NOT include excessive implementation details that are already covered in the design document
+- The model MUST assume that all context documents (feature requirements, design) will be available during implementation
+- The model MUST ensure each task is actionable by a coding agent by following these guidelines:
+  - Tasks should involve writing, modifying, or testing specific code components
+  - Tasks should specify what files or components need to be created or modified
+  - Tasks should be concrete enough that a coding agent can execute them without additional clarification
+  - Tasks should focus on implementation details rather than high-level concepts
+  - Tasks should be scoped to specific coding activities (e.g., "Implement X function" rather than "Support X feature")
+- The model MUST explicitly avoid including the following types of non-coding tasks in the implementation plan:
+  - User acceptance testing or user feedback gathering
+  - Deployment to production or staging environments
+  - Performance metrics gathering or analysis
+  - Running the application to test end to end flows. We can however write automated tests to test the end to end from a user perspective
+  - User training or documentation creation
+  - Business process changes or organizational changes
+  - Marketing or communication activities
+  - Any task that cannot be completed through writing, modifying, or testing code
+- After updating the tasks document, the model MUST ask the user in Chinese with content: "Task plan contains [X] tasks, estimated [Y] days to complete. How do the tasks look?"
+- The model MUST make modifications to the tasks document if the user requests changes or does not explicitly approve
+- The model MUST ask for explicit approval after every iteration of edits to the tasks document
+- The model MUST NOT consider the workflow complete until receiving clear approval (such as "yes", "approved", "looks good", "ok", "continue", etc.)
+- The model MUST continue the feedback-revision cycle until explicit approval is received
+- The model MUST stop once the task document has been approved
+- **This workflow is ONLY for creating design and planning artifacts. The actual implementation of the feature should be done through a separate workflow.**
+- The model MUST NOT attempt to implement the feature as part of this workflow
+- The model MUST clearly communicate to the user that this workflow is complete once the design and planning artifacts are created
+- The model MUST inform the user that they can begin executing tasks using `/kiro next` command (in Claude Code environment)
 - The model MUST return to the design phase if the user indicates design changes are needed
 - The model MUST return to the requirements phase if the user indicates new requirements
 - The model MUST regenerate entire tasks.md from scratch after updating requirements or design documents
@@ -478,12 +525,14 @@ After the user approves the Design, create an actionable implementation plan wit
 - The model MUST stop after each task and wait for user instruction
 - The model MUST NOT automatically proceed to the next task without user request
 - The model SHOULD recommend the next task if user doesn't specify
+- If the user doesn't specify which task they want to work on, look at the task list for that spec and make a recommendation on the next task to execute
 - The model MUST distinguish between task questions and execution requests
 - The model MUST NOT modify task list during execution (only update status)
 - The model MUST return to planning workflow if new tasks are needed
 
 **Task Execution Details:**
 - The model MUST examine task details including sub-bullets and requirement references
+- If the requested task has sub-tasks, always start with the sub tasks
 - The model MUST always execute sub-tasks before parent tasks
 - The model MUST recommend next task based on:
   - Uncompleted tasks in current section
@@ -494,6 +543,8 @@ After the user approves the Design, create an actionable implementation plan wit
   - Task execution requests: "implement task 2.1" (start coding)
   - Task questions: "what's the next task?" (provide information only)
   - Status queries: "which tasks are completed?" (show progress only)
+- The user may ask questions about tasks without wanting to execute them. Don't always start executing tasks in cases like this
+- For example, the user may want to know what the next task is for a particular feature. In this case, just provide the information and don't start any tasks
 
 **Workflow Completion Protocol:**
 - The model MUST notify user when all tasks are complete: "All tasks for [feature] have been completed!"
@@ -508,7 +559,7 @@ After the user approves the Design, create an actionable implementation plan wit
 - The model MUST include in the summary: features implemented, files changed, key decisions made, and lessons learned
 - The model MUST use Git Expert or git commands to commit all changes with descriptive message
 - The model MUST create a pull request or merge feature branch to main branch
-- The model MUST provide final status report to user in Chinese
+- The model MUST provide final status report to user using Chinese language
 - The model SHOULD archive the feature folder for future reference
 - The model MUST handle any merge conflicts with user guidance
 
@@ -518,7 +569,7 @@ After the user approves the Design, create an actionable implementation plan wit
 - The model MUST NOT merge or interact with the main branch
 - The model MUST generate a descriptive commit message based on changes
 - The model MUST use Git Expert or git commands for committing
-- The model MUST show commit status and summary to user in Chinese
+- The model MUST show commit status and summary to user using Chinese language
 - The model CAN be used at any phase of development
 - The model MUST NOT update progress documents (unlike /kiro save)
 - The model MUST handle uncommitted changes gracefully
@@ -586,7 +637,7 @@ When user mentions a new feature or starts development:
 When working on the requirements document:
 - Ask the user to review the requirements and confirm if they are complete
 - Make sure the requirements include clear user stories and acceptance criteria in EARS format
-- Present key requirement points in Chinese for user review
+- Present key requirement points for user review using Chinese language
 - Once approved, proceed to the design phase by creating or updating a design.md file that outlines the technical approach, architecture, data models, and component structure
 - Do not skip to implementation without proper requirements documentation
 
@@ -717,6 +768,11 @@ Please load project context first to understand current progress.
 - ✅ **Follow approval gates** - Phase validation ensures quality and reduces rework
 - ✅ **Use `/kiro save` before session ends** - Ensure progress is captured and next session starts smoothly
 - ❌ **Don't skip AI suggestions** - Proactive recommendations prevent common pitfalls
+
+## Constants
+- SPECS_DIRECTORY = "specs"
+- SPEC_FILE_EXTENSIONS = ".md"
+- PRODUCT_CONFIG_DIRECTORY = ".specs"
 
 ---
 

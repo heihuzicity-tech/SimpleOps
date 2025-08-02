@@ -4,16 +4,38 @@ import {
   SecurityScanOutlined,
   GroupOutlined,
   FilterOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons';
 import CommandGroupManagement from '../../components/commandFilter/CommandGroupManagement';
 import CommandFilterManagement from '../../components/commandFilter/CommandFilterManagement';
+import CommandListManagement from '../../components/commandFilter/CommandListManagement';
 
 const { Title } = Typography;
 
 const CommandFilterPage: React.FC = () => {
-  const [activeKey, setActiveKey] = useState('command-groups');
+  const [activeKey, setActiveKey] = useState('command-filters');
 
   const tabItems = [
+    {
+      key: 'command-filters',
+      label: (
+        <span>
+          <FilterOutlined />
+          命令策略
+        </span>
+      ),
+      children: <CommandFilterManagement />,
+    },
+    {
+      key: 'command-list',
+      label: (
+        <span>
+          <UnorderedListOutlined />
+          命令列表
+        </span>
+      ),
+      children: <CommandListManagement />,
+    },
     {
       key: 'command-groups',
       label: (
@@ -23,16 +45,6 @@ const CommandFilterPage: React.FC = () => {
         </span>
       ),
       children: <CommandGroupManagement />,
-    },
-    {
-      key: 'command-filters',
-      label: (
-        <span>
-          <FilterOutlined />
-          命令过滤
-        </span>
-      ),
-      children: <CommandFilterManagement />,
     },
   ];
 

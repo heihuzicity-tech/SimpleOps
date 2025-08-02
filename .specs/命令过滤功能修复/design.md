@@ -9,20 +9,22 @@
 ```
 ┌─────────────────────────────────────────────┐
 │            CommandFilterPage                 │
-│                                             │
-│  ┌─────────┬──────────────┬──────────────┐ │
-│  │  过滤   │   命令列表    │   命令组     │ │
-│  │  规则   │              │              │ │
-│  │         │              │              │ │
-│  └─────────┴──────────────┴──────────────┘ │
+│  ┌────────┬──────────┬──────────┐          │
+│  │ 策略   │ 命令列表  │ 命令组   │ (标签)    │
+│  └────────┴──────────┴──────────┘          │
+│  ┌─────────────────────────────────────┐   │
+│  │                                     │   │
+│  │        当前标签页内容               │   │
+│  │                                     │   │
+│  └─────────────────────────────────────┘   │
 └─────────────────────────────────────────────┘
 ```
 
 ### 组件架构
-- **CommandFilterPage**: 主页面容器，使用三分栏布局
-- **FilterRuleManagement**: 过滤规则管理组件（左栏）
-- **CommandListManagement**: 命令列表管理组件（中栏）
-- **CommandGroupManagement**: 命令组管理组件（右栏）
+- **CommandFilterPage**: 主页面容器，使用 Tabs 组件管理三个标签页
+- **CommandFilterManagement**: 命令策略（过滤规则）管理组件
+- **CommandListManagement**: 命令列表管理组件（新增）
+- **CommandGroupManagement**: 命令组管理组件
 
 ## 组件和接口
 
@@ -39,10 +41,10 @@
 #### 修复方案
 需要确保在编辑模式下，从后端获取完整的命令组数据（包括items），并正确显示在界面上。
 
-### 组件 2: CommandFilterPage 布局重构
-- **目的**: 实现三分栏布局，提供更好的操作体验
-- **接口**: 新增布局管理接口
-- **依赖**: Ant Design Layout组件
+### 组件 2: CommandFilterPage 标签页优化
+- **目的**: 添加命令列表标签页，完善功能结构
+- **接口**: 保持现有 Tabs 接口，新增命令列表标签
+- **依赖**: Ant Design Tabs组件
 
 ### 组件 3: FilterRuleManagement 新组件
 - **目的**: 管理过滤规则，采用向导式设计
@@ -146,27 +148,33 @@ interface CommandGroupItem {
 2. 确保 `items` 数据正确加载到 `commandItems` 状态
 3. 验证 Modal 中的渲染逻辑正确使用 `commandItems`
 
-### 三分栏布局实现
+### 标签页实现
 
-#### 布局结构
+#### 标签页结构
 ```typescript
-<Row gutter={16}>
-  <Col span={6}>
-    <FilterRuleManagement />
-  </Col>
-  <Col span={9}>
-    <CommandListManagement />
-  </Col>
-  <Col span={9}>
-    <CommandGroupManagement />
-  </Col>
-</Row>
+const tabItems = [
+  {
+    key: 'command-filters',
+    label: '命令策略',
+    children: <CommandFilterManagement />
+  },
+  {
+    key: 'command-list',
+    label: '命令列表', 
+    children: <CommandListManagement />
+  },
+  {
+    key: 'command-groups',
+    label: '命令组',
+    children: <CommandGroupManagement />
+  }
+];
 ```
 
-#### 响应式设计
-- 大屏幕：6-9-9 布局
-- 中等屏幕：8-8-8 布局
-- 小屏幕：垂直堆叠
+#### 标签页特性
+- 保持独立的页面状态
+- 支持标签切换动画
+- 记忆用户最后访问的标签
 
 ### 向导式过滤规则设计
 
