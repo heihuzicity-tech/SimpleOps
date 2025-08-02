@@ -57,12 +57,14 @@ const CommandGroupManagement: React.FC = () => {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteItemLoading, setDeleteItemLoading] = useState<number | null>(null);
   
   // 命令项表单数据
   const [commandItems, setCommandItems] = useState<CommandGroupItem[]>([]);
   const [commandType, setCommandType] = useState<'command' | 'regex'>('command');
   const [commandContent, setCommandContent] = useState('');
   const [ignoreCase, setIgnoreCase] = useState(false);
+  const [addCommandLoading, setAddCommandLoading] = useState(false);
 
   useEffect(() => {
     loadCommandGroups();
@@ -130,6 +132,7 @@ const CommandGroupManagement: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
+    setDeleteItemLoading(id);
     try {
       await commandFilterService.commandGroup.deleteCommandGroup(id);
       message.success('删除成功');
@@ -137,6 +140,8 @@ const CommandGroupManagement: React.FC = () => {
     } catch (error: any) {
       console.error('删除命令组失败:', error);
       message.error('删除命令组失败');
+    } finally {
+      setDeleteItemLoading(null);
     }
   };
 
@@ -174,12 +179,15 @@ const CommandGroupManagement: React.FC = () => {
     });
   };
 
+  const [submitLoading, setSubmitLoading] = useState(false);
+
   const handleSubmit = async (values: any) => {
     if (commandItems.length === 0) {
       message.error('请至少添加一个命令或正则表达式');
       return;
     }
 
+    setSubmitLoading(true);
     try {
       if (editingGroup) {
         const updateData: CommandGroupUpdateRequest = {
@@ -207,6 +215,8 @@ const CommandGroupManagement: React.FC = () => {
     } catch (error: any) {
       console.error('保存命令组失败:', error);
       message.error('保存命令组失败');
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -222,15 +232,20 @@ const CommandGroupManagement: React.FC = () => {
       return;
     }
 
-    const newItems: CommandGroupItem[] = lines.map(content => ({
-      type: commandType,
-      content: content.trim(),
-      ignore_case: ignoreCase,
-    }));
+    setAddCommandLoading(true);
+    // 模拟异步操作，实际上是同步的，但为了用户体验添加短暂延迟
+    setTimeout(() => {
+      const newItems: CommandGroupItem[] = lines.map(content => ({
+        type: commandType,
+        content: content.trim(),
+        ignore_case: ignoreCase,
+      }));
 
-    setCommandItems([...commandItems, ...newItems]);
-    setCommandContent('');
-    message.success(`已添加 ${newItems.length} 个${commandType === 'command' ? '命令' : '正则表达式'}`);
+      setCommandItems([...commandItems, ...newItems]);
+      setCommandContent('');
+      message.success(`已添加 ${newItems.length} 个${commandType === 'command' ? '命令' : '正则表达式'}`);
+      setAddCommandLoading(false);
+    }, 300);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -294,7 +309,12 @@ const CommandGroupManagement: React.FC = () => {
             description="删除后将无法恢复"
             onConfirm={() => handleDelete(record.id)}
           >
-            <Button type="text" danger icon={<DeleteOutlined />}>
+            <Button 
+              type="text" 
+              danger 
+              icon={<DeleteOutlined />}
+              loading={deleteItemLoading === record.id}
+            >
               删除
             </Button>
           </Popconfirm>
@@ -327,6 +347,7 @@ const CommandGroupManagement: React.FC = () => {
           <Button
             icon={<ReloadOutlined />}
             onClick={loadCommandGroups}
+            loading={loading}
           >
             刷新
           </Button>
@@ -531,6 +552,7 @@ const CommandGroupManagement: React.FC = () => {
                   onClick={handleAddCommand}
                   disabled={!commandContent.trim()}
                   icon={<PlusOutlined />}
+                  loading={addCommandLoading}
                 >
                   添加到命令组
                 </Button>
@@ -614,10 +636,17 @@ const CommandGroupManagement: React.FC = () => {
 
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit">
+              <Button 
+                type="primary" 
+                htmlType="submit"
+                loading={submitLoading}
+              >
                 {editingGroup ? '更新' : '创建'}
               </Button>
-              <Button onClick={() => setIsModalVisible(false)}>
+              <Button 
+                onClick={() => setIsModalVisible(false)}
+                disabled={submitLoading}
+              >
                 取消
               </Button>
             </Space>

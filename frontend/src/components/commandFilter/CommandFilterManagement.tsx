@@ -37,10 +37,11 @@ import {
   CommandFilterUpdateRequest,
   FilterAttribute,
   FilterAction,
+  User,
 } from '../../types';
 import { commandFilterService } from '../../services/commandFilterService';
 import { adaptPaginatedResponse } from '../../services/responseAdapter';
-import { getUsers, User } from '../../services/userAPI';
+import { getUsers } from '../../services/userAPI';
 import { getAssets } from '../../services/assetAPI';
 import { getCredentials } from '../../services/credentialAPI';
 import FilterRuleWizard from './FilterRuleWizard';
@@ -63,6 +64,8 @@ const CommandFilterManagement: React.FC = () => {
   const [editingFilter, setEditingFilter] = useState<CommandFilter | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
+  const [toggleLoading, setToggleLoading] = useState<number | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
   
   // 数据源
   const [commandGroups, setCommandGroups] = useState<CommandGroup[]>([]);
@@ -122,7 +125,12 @@ const CommandFilterManagement: React.FC = () => {
       const response = await getUsers({ page: 1, page_size: 100 });
       // 使用统一的响应格式
       if (response.data?.data?.items) {
-        setUsers(response.data.data.items);
+        // 转换用户数据以匹配类型定义
+        const users = response.data.data.items.map((user: any) => ({
+          ...user,
+          status: user.status === 'active' ? 1 : 0, // 将字符串状态转换为数字
+        }));
+        setUsers(users);
       }
     } catch (error) {
       console.error('加载用户列表失败:', error);
@@ -180,6 +188,7 @@ const CommandFilterManagement: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
+    setDeleteLoading(id);
     try {
       await commandFilterService.filter.deleteFilter(id);
       message.success('删除成功');
@@ -187,10 +196,13 @@ const CommandFilterManagement: React.FC = () => {
     } catch (error: any) {
       console.error('删除过滤规则失败:', error);
       message.error('删除过滤规则失败');
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
   const handleToggle = async (id: number) => {
+    setToggleLoading(id);
     try {
       await commandFilterService.filter.toggleFilter(id);
       message.success('状态切换成功');
@@ -198,6 +210,8 @@ const CommandFilterManagement: React.FC = () => {
     } catch (error: any) {
       console.error('切换状态失败:', error);
       message.error('切换状态失败');
+    } finally {
+      setToggleLoading(null);
     }
   };
 
@@ -293,6 +307,7 @@ const CommandFilterManagement: React.FC = () => {
           onChange={() => handleToggle(record.id)}
           checkedChildren="启用"
           unCheckedChildren="禁用"
+          loading={toggleLoading === record.id}
         />
       ),
     },
@@ -367,7 +382,12 @@ const CommandFilterManagement: React.FC = () => {
             title="确定要删除这个过滤规则吗？"
             onConfirm={() => handleDelete(record.id)}
           >
-            <Button type="text" danger icon={<DeleteOutlined />}>
+            <Button 
+              type="text" 
+              danger 
+              icon={<DeleteOutlined />}
+              loading={deleteLoading === record.id}
+            >
               删除
             </Button>
           </Popconfirm>
@@ -391,6 +411,7 @@ const CommandFilterManagement: React.FC = () => {
           <Button
             icon={<ReloadOutlined />}
             onClick={loadFilters}
+            loading={loading}
           >
             刷新
           </Button>

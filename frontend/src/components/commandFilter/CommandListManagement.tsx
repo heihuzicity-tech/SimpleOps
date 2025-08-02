@@ -46,6 +46,8 @@ const CommandListManagement: React.FC = () => {
   const [form] = Form.useForm();
   const [searchKeyword, setSearchKeyword] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
 
   useEffect(() => {
     loadCommands();
@@ -91,6 +93,7 @@ const CommandListManagement: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
+    setDeleteLoading(id);
     try {
       await commandFilterService.command.deleteCommand(id);
       message.success('删除成功');
@@ -98,10 +101,13 @@ const CommandListManagement: React.FC = () => {
     } catch (error: any) {
       console.error('删除命令失败:', error);
       message.error('删除命令失败');
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
   const handleSubmit = async (values: any) => {
+    setSubmitLoading(true);
     try {
       if (editingCommand) {
         const updateData: CommandUpdateRequest = {
@@ -125,6 +131,8 @@ const CommandListManagement: React.FC = () => {
     } catch (error: any) {
       console.error('保存命令失败:', error);
       message.error('保存命令失败');
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -199,7 +207,12 @@ const CommandListManagement: React.FC = () => {
             description="删除后将无法恢复"
             onConfirm={() => handleDelete(record.id)}
           >
-            <Button type="text" danger icon={<DeleteOutlined />}>
+            <Button 
+              type="text" 
+              danger 
+              icon={<DeleteOutlined />}
+              loading={deleteLoading === record.id}
+            >
               删除
             </Button>
           </Popconfirm>
@@ -222,6 +235,7 @@ const CommandListManagement: React.FC = () => {
           <Button
             icon={<ReloadOutlined />}
             onClick={loadCommands}
+            loading={loading}
           >
             刷新
           </Button>
@@ -332,10 +346,17 @@ const CommandListManagement: React.FC = () => {
 
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit">
+              <Button 
+                type="primary" 
+                htmlType="submit"
+                loading={submitLoading}
+              >
                 {editingCommand ? '更新' : '创建'}
               </Button>
-              <Button onClick={() => setIsModalVisible(false)}>
+              <Button 
+                onClick={() => setIsModalVisible(false)}
+                disabled={submitLoading}
+              >
                 取消
               </Button>
             </Space>
