@@ -1,300 +1,249 @@
-# 运维堡垒机系统 (Bastion)
+# 黑胡子堡垒机系统 (Blackbeard Bastion)
 
 [![Go Version](https://img.shields.io/badge/Go-1.19+-blue.svg)](https://golang.org)
 [![React Version](https://img.shields.io/badge/React-18+-blue.svg)](https://reactjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org)
+[![Ant Design](https://img.shields.io/badge/Ant%20Design-5.0+-blue.svg)](https://ant.design)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)]()
-[![Coverage](https://img.shields.io/badge/Coverage-85%25-green.svg)]()
 
-## 🚀 项目简介
+## 🏴‍☠️ 项目简介
 
-运维堡垒机系统是一个基于Go和React的企业级运维安全管理平台，专注于提供安全的服务器访问控制和操作审计功能。
+黑胡子堡垒机系统是一个现代化的企业级运维安全管理平台，提供全面的服务器访问控制、操作审计和资产管理功能。系统采用前后端分离架构，具备高性能、高安全性和易扩展性。
 
-### 核心特性
+### ✨ 核心特性
 
-- 🔐 **用户认证与权限管理** - 基于JWT的认证系统和RBAC权限控制
-- 🖥️ **服务器资产管理** - 统一的服务器资产和凭证管理
-- 🔗 **SSH访问代理** - 安全的SSH协议代理和WebSSH终端
-- 📊 **操作审计** - 完整的操作日志记录和会话审计
-- 🎨 **现代化界面** - 基于Ant Design的美观管理界面 (开发中)
+- 🔐 **身份认证与授权** - 基于JWT的安全认证和RBAC权限控制
+- 🖥️ **资产管理** - 统一管理服务器、数据库等IT资产
+- 🔑 **凭证管理** - 安全的密码和密钥管理
+- 🌐 **WebSSH终端** - 浏览器内的SSH终端访问
+- 📊 **审计日志** - 全面的操作记录和会话审计
+- 🚫 **命令过滤** - 危险命令拦截和权限控制
+- 📈 **仪表盘** - 实时监控和统计分析
+- 🎯 **会话管理** - 在线会话监控和强制下线
 
-### 技术栈
+## 🛠️ 技术栈
 
-#### 后端
-- **Go 1.19+** - 高性能的后端服务
-- **Gin** - 轻量级Web框架
-- **GORM** - 优雅的ORM框架
-- **JWT** - 无状态认证
+### 后端技术
+- **Go 1.19+** - 高性能后端服务
+- **Gin** - Web框架
+- **GORM** - ORM框架
 - **MySQL 8.0** - 主数据库
 - **Redis** - 缓存和会话存储
+- **JWT** - 身份认证
+- **WebSocket** - 实时通信
 
-#### 前端
-- **React 18** - 现代化前端框架 (开发中)
-- **Ant Design** - 企业级UI组件库 (开发中)
-- **TypeScript** - 类型安全的JavaScript (开发中)
-- **Axios** - HTTP客户端 (开发中)
+### 前端技术
+- **React 18** - 前端框架
+- **TypeScript 5.0** - 类型安全
+- **Ant Design 5.0** - UI组件库
+- **Redux Toolkit** - 状态管理
+- **Axios** - HTTP客户端
+- **Xterm.js** - 终端模拟器
 
-## 📊 功能完成状态
+## 📋 功能模块
 
-### 已完成功能 ✅
+### ✅ 已完成功能
 
-- **✅ 权限管理** - 基于角色的访问控制(RBAC)
-- **✅ 用户管理** - 完整的用户和角色管理
-- **✅ 资产管理** - 服务器资产和凭证管理（完全完成）
-  - ✅ 资产创建、编辑、删除、查询
-  - ✅ 支持服务器、数据库两种资产类型
-  - ✅ 支持SSH、RDP、VNC、MySQL、PostgreSQL协议
-  - ✅ JSON格式标签系统
-  - ✅ 前后端完整集成，数据格式统一
-- **✅ SSH访问代理** - SSH协议代理和会话管理
-- **✅ 操作审计** - 全面的日志记录和审计追踪
-- **✅ API文档** - 完整的Swagger文档
-- **✅ 前端基础界面** - React + Ant Design管理界面
-  - ✅ 用户认证和权限系统
-  - ✅ 用户管理界面（完整的CRUD操作）
-  - ✅ 资产管理界面（完整的CRUD操作）
-  - ✅ 基于角色的菜单控制和页面访问控制
-  - ✅ 响应式布局和现代化UI设计
+#### 1. 用户与权限管理
+- 用户注册、登录、登出
+- 基于角色的权限控制（RBAC）
+- 用户管理（增删改查）
+- 角色管理（admin、auditor、user）
+- 权限动态分配
 
-### 开发中功能 🚧
+#### 2. 资产管理
+- 服务器资产管理（Linux/Windows）
+- 数据库资产管理（MySQL/PostgreSQL）
+- 资产分组管理
+- 连接状态监控
+- 批量操作支持
 
-- **🚧 前端高级功能** - 更多管理界面
-  - **🚧 SSH终端** - WebSSH终端界面、会话管理界面开发中
-  - **🚧 凭证管理** - 前端凭证管理界面开发中
-  - **🚧 审计日志** - 前端审计日志查看界面开发中
-- **🚧 集成测试** - 完整功能测试和性能测试
-- **🚧 部署文档** - 完善的部署和使用文档
+#### 3. 凭证管理
+- 密码凭证管理
+- SSH密钥管理
+- 凭证与资产关联
+- 凭证权限控制
 
-## 🏗️ 项目结构
+#### 4. SSH连接管理
+- WebSSH终端
+- 多标签页支持
+- 会话录像回放
+- 实时会话监控
+- 会话超时控制
 
-```
-bastion/
-├── backend/                 # 后端Go服务
-│   ├── main.go             # 应用入口
-│   ├── config/             # 配置文件
-│   ├── models/             # 数据模型
-│   ├── controllers/        # 控制器层
-│   ├── services/           # 业务逻辑层
-│   ├── middleware/         # 中间件
-│   ├── routers/            # 路由定义
-│   └── utils/              # 工具函数
-├── frontend/               # 前端React应用 (开发中)
-│   ├── src/
-│   │   ├── components/     # 可复用组件
-│   │   ├── pages/          # 页面组件
-│   │   ├── services/       # API服务
-│   │   └── utils/          # 工具函数
-├── scripts/                # 数据库脚本
-├── docs/                   # 项目文档
-├── docker-compose.yml      # Docker配置
-└── README.md              # 项目说明
-```
-
-## 🛠️ 核心功能
-
-### 1. 用户认证与权限管理
-- JWT令牌认证
-- 密码强度验证和哈希存储
-- 基于角色的访问控制(RBAC)
-- 权限动态分配和检查
-- 会话管理和Token刷新
-
-### 2. 资产管理
-- 服务器资产录入和管理
-- 支持多种资产类型 (服务器、数据库、网络设备)
-- AES-GCM加密的凭证存储
-- 连接测试功能 (SSH、RDP、数据库)
-- 资产分组和批量操作
-
-### 3. SSH访问代理
-- 完整的SSH协议代理实现
-- WebSocket支持的实时终端
-- SSH会话管理和连接池
-- SSH密钥生成和管理
-- 自动清理超时会话
-
-### 4. 审计系统
-- 登录日志记录
+#### 5. 审计功能
 - 操作日志记录
-- SSH会话记录
-- 命令执行日志
-- 统计分析和报表
-- 日志查询和清理
+- SSH会话审计
+- 命令日志记录
+- 录像文件管理
+- 审计报表导出
 
-## 🔧 API接口
+#### 6. 命令过滤
+- 危险命令拦截
+- 命令组管理
+- 黑白名单控制
+- 实时拦截通知
 
-系统提供完整的RESTful API，支持以下功能：
+#### 7. 仪表盘
+- 资产统计
+- 用户活跃度
+- 会话分析
+- 安全事件统计
 
-### 认证相关
-- `POST /api/v1/auth/login` - 用户登录
-- `POST /api/v1/logout` - 用户登出
-- `POST /api/v1/auth/refresh` - 刷新Token
-- `GET /api/v1/profile` - 获取用户资料
-- `PUT /api/v1/profile` - 更新用户资料
-- `POST /api/v1/change-password` - 修改密码
-
-### 用户管理
-- `GET /api/v1/users` - 获取用户列表
-- `POST /api/v1/users` - 创建用户
-- `PUT /api/v1/users/{id}` - 更新用户
-- `DELETE /api/v1/users/{id}` - 删除用户
-
-### 资产管理
-- `GET /api/v1/assets` - 获取资产列表
-- `POST /api/v1/assets` - 创建资产
-- `PUT /api/v1/assets/{id}` - 更新资产
-- `POST /api/v1/assets/{id}/test-connection` - 测试连接
-
-### SSH管理
-- `POST /api/v1/ssh/sessions` - 创建SSH会话
-- `GET /api/v1/ssh/sessions` - 获取会话列表
-- `DELETE /api/v1/ssh/sessions/{id}` - 终止SSH会话
-- `GET /api/v1/ssh/websocket/{sessionId}` - WebSocket连接
-
-### 审计管理
-- `GET /api/v1/audit/login-logs` - 获取登录日志
-- `GET /api/v1/audit/operation-logs` - 获取操作日志
-- `GET /api/v1/audit/session-records` - 获取会话记录
-- `GET /api/v1/audit/statistics` - 获取审计统计
-
-**完整API文档**: [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
+#### 8. 系统管理
+- 系统配置
+- 日志管理
+- 备份恢复
+- 性能监控
 
 ## 🚀 快速开始
 
 ### 环境要求
+
 - Go 1.19+
+- Node.js 18+
 - MySQL 8.0+
 - Redis 6.0+
-- Node.js 18+ (前端开发)
 
 ### 后端启动
 
-1. **克隆项目**
-   ```bash
-   git clone <repository-url>
-   cd bastion
-   ```
-
-2. **配置数据库**
-   ```bash
-   # 创建数据库
-   mysql -u root -p
-   CREATE DATABASE bastion CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-   
-   # 导入数据库结构
-   mysql -u root -p bastion < scripts/init.sql
-   mysql -u root -p bastion < scripts/create_audit_tables.sql
-   ```
-
-3. **配置应用**
-   ```bash
-   cd backend
-   cp config/config.yaml.example config/config.yaml
-   # 编辑配置文件，修改数据库连接信息
-   ```
-
-4. **安装依赖并运行**
-   ```bash
-   go mod download
-   go run main.go
-   ```
-
-5. **验证启动**
-   ```bash
-   curl http://localhost:8080/health
-   ```
-
-### 前端启动 (开发中)
-
 ```bash
-cd frontend
-npm install
-npm start
+# 进入后端目录
+cd backend
+
+# 安装依赖
+go mod download
+
+# 复制配置文件
+cp config/config.example.yaml config/config.yaml
+
+# 修改数据库配置
+vim config/config.yaml
+
+# 导入数据库
+mysql -u root -p < scripts/init.sql
+
+# 启动服务
+go run main.go
 ```
 
-## 📊 数据库结构
+### 前端启动
 
-系统使用MySQL数据库，包含以下核心表：
+```bash
+# 进入前端目录
+cd frontend
 
-- `users` - 用户信息
-- `roles` - 角色定义
-- `permissions` - 权限定义
-- `user_roles` - 用户角色关联
-- `role_permissions` - 角色权限关联
-- `assets` - 资产信息
-- `credentials` - 凭证信息
-- `sessions` - SSH会话记录
-- `login_logs` - 登录日志
-- `operation_logs` - 操作日志
-- `session_records` - 会话记录
-- `command_logs` - 命令日志
+# 安装依赖
+npm install
 
-## 🔒 安全特性
+# 启动开发服务器
+npm start
 
-- **JWT认证** - 无状态的用户认证
-- **密码哈希** - bcrypt密码安全存储
-- **AES加密** - 敏感数据AES-GCM加密
-- **权限控制** - 基于角色的访问控制
-- **审计日志** - 完整的操作追踪
-- **会话管理** - 安全的会话生命周期管理
-- **输入验证** - 严格的输入参数验证
+# 访问 http://localhost:3000
+```
 
-## 🎯 默认账户
+### 默认账号
 
-系统默认创建以下账户：
+- 管理员：admin / Admin@123
+- 审计员：auditor / Auditor@123
+- 普通用户：user / User@123
 
-- **管理员账户**
-  - 用户名: `admin`
-  - 密码: `admin123`
-  - 角色: 系统管理员 (拥有所有权限)
+## 📁 项目结构
 
-- **预设角色**
-  - `admin`: 系统管理员 (所有权限)
-  - `operator`: 运维人员 (资产管理、SSH访问)
-  - `auditor`: 审计员 (日志查看权限)
+```
+bastion/
+├── backend/                 # 后端服务
+│   ├── config/             # 配置文件
+│   ├── controllers/        # 控制器
+│   ├── models/             # 数据模型
+│   ├── services/           # 业务逻辑
+│   ├── middleware/         # 中间件
+│   ├── routers/            # 路由
+│   ├── utils/              # 工具函数
+│   └── main.go            # 入口文件
+├── frontend/               # 前端应用
+│   ├── public/            # 静态资源
+│   ├── src/
+│   │   ├── components/    # 组件
+│   │   ├── pages/         # 页面
+│   │   ├── services/      # API服务
+│   │   ├── store/         # Redux状态
+│   │   ├── types/         # TypeScript类型
+│   │   └── utils/         # 工具函数
+│   └── package.json
+├── scripts/                # 数据库脚本
+├── recordings/             # 会话录像
+└── README.md              # 项目文档
+```
 
-## 📖 文档
+## 🔧 配置说明
 
-**完整文档列表请查看: [docs/README.md](docs/README.md)**
+### 后端配置 (config/config.yaml)
 
-### 核心文档
-- [项目进度总结](docs/项目进度总结.md) - 详细的项目进度和技术实现
-- [接下来的开发计划](docs/接下来的开发计划.md) - 详细的开发计划和时间安排
-- [运维堡垒机系统需求分析](docs/运维堡垒机系统需求分析文档.md) - 完整的系统需求分析
+```yaml
+app:
+  name: "bastion"
+  port: 8080
+  mode: "release"  # debug, release
 
-### 技术指南
-- [前端开发指南](docs/前端开发指南.md) - 前端开发的详细指南和最佳实践
-- [API使用指南](docs/API使用指南.md) - REST API接口文档和使用示例
-- [数据库导入指南](docs/数据库导入指南.md) - 数据库结构和导入操作指南
+database:
+  type: "mysql"
+  host: "localhost"
+  port: 3306
+  username: "bastion"
+  password: "your-password"
+  dbname: "bastion"
 
-### 快速开始
-- [MVP快速开始指南](docs/MVP快速开始指南.md) - 快速部署和开始使用的指南
-- [项目架构图表集](docs/项目架构图表集.md) - 系统架构图、流程图和数据模型
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
 
-## 🤝 贡献
+jwt:
+  secret: "your-secret-key"
+  expire: 86400  # 24小时
 
-欢迎贡献代码和提出建议！
+ssh:
+  timeout: 3600  # SSH会话超时时间（秒）
+  recording: true  # 是否开启录像
+```
 
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 打开 Pull Request
+## 📊 API文档
+
+系统提供完整的RESTful API，主要端点包括：
+
+- `/api/v1/auth/*` - 认证相关
+- `/api/v1/users/*` - 用户管理
+- `/api/v1/assets/*` - 资产管理
+- `/api/v1/credentials/*` - 凭证管理
+- `/api/v1/ssh/*` - SSH连接
+- `/api/v1/audit/*` - 审计日志
+- `/api/v1/dashboard/*` - 仪表盘数据
+
+## 🚧 开发计划
+
+- [ ] 支持更多协议（RDP、VNC、Telnet）
+- [ ] 批量命令执行
+- [ ] 自动化运维
+- [ ] 移动端支持
+- [ ] 集成第三方认证（LDAP、OAuth2）
+- [ ] 高可用部署方案
+- [ ] 国际化支持
+
+## 🤝 贡献指南
+
+欢迎提交Issue和Pull Request！
 
 ## 📄 许可证
 
-本项目采用 MIT 许可证。详情请参阅 [LICENSE](LICENSE) 文件。
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
 
-## 📞 联系方式
+## 👥 联系我们
 
-如有问题或建议，请通过以下方式联系：
-
-- 项目主页: [GitHub Repository]
-- 问题反馈: [GitHub Issues]
-- 邮箱: [your-email@example.com]
+- 项目主页：https://github.com/yourusername/bastion
+- Issue反馈：https://github.com/yourusername/bastion/issues
 
 ---
 
-**项目状态**: 🟢 核心后端功能已完成，前端开发中
-**版本**: v2.0.0
-**最后更新**: 2025-01-13 
+⚓ Built with ❤️ by Blackbeard Team

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout, message } from 'antd';
 import { useSelector } from 'react-redux';
@@ -24,6 +24,7 @@ import GroupManagePage from './pages/GroupManagePage';
 import TerminalPage from './pages/connect/TerminalPage';
 import WorkspaceStandalone from './pages/connect/WorkspaceStandalone';
 import CommandFilterPage from './pages/AccessControl/CommandFilterPage';
+import WelcomeModal from './components/common/WelcomeModal';
 
 // 配置全局消息
 message.config({
@@ -34,10 +35,23 @@ message.config({
 });
 
 const App: React.FC = () => {
-  const { token } = useSelector((state: RootState) => state.auth);
+  const { token, user } = useSelector((state: RootState) => state.auth);
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  useEffect(() => {
+    // 每次登录都显示欢迎提示
+    if (token && user) {
+      setShowWelcome(true);
+    }
+  }, [token, user]);
+
+  const handleCloseWelcome = () => {
+    setShowWelcome(false);
+  };
 
   return (
     <div className="App">
+      <WelcomeModal visible={showWelcome} onClose={handleCloseWelcome} />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         {/* 独立的工作台页面 - 对所有已登录用户开放 */}

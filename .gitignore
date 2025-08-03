@@ -155,4 +155,11 @@ recordings/
 *.backup
 
 # Test coverage
-coverage.txt .claude/
+coverage.txt
+
+# Development and documentation
+.specs/
+.claude/
+docs/
+scripts/
+CLAUDE.md
