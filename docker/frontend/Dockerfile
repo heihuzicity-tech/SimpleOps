@@ -16,10 +16,13 @@ COPY frontend/package*.json ./
 # 安装所有依赖（包括开发依赖，用于构建）
 RUN npm ci
 
-# 复制源代码（确保复制所有文件，包括public目录）
+# 复制源代码 - 注意public和src在frontend目录下
 COPY frontend/public ./public
 COPY frontend/src ./src
-COPY frontend/tsconfig.json ./tsconfig.json
+COPY frontend/tsconfig.json ./
+
+# 验证文件是否存在
+RUN ls -la && ls -la public/ || echo "Public directory missing!"
 
 # 设置后端API地址环境变量（构建时）
 ENV REACT_APP_API_BASE_URL=http://localhost:8088
