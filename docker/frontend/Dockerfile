@@ -1,6 +1,12 @@
 # 第一阶段：构建阶段
 FROM node:18-alpine AS builder
 
+# 设置阿里云Alpine镜像源
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
+# 设置npm镜像源
+RUN npm config set registry https://registry.npmmirror.com
+
 # 设置工作目录
 WORKDIR /build
 
@@ -21,6 +27,9 @@ RUN npm run build
 
 # 第二阶段：运行阶段
 FROM nginx:alpine
+
+# 设置阿里云Alpine镜像源
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 # 安装必要工具
 RUN apk add --no-cache curl

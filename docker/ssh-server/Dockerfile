@@ -3,6 +3,10 @@ FROM ubuntu:22.04
 # 避免交互式提示
 ENV DEBIAN_FRONTEND=noninteractive
 
+# 设置阿里云Ubuntu镜像源
+RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+
 # 更新包列表并安装必要软件
 RUN apt-get update && apt-get install -y \
     openssh-server \

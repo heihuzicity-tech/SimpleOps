@@ -1,6 +1,13 @@
 # 第一阶段：构建阶段
 FROM golang:1.21-alpine AS builder
 
+# 设置阿里云Alpine镜像源
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
+# 设置Go代理
+ENV GOPROXY=https://goproxy.cn,direct
+ENV GO111MODULE=on
+
 # 安装构建依赖
 RUN apk add --no-cache git gcc musl-dev
 
@@ -23,6 +30,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 
 # 第二阶段：运行阶段
 FROM alpine:latest
+
+# 设置阿里云Alpine镜像源
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 # 安装运行时依赖
 RUN apk add --no-cache ca-certificates tzdata && \
