@@ -1,0 +1,116 @@
+# 运维堡垒机系统配置文件 - Docker环境
+app:
+  name: "bastion"
+  version: "1.0.0"
+  mode: "release"  # Docker环境使用release模式
+  port: 8080
+  host: "0.0.0.0"
+
+# 数据库配置 - 使用Docker网络内部地址
+database:
+  type: "mysql"
+  host: "172.20.0.7"  # MySQL容器的固定IP
+  port: 3306
+  username: "root"
+  password: "password123"
+  dbname: "bastion"
+  charset: "utf8mb4"
+  parseTime: true
+  loc: "Local"
+  maxIdleConns: 10
+  maxOpenConns: 100
+  connMaxLifetime: 3600 # 秒
+
+# Redis配置
+redis:
+  host: "172.20.0.8"  # Redis容器的固定IP
+  port: 6379
+  password: ""
+  db: 0
+  poolSize: 100
+  minIdleConns: 10
+
+# JWT配置
+jwt:
+  secret: "bastion-jwt-secret-docker-2025"
+  expire: 86400 # 24小时，单位秒
+  issuer: "bastion"
+
+# 日志配置
+log:
+  level: "info"   # Docker环境使用info级别
+  format: "json"  # JSON格式便于日志收集
+  output: "stdout" # 输出到标准输出
+  file:
+    path: "./logs/app.log"
+    maxSize: 100    # MB
+    maxBackups: 10
+    maxAge: 30      # 天
+    compress: true
+
+# SSH配置
+ssh:
+  timeout: 30     # 连接超时时间，秒
+  keepalive: 60   # 心跳间隔，秒
+  maxSessions: 100 # 最大并发会话数
+
+# 会话配置
+session:
+  timeout: 3600   # 会话超时时间，秒
+  recordPath: "./recordings" # 会话录制文件路径
+  enableRecord: true # 是否启用会话录制
+
+# 安全配置
+security:
+  enableRateLimit: true
+  rateLimit:
+    requests: 100   # 每分钟请求数限制
+    burst: 10       # 突发请求数
+  cors:
+    allowOrigins: ["http://localhost:8080", "http://172.20.0.5"]  # 前端容器地址
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowHeaders: ["Content-Type", "Authorization"]
+    exposeHeaders: ["Content-Length"]
+    allowCredentials: true
+    maxAge: 3600
+
+# 文件上传配置
+upload:
+  maxSize: 10     # MB
+  allowTypes: [".jpg", ".png", ".gif", ".pdf", ".txt"]
+  savePath: "./uploads"
+
+# 监控配置
+monitoring:
+  enableMetrics: true
+  metricsPath: "/metrics"
+  enableHealth: true
+  healthPath: "/api/v1/health"  # 健康检查端点
+
+# 通知配置（演示环境禁用）
+notification:
+  email:
+    smtp:
+      host: ""
+      port: 587
+      username: ""
+      password: ""
+    from: ""
+  webhook:
+    url: ""
+    timeout: 10
+
+# 审计配置
+audit:
+  enableOperationLog: true
+  enableSessionRecord: true
+  retentionDays: 7    # Docker环境只保留7天
+  dangerousCommands:  # 危险命令列表
+    - "rm -rf"
+    - "mkfs"
+    - "dd if="
+    - "iptables -F"
+    - "shutdown"
+    - "reboot"
+    - "passwd"
+    - "userdel"

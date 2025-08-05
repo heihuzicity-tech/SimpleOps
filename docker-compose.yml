@@ -1,0 +1,138 @@
+services:
+  # Redis缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: bastion-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    networks:
+      bastion-network:
+        ipv4_address: 172.20.0.8
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+  # MySQL数据库服务
+  mysql:
+    build:
+      context: .
+      dockerfile: docker/mysql/Dockerfile
+    container_name: bastion-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: password123
+      MYSQL_DATABASE: bastion
+      TZ: Asia/Shanghai
+    networks:
+      bastion-network:
+        ipv4_address: 172.20.0.7
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ppassword123"]
+      interval: 30s
+      timeout: 3s
+      start_period: 30s
+      retries: 3
+
+  # 后端API服务
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: bastion-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8088:8080"
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      bastion-network:
+        ipv4_address: 172.20.0.6
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 30s
+      retries: 3
+
+  # 前端Web服务
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    container_name: bastion-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      bastion-network:
+        ipv4_address: 172.20.0.5
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+  # SSH测试服务器1
+  ssh-server-1:
+    build:
+      context: .
+      dockerfile: docker/ssh-server/Dockerfile
+    container_name: bastion-ssh-server-1
+    restart: unless-stopped
+    hostname: ssh-server-1
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      bastion-network:
+        ipv4_address: 172.20.0.10
+    healthcheck:
+      test: ["CMD", "service", "ssh", "status"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+  # SSH测试服务器2
+  ssh-server-2:
+    build:
+      context: .
+      dockerfile: docker/ssh-server/Dockerfile
+    container_name: bastion-ssh-server-2
+    restart: unless-stopped
+    hostname: ssh-server-2
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      bastion-network:
+        ipv4_address: 172.20.0.11
+    healthcheck:
+      test: ["CMD", "service", "ssh", "status"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+# 自定义网络配置
+networks:
+  bastion-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+# 注意：根据需求，不使用volumes进行持久化存储
