@@ -261,46 +261,68 @@ const GroupManagePage: React.FC = () => {
       title: '操作',
       key: 'action',
       width: 200,
-      render: (_: any, record: AssetGroup) => (
-        <Space>
-          <Button
-            type="link"
-            icon={<UsergroupAddOutlined />}
-            onClick={() => handleManageAssets(record)}
-          >
-            管理资产
-          </Button>
-          <Tooltip title="编辑">
+      render: (_: any, record: AssetGroup) => {
+        // 判断是否为预设分组（通过名称或ID判断）
+        // 根据截图中的实际分组名称
+        const presetGroupNames = [
+          '生产环境', 
+          '测试环境', 
+          '开发环境',
+          'Web服务器',
+          '应用服务器',
+          '数据库服务器',
+          '测试服务器',
+          '开发服务器'
+        ];
+        // ID <= 8 或者在预设名称列表中的都是预设分组
+        const isPresetGroup = record.id <= 8 || presetGroupNames.includes(record.name);
+        
+        return (
+          <Space>
             <Button
               type="link"
-              icon={<EditOutlined />}
-              onClick={() => {
-                setEditingGroup(record);
-                setGroupModalVisible(true);
-                form.setFieldsValue({
-                  name: record.name,
-                  description: record.description
-                });
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="删除">
-            <Popconfirm
-              title="确定删除此分组吗？"
-              description="删除后分组下的资产将变为未分组状态"
-              onConfirm={() => handleDeleteGroup(record.id)}
-              okText="确定"
-              cancelText="取消"
+              icon={<UsergroupAddOutlined />}
+              onClick={() => handleManageAssets(record)}
             >
+              管理资产
+            </Button>
+            <Tooltip title={isPresetGroup ? "预设分组不可编辑" : "编辑"}>
               <Button
                 type="link"
-                icon={<DeleteOutlined />}
-                danger
+                icon={<EditOutlined />}
+                disabled={isPresetGroup}
+                onClick={() => {
+                  if (!isPresetGroup) {
+                    setEditingGroup(record);
+                    setGroupModalVisible(true);
+                    form.setFieldsValue({
+                      name: record.name,
+                      description: record.description
+                    });
+                  }
+                }}
               />
-            </Popconfirm>
-          </Tooltip>
-        </Space>
-      ),
+            </Tooltip>
+            <Tooltip title={isPresetGroup ? "预设分组不可删除" : "删除"}>
+              <Popconfirm
+                title="确定删除此分组吗？"
+                description="删除后分组下的资产将变为未分组状态"
+                onConfirm={() => handleDeleteGroup(record.id)}
+                okText="确定"
+                cancelText="取消"
+                disabled={isPresetGroup}
+              >
+                <Button
+                  type="link"
+                  icon={<DeleteOutlined />}
+                  danger
+                  disabled={isPresetGroup}
+                />
+              </Popconfirm>
+            </Tooltip>
+          </Space>
+        );
+      },
     },
   ];
 

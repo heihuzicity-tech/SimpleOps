@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Space, Typography, Spin } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Space, Typography, Spin, message, Button } from 'antd';
 import {
   DashboardOutlined,
   UserOutlined,
@@ -15,6 +15,8 @@ import {
   FolderOutlined,
   VideoCameraOutlined,
   SecurityScanOutlined,
+  InfoCircleOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -86,7 +88,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             {
               key: '/assets/databases',
               icon: <ConsoleSqlOutlined />,
-              label: '数据库',
+              label: (
+                <span style={{ opacity: 0.5 }}>
+                  数据库
+                  <InfoCircleOutlined style={{ marginLeft: 8, fontSize: 12 }} />
+                </span>
+              ),
+              disabled: true,
+              onClick: () => message.info('数据库资产功能正在开发中，敬请期待！'),
             },
             // 只有管理员才能看到分组管理
             ...(hasAdminPermission(user) ? [{
@@ -126,7 +135,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             {
               key: '/connect/databases',
               icon: <ConsoleSqlOutlined />,
-              label: '数据库连接',
+              label: (
+                <span style={{ opacity: 0.5 }}>
+                  数据库连接
+                  <InfoCircleOutlined style={{ marginLeft: 8, fontSize: 12 }} />
+                </span>
+              ),
+              disabled: true,
+              onClick: () => message.info('数据库连接功能正在开发中，敬请期待！'),
             },
           ],
         }
@@ -209,6 +225,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   ];
 
   const onMenuClick = ({ key }: { key: string }) => {
+    // 检查是否点击了禁用的菜单项
+    if (key === '/assets/databases') {
+      message.info('数据库资产功能正在开发中，敬请期待！');
+      return;
+    }
+    if (key === '/connect/databases') {
+      message.info('数据库连接功能正在开发中，敬请期待！');
+      return;
+    }
     navigate(key);
   };
 
@@ -334,6 +359,29 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         >
           <div />
           <Space size="middle">
+            <Space 
+              size="small" 
+              style={{ 
+                cursor: 'pointer',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                transition: 'all 0.2s',
+                color: '#595959',
+                fontSize: '14px'
+              }}
+              onClick={() => {
+                window.open('https://www.heihuzicity.com/docs/open-projects/overview', '_blank', 'noopener,noreferrer');
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#f5f5f5';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <LinkOutlined style={{ color: '#1890ff' }} />
+              <Text style={{ fontSize: '14px', color: '#595959' }}>官网</Text>
+            </Space>
             <Space 
               size="small" 
               style={{ 

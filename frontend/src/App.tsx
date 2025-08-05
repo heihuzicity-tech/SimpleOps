@@ -39,9 +39,16 @@ const App: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
-    // 每次登录都显示欢迎提示
+    // 检查当前会话是否已显示过欢迎提示
     if (token && user) {
-      setShowWelcome(true);
+      const welcomeShownKey = 'welcome_shown_session';
+      const hasShownInSession = sessionStorage.getItem(welcomeShownKey);
+      
+      if (!hasShownInSession) {
+        setShowWelcome(true);
+        // 标记当前会话已显示过欢迎提示
+        sessionStorage.setItem(welcomeShownKey, 'true');
+      }
     }
   }, [token, user]);
 

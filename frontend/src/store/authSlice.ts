@@ -56,6 +56,8 @@ export const login = createAsyncThunk(
 export const logout = createAsyncThunk('auth/logout', async () => {
   await authApiService.logout();
   localStorage.removeItem('token');
+  // 清除欢迎提示框的会话标记
+  sessionStorage.removeItem('welcome_shown_session');
 });
 
 export const getCurrentUser = createAsyncThunk('auth/getCurrentUser', async () => {

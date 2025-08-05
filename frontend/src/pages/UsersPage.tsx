@@ -179,27 +179,41 @@ const UsersPage: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      render: (text: any, record: any) => (
-        <Space size="middle">
-          <Button
-            key="edit"
-            type="text"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
-          <Popconfirm
-            key="delete"
-            title="确定要删除这个用户吗？"
-            onConfirm={() => handleDelete(record.id)}
-          >
-            <Button type="text" danger icon={<DeleteOutlined />}>
-              删除
+      render: (text: any, record: any) => {
+        // 判断是否为 admin 用户
+        const isAdmin = record.username === 'admin';
+        
+        return (
+          <Space size="middle">
+            <Button
+              key="edit"
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+              disabled={isAdmin}
+              title={isAdmin ? 'admin 用户不可编辑' : ''}
+            >
+              编辑
             </Button>
-          </Popconfirm>
-        </Space>
-      ),
+            <Popconfirm
+              key="delete"
+              title="确定要删除这个用户吗？"
+              onConfirm={() => handleDelete(record.id)}
+              disabled={isAdmin}
+            >
+              <Button 
+                type="text" 
+                danger 
+                icon={<DeleteOutlined />}
+                disabled={isAdmin}
+                title={isAdmin ? 'admin 用户不可删除' : ''}
+              >
+                删除
+              </Button>
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
