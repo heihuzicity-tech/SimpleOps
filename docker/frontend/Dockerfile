@@ -13,8 +13,8 @@ WORKDIR /build
 # 复制package文件
 COPY frontend/package*.json ./
 
-# 安装依赖
-RUN npm ci --only=production
+# 安装所有依赖（包括开发依赖，用于构建）
+RUN npm ci
 
 # 复制源代码
 COPY frontend/ ./
