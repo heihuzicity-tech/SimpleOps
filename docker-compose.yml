@@ -67,6 +67,10 @@ services:
     build:
       context: .
       dockerfile: docker/frontend/Dockerfile
+      args:
+        # 构建时的API地址配置（用于生产环境外部访问）
+        # 如果部署在外网，请修改为实际的后端地址
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-}
     container_name: bastion-frontend
     restart: unless-stopped
     depends_on:
@@ -75,6 +79,8 @@ services:
       - "8080:80"
     environment:
       TZ: Asia/Shanghai
+      # 运行时的API地址配置（可选，优先级高于构建时配置）
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-}
     networks:
       bastion-network:
         ipv4_address: 172.20.0.5

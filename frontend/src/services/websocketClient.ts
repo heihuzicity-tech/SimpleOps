@@ -228,11 +228,25 @@ let globalWSClient: WebSocketClient | null = null;
 // 获取全局WebSocket客户端
 export const getWebSocketClient = (): WebSocketClient => {
   if (!globalWSClient) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // 开发环境连接到后端8080端口，生产环境使用同域名
-    const isDev = process.env.NODE_ENV === 'development';
-    const host = isDev ? 'localhost:8080' : window.location.host;
-    const wsUrl = `${protocol}//${host}/api/v1/ws/monitor`;
+    let wsUrl: string;
+    
+    // 优先使用环境变量配置
+    if (process.env.REACT_APP_API_URL) {
+      // 从API URL构建WebSocket URL
+      const apiUrl = process.env.REACT_APP_API_URL;
+      const wsProtocol = apiUrl.startsWith('https') ? 'wss' : 'ws';
+      const host = apiUrl.replace(/^https?:\/\//, '');
+      wsUrl = `${wsProtocol}://${host}/api/v1/ws/monitor`;
+    } else {
+      // 自动检测（与SSH WebSocket保持一致）
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.hostname;
+      const isDev = process.env.NODE_ENV === 'development';
+      const port = isDev ? '8080' : window.location.port || '80';
+      const hostWithPort = port === '80' || port === '443' ? host : `${host}:${port}`;
+      wsUrl = `${protocol}//${hostWithPort}/api/v1/ws/monitor`;
+    }
+    
     globalWSClient = new WebSocketClient(wsUrl);
   }
   return globalWSClient;

@@ -56,14 +56,27 @@ export const sshAPI = {
 
   // 获取WebSocket连接URL
   getWebSocketURL(sessionId: string): string {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname;
-    // ✅ 修复：动态获取后端端口，开发环境用8080，生产环境用当前端口
-    const isDev = process.env.NODE_ENV === 'development';
-    const port = isDev ? '8080' : window.location.port || '80';
     const token = localStorage.getItem('token');
-    const hostWithPort = port === '80' || port === '443' ? host : `${host}:${port}`;
-    return `${protocol}//${hostWithPort}/api/v1/ws/ssh/sessions/${sessionId}/ws?token=${token}`;
+    let wsUrl: string;
+    
+    // 优先使用环境变量配置
+    if (process.env.REACT_APP_API_URL) {
+      // 从API URL构建WebSocket URL
+      const apiUrl = process.env.REACT_APP_API_URL;
+      const wsProtocol = apiUrl.startsWith('https') ? 'wss' : 'ws';
+      const host = apiUrl.replace(/^https?:\/\//, '');
+      wsUrl = `${wsProtocol}://${host}/api/v1/ws/ssh/sessions/${sessionId}/ws`;
+    } else {
+      // 自动检测
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.hostname;
+      const isDev = process.env.NODE_ENV === 'development';
+      const port = isDev ? '8080' : window.location.port || '80';
+      const hostWithPort = port === '80' || port === '443' ? host : `${host}:${port}`;
+      wsUrl = `${protocol}//${hostWithPort}/api/v1/ws/ssh/sessions/${sessionId}/ws`;
+    }
+    
+    return `${wsUrl}?token=${token}`;
   },
 
   // ===== 超时管理API =====

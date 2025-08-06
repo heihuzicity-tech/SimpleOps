@@ -24,8 +24,12 @@ COPY frontend/tsconfig.json ./
 # 验证文件是否存在
 RUN ls -la && ls -la public/ || echo "Public directory missing!"
 
-# 设置后端API地址环境变量（构建时）
-ENV REACT_APP_API_BASE_URL=http://localhost:8088
+# 接收构建参数
+ARG REACT_APP_API_URL
+
+# 设置构建时的环境变量
+# 如果提供了REACT_APP_API_URL，则使用它；否则不设置（使用代码中的默认逻辑）
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
 
 # 构建应用
 RUN npm run build

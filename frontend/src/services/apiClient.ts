@@ -3,7 +3,7 @@ import { message } from 'antd';
 
 // 创建axios实例
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: '/api/v1',
+  baseURL: process.env.REACT_APP_API_URL ? `${process.env.REACT_APP_API_URL}/api/v1` : '/api/v1',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
