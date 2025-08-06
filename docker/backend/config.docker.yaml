@@ -121,6 +121,8 @@ websocket:
   port: 8080    # WebSocket端口（与主服务端口相同）
   path: "/api/v1/ws/monitor"  # WebSocket路径
   heartbeatInterval: 30  # 心跳间隔（秒）
+  readTimeout: 60       # 读取超时（秒）
+  writeTimeout: 10      # 写入超时（秒）
   maxConnections: 1000   # 最大连接数
 
 # 监控配置
