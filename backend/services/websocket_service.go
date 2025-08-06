@@ -489,8 +489,13 @@ func (ws *WebSocketService) UnregisterSSHClient(client *Client) {
 
 // InitWebSocketService 初始化WebSocket服务
 func InitWebSocketService() {
+	logrus.WithField("enable", config.GlobalConfig.WebSocket.Enable).Info("Checking WebSocket service configuration")
 	if config.GlobalConfig.WebSocket.Enable {
+		logrus.Info("WebSocket service is enabled, initializing...")
 		GlobalWebSocketService = NewWebSocketService()
 		GlobalWebSocketService.Start()
+		logrus.Info("WebSocket service initialized and started successfully")
+	} else {
+		logrus.Warn("WebSocket service is disabled in configuration")
 	}
 }
