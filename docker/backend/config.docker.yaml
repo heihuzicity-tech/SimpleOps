@@ -6,10 +6,10 @@ app:
   port: 8080
   host: "0.0.0.0"
 
-# 数据库配置 - 使用Docker网络内部地址
+# 数据库配置 - 使用Docker服务名
 database:
   type: "mysql"
-  host: "172.20.0.7"  # MySQL容器的固定IP
+  host: "mysql"  # 使用服务名而不是固定IP
   port: 3306
   username: "root"
   password: "password123"
@@ -23,7 +23,7 @@ database:
 
 # Redis配置
 redis:
-  host: "172.20.0.8"  # Redis容器的固定IP
+  host: "redis"  # 使用服务名而不是固定IP
   port: 6379
   password: ""
   db: 0
@@ -67,7 +67,7 @@ security:
     requests: 100   # 每分钟请求数限制
     burst: 10       # 突发请求数
   cors:
-    allowOrigins: ["http://localhost:8080", "http://172.20.0.5"]  # 前端容器地址
+    allowOrigins: ["http://localhost:8080", "http://frontend"]  # 使用服务名
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     allowHeaders: ["Content-Type", "Authorization"]
     exposeHeaders: ["Content-Length"]

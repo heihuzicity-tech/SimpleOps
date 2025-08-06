@@ -6,8 +6,7 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
     networks:
-      bastion-network:
-        ipv4_address: 172.20.0.8
+      - bastion-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -27,8 +26,7 @@ services:
       MYSQL_DATABASE: bastion
       TZ: Asia/Shanghai
     networks:
-      bastion-network:
-        ipv4_address: 172.20.0.7
+      - bastion-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ppassword123"]
       interval: 30s
@@ -48,13 +46,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    ports:
-      - "8088:8080"
+    # 移除端口映射，不需要对外暴露
     environment:
       TZ: Asia/Shanghai
+      DB_HOST: mysql      # 使用服务名连接数据库
+      REDIS_HOST: redis   # 使用服务名连接Redis
     networks:
-      bastion-network:
-        ipv4_address: 172.20.0.6
+      - bastion-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/v1/health"]
       interval: 30s
@@ -68,22 +66,18 @@ services:
       context: .
       dockerfile: docker/frontend/Dockerfile
       args:
-        # 构建时的API地址配置（用于生产环境外部访问）
-        # 如果部署在外网，请修改为实际的后端地址
-        REACT_APP_API_URL: ${REACT_APP_API_URL:-}
+        # 使用nginx代理时不需要设置API URL
+        REACT_APP_API_URL: ""
     container_name: bastion-frontend
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "8080:80"
+      - "8080:80"  # 唯一需要对外暴露的端口
     environment:
       TZ: Asia/Shanghai
-      # 运行时的API地址配置（可选，优先级高于构建时配置）
-      REACT_APP_API_URL: ${REACT_APP_API_URL:-}
     networks:
-      bastion-network:
-        ipv4_address: 172.20.0.5
+      - bastion-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 30s
