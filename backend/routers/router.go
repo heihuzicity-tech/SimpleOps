@@ -15,9 +15,11 @@ func SetupRouter() *gin.Engine {
 	// 创建Gin引擎
 	router := gin.Default()
 
-	// 设置CORS中间件
+	// 设置CORS中间件 - 允许所有来源访问
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://127.0.0.1:8080"},
+		AllowOriginFunc: func(origin string) bool {
+			return true // 允许所有来源
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},

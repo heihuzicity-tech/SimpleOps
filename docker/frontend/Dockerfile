@@ -16,7 +16,7 @@ COPY frontend/package*.json ./
 # 安装所有依赖（包括开发依赖，用于构建）
 RUN npm ci
 
-# 复制源代码 - 注意public和src在frontend目录下
+# 复制源代码
 COPY frontend/public ./public
 COPY frontend/src ./src
 COPY frontend/tsconfig.json ./
