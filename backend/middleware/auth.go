@@ -12,27 +12,32 @@ import (
 // AuthMiddleware JWT认证中间件
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var tokenString string
+		
 		// 从请求头获取token
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Authorization header is required",
-			})
-			c.Abort()
-			return
+		if authHeader != "" {
+			// 检查token格式
+			bearerToken := strings.Split(authHeader, " ")
+			if len(bearerToken) != 2 || bearerToken[0] != "Bearer" {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error": "Invalid authorization format",
+				})
+				c.Abort()
+				return
+			}
+			tokenString = bearerToken[1]
+		} else {
+			// 如果header中没有，尝试从URL参数获取（用于WebSocket）
+			tokenString = c.Query("token")
+			if tokenString == "" {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error": "Authorization token is required",
+				})
+				c.Abort()
+				return
+			}
 		}
-
-		// 检查token格式
-		bearerToken := strings.Split(authHeader, " ")
-		if len(bearerToken) != 2 || bearerToken[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid authorization format",
-			})
-			c.Abort()
-			return
-		}
-
-		tokenString := bearerToken[1]
 
 		// 检查token是否在黑名单中
 		if utils.IsTokenBlacklisted(tokenString) {
