@@ -9,6 +9,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// isWebSocketRequest 检查是否是WebSocket请求
+func isWebSocketRequest(c *gin.Context) bool {
+	upgrade := c.GetHeader("Upgrade")
+	connection := c.GetHeader("Connection")
+	return strings.ToLower(upgrade) == "websocket" && 
+	       strings.Contains(strings.ToLower(connection), "upgrade")
+}
+
 // AuthMiddleware JWT认证中间件
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -83,6 +91,12 @@ func RequirePermission(permission string) gin.HandlerFunc {
 		// 获取用户信息
 		userInterface, exists := c.Get("user")
 		if !exists {
+			// 检查是否是WebSocket请求
+			if isWebSocketRequest(c) {
+				// WebSocket请求不返回JSON，直接中止
+				c.Abort()
+				return
+			}
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "User not found in context",
 			})
@@ -92,6 +106,10 @@ func RequirePermission(permission string) gin.HandlerFunc {
 
 		user, ok := userInterface.(*models.User)
 		if !ok {
+			if isWebSocketRequest(c) {
+				c.Abort()
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "Invalid user type",
 			})
@@ -101,6 +119,10 @@ func RequirePermission(permission string) gin.HandlerFunc {
 
 		// 检查权限
 		if !user.HasPermission(permission) {
+			if isWebSocketRequest(c) {
+				c.Abort()
+				return
+			}
 			c.JSON(http.StatusForbidden, gin.H{
 				"error": "Insufficient permissions",
 			})
