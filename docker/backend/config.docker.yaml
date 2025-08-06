@@ -114,3 +114,16 @@ audit:
     - "reboot"
     - "passwd"
     - "userdel"
+
+# WebSocket配置
+websocket:
+  enable: true  # 启用WebSocket服务
+  port: 8080    # WebSocket端口（与主服务端口相同）
+  path: "/api/v1/ws/monitor"  # WebSocket路径
+  heartbeatInterval: 30  # 心跳间隔（秒）
+  maxConnections: 1000   # 最大连接数
+
+# 监控配置
+monitor:
+  enable: true  # 启用监控功能
+  maxConcurrentMonitors: 10  # 最大并发监控数
