@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket测试</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { margin: 10px; padding: 5px 10px; }
+        #logs { 
+            background: #f0f0f0; 
+            padding: 10px; 
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket连接测试</h1>
+    
+    <div>
+        <label>Token: </label>
+        <input type="text" id="token" style="width: 500px;" placeholder="请输入token">
+        <button onclick="getTokenFromStorage()">从localStorage获取</button>
+    </div>
+    
+    <div>
+        <label>服务器: </label>
+        <input type="text" id="server" value="47.115.133.178:8080" style="width: 200px;">
+    </div>
+    
+    <div>
+        <button onclick="testMonitorWS()">测试监控WebSocket</button>
+        <button onclick="testDirectWS()">测试直接连接后端(8088)</button>
+        <button onclick="clearLogs()">清空日志</button>
+    </div>
+    
+    <div id="logs"></div>
+    
+    <script>
+        function log(message, className = '') {
+            const logs = document.getElementById('logs');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + className;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logs.appendChild(entry);
+            logs.scrollTop = logs.scrollHeight;
+        }
+        
+        function getTokenFromStorage() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                document.getElementById('token').value = token;
+                log('Token获取成功', 'success');
+            } else {
+                log('localStorage中没有token', 'error');
+            }
+        }
+        
+        function testMonitorWS() {
+            const token = document.getElementById('token').value;
+            const server = document.getElementById('server').value;
+            
+            if (!token) {
+                log('请先输入token', 'error');
+                return;
+            }
+            
+            const wsUrl = `ws://${server}/api/v1/ws/monitor?token=${encodeURIComponent(token)}`;
+            log(`正在连接: ${wsUrl}`, 'info');
+            
+            const ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                log('WebSocket连接成功！', 'success');
+                // 发送测试消息
+                ws.send(JSON.stringify({type: 'ping', timestamp: new Date().toISOString()}));
+            };
+            
+            ws.onmessage = function(event) {
+                log(`收到消息: ${event.data}`, 'info');
+            };
+            
+            ws.onerror = function(error) {
+                log(`WebSocket错误: ${error}`, 'error');
+                console.error('WebSocket错误详情:', error);
+            };
+            
+            ws.onclose = function(event) {
+                log(`WebSocket关闭: code=${event.code}, reason=${event.reason}`, 'error');
+            };
+        }
+        
+        function testDirectWS() {
+            const token = document.getElementById('token').value;
+            
+            if (!token) {
+                log('请先输入token', 'error');
+                return;
+            }
+            
+            // 尝试直接连接后端8088端口（如果存在）
+            const wsUrl = `ws://47.115.133.178:8088/api/v1/ws/monitor?token=${encodeURIComponent(token)}`;
+            log(`尝试直接连接后端: ${wsUrl}`, 'info');
+            
+            const ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                log('直接连接成功！说明后端WebSocket服务正常', 'success');
+            };
+            
+            ws.onerror = function(error) {
+                log('直接连接失败，可能8088端口未开放或后端有问题', 'error');
+            };
+            
+            ws.onclose = function(event) {
+                log(`连接关闭: code=${event.code}`, 'error');
+            };
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        // 页面加载时尝试获取token
+        window.onload = function() {
+            getTokenFromStorage();
+        };
+    </script>
+</body>
+</html>
