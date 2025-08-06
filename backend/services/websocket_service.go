@@ -196,8 +196,11 @@ func (cm *ConnectionManager) registerClient(client *Client) {
 	// }
 	// client.SendMessage(welcomeMsg)
 
-	// 发送当前活跃会话信息
-	go cm.sendActiveSessionsToClient(client)
+	// 延迟发送活跃会话信息，确保客户端完全初始化
+	go func() {
+		time.Sleep(100 * time.Millisecond) // 短暂延迟确保连接稳定
+		cm.sendActiveSessionsToClient(client)
+	}()
 }
 
 // 注销客户端
@@ -271,6 +274,16 @@ func (cm *ConnectionManager) heartbeat() {
 
 // 发送活跃会话信息给客户端
 func (cm *ConnectionManager) sendActiveSessionsToClient(client *Client) {
+	// 先检查客户端是否仍在连接中
+	cm.Mutex.RLock()
+	_, exists := cm.Clients[client.ID]
+	cm.Mutex.RUnlock()
+	
+	if !exists {
+		logrus.WithField("client_id", client.ID).Debug("客户端已断开，跳过发送活跃会话")
+		return
+	}
+
 	// 获取活跃会话数据
 	db := utils.GetDB()
 	var sessions []models.SessionRecord
@@ -308,10 +321,19 @@ func (c *Client) SendMessage(message WSMessage) {
 		return
 	}
 
+	// 使用defer recover防止panic
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.WithField("client_id", c.ID).Warn("尝试向已关闭的连接发送消息")
+		}
+	}()
+
 	select {
 	case c.Send <- data:
-	default:
-		close(c.Send)
+		// 消息发送成功
+	case <-time.After(time.Second * 1):
+		// 发送超时，客户端可能已断开
+		logrus.WithField("client_id", c.ID).Warn("发送消息超时")
 	}
 }
 
