@@ -242,39 +242,56 @@ func WebSocketAuthMiddleware() gin.HandlerFunc {
 		}
 
 		if tokenString == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Token is required",
-			})
-			c.Abort()
+			// WebSocket请求失败时，不返回JSON，直接中止
+			if isWebSocketRequest(c) {
+				c.AbortWithStatus(http.StatusUnauthorized)
+			} else {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error": "Token is required",
+				})
+				c.Abort()
+			}
 			return
 		}
 
 		// 检查token是否在黑名单中
 		if utils.IsTokenBlacklisted(tokenString) {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Token is blacklisted",
-			})
-			c.Abort()
+			if isWebSocketRequest(c) {
+				c.AbortWithStatus(http.StatusUnauthorized)
+			} else {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error": "Token is blacklisted",
+				})
+				c.Abort()
+			}
 			return
 		}
 
 		// 验证token
 		claims, err := utils.ValidateToken(tokenString)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid token: " + err.Error(),
-			})
-			c.Abort()
+			if isWebSocketRequest(c) {
+				c.AbortWithStatus(http.StatusUnauthorized)
+			} else {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error": "Invalid token: " + err.Error(),
+				})
+				c.Abort()
+			}
 			return
 		}
 
 		// 获取用户信息
 		user, err := utils.GetUserFromToken(tokenString)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "User not found: " + err.Error(),
-			})
-			c.Abort()
+			if isWebSocketRequest(c) {
+				c.AbortWithStatus(http.StatusUnauthorized)
+			} else {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error": "User not found: " + err.Error(),
+				})
+				c.Abort()
+			}
 			return
 		}
 
