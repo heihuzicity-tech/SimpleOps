@@ -1,249 +1,218 @@
-# 黑胡子堡垒机系统 (Blackbeard Bastion)
+---
+sidebar_position: 4
+title: 黑胡子堡垒机
+---
 
-[![Go Version](https://img.shields.io/badge/Go-1.19+-blue.svg)](https://golang.org)
-[![React Version](https://img.shields.io/badge/React-18+-blue.svg)](https://reactjs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org)
-[![Ant Design](https://img.shields.io/badge/Ant%20Design-5.0+-blue.svg)](https://ant.design)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+# 🤖 100% AI编写的企业级运维安全管理平台
 
-## 🏴‍☠️ 项目简介
+## 项目体验地址：
 
-黑胡子堡垒机系统是一个现代化的企业级运维安全管理平台，提供全面的服务器访问控制、操作审计和资产管理功能。系统采用前后端分离架构，具备高性能、高安全性和易扩展性。
+http://47.115.50.246:8080/login
 
-### ✨ 核心特性
+## 🌟 项目背景与愿景
 
-- 🔐 **身份认证与授权** - 基于JWT的安全认证和RBAC权限控制
-- 🖥️ **资产管理** - 统一管理服务器、数据库等IT资产
-- 🔑 **凭证管理** - 安全的密码和密钥管理
-- 🌐 **WebSSH终端** - 浏览器内的SSH终端访问
-- 📊 **审计日志** - 全面的操作记录和会话审计
-- 🚫 **命令过滤** - 危险命令拦截和权限控制
-- 📈 **仪表盘** - 实时监控和统计分析
-- 🎯 **会话管理** - 在线会话监控和强制下线
+### 一个大胆的实验
 
-## 🛠️ 技术栈
+**黑胡子堡垒机**是一个具有里程碑意义的实验性项目，旨在验证一个大胆的假设：
 
-### 后端技术
-- **Go 1.19+** - 高性能后端服务
-- **Gin** - Web框架
-- **GORM** - ORM框架
-- **MySQL 8.0** - 主数据库
-- **Redis** - 缓存和会话存储
-- **JWT** - 身份认证
-- **WebSocket** - 实时通信
+**AI是否能够从0到1，独立构建一个功能完整、可实际运行的大型企业级应用？**
 
-### 前端技术
-- **React 18** - 前端框架
-- **TypeScript 5.0** - 类型安全
-- **Ant Design 5.0** - UI组件库
-- **Redux Toolkit** - 状态管理
-- **Axios** - HTTP客户端
-- **Xterm.js** - 终端模拟器
+这不是一个简单的Demo，也不是一个玩具项目，而是一个拥有**51,148行代码**的完整企业级运维安全管理平台。
 
-## 📋 功能模块
+![项目仪表盘](/img/open-projects/fortress/dashboard.png)
 
-### ✅ 已完成功能
+## 🎯 核心亮点：100% AI编写
 
-#### 1. 用户与权限管理
-- 用户注册、登录、登出
-- 基于角色的权限控制（RBAC）
-- 用户管理（增删改查）
-- 角色管理（admin、auditor、user）
-- 权限动态分配
+### 📊 项目规模统计
 
-#### 2. 资产管理
-- 服务器资产管理（Linux/Windows）
-- 数据库资产管理（MySQL/PostgreSQL）
-- 资产分组管理
-- 连接状态监控
-- 批量操作支持
+| 模块                   | 代码量       | 文件数        | AI工具               |
+| ---------------------- | ------------ | ------------- | -------------------- |
+| **后端（Go）**         | 23,806行     | 52个文件      | Claude Code + SPECS  |
+| **前端（TypeScript）** | 27,342行     | 110个文件     | Claude Code + Cursor |
+| **总计**               | **51,148行** | **162个文件** | **100% AI生成**      |
 
-#### 3. 凭证管理
-- 密码凭证管理
-- SSH密钥管理
-- 凭证与资产关联
-- 凭证权限控制
+### 🛠️ AI开发方式分布
 
-#### 4. SSH连接管理
-- WebSSH终端
-- 多标签页支持
-- 会话录像回放
-- 实时会话监控
-- 会话超时控制
+- **15%** - Cursor + 提示词（快速代码补全）
+- **35%** - Claude Code + 提示词（复杂功能开发）  
+- **50%** - Claude Code + SPECS工作流（系统化设计与实现）
 
-#### 5. 审计功能
-- 操作日志记录
-- SSH会话审计
-- 命令日志记录
-- 录像文件管理
-- 审计报表导出
+## 💡 独特的开发模式：SPECS工作流
 
-#### 6. 命令过滤
-- 危险命令拦截
-- 命令组管理
-- 黑白名单控制
-- 实时拦截通知
-
-#### 7. 仪表盘
-- 资产统计
-- 用户活跃度
-- 会话分析
-- 安全事件统计
-
-#### 8. 系统管理
-- 系统配置
-- 日志管理
-- 备份恢复
-- 性能监控
-
-## 🚀 快速开始
-
-### 环境要求
-
-- Go 1.19+
-- Node.js 18+
-- MySQL 8.0+
-- Redis 6.0+
-
-### 后端启动
-
-```bash
-# 进入后端目录
-cd backend
-
-# 安装依赖
-go mod download
-
-# 复制配置文件
-cp config/config.example.yaml config/config.yaml
-
-# 修改数据库配置
-vim config/config.yaml
-
-# 导入数据库
-mysql -u root -p < scripts/init.sql
-
-# 启动服务
-go run main.go
-```
-
-### 前端启动
-
-```bash
-# 进入前端目录
-cd frontend
-
-# 安装依赖
-npm install
-
-# 启动开发服务器
-npm start
-
-# 访问 http://localhost:3000
-```
-
-### 默认账号
-
-- 管理员：admin / Admin@123
-- 审计员：auditor / Auditor@123
-- 普通用户：user / User@123
-
-## 📁 项目结构
+SPECS（Specification-Driven Development）是专为AI编程设计的开发工作流：
 
 ```
-bastion/
-├── backend/                 # 后端服务
-│   ├── config/             # 配置文件
-│   ├── controllers/        # 控制器
-│   ├── models/             # 数据模型
-│   ├── services/           # 业务逻辑
-│   ├── middleware/         # 中间件
-│   ├── routers/            # 路由
-│   ├── utils/              # 工具函数
-│   └── main.go            # 入口文件
-├── frontend/               # 前端应用
-│   ├── public/            # 静态资源
-│   ├── src/
-│   │   ├── components/    # 组件
-│   │   ├── pages/         # 页面
-│   │   ├── services/      # API服务
-│   │   ├── store/         # Redux状态
-│   │   ├── types/         # TypeScript类型
-│   │   └── utils/         # 工具函数
-│   └── package.json
-├── scripts/                # 数据库脚本
-├── recordings/             # 会话录像
-└── README.md              # 项目文档
+需求分析 → 技术设计 → 任务规划 → AI执行 → 测试验证
 ```
 
-## 🔧 配置说明
+每个功能都通过结构化的SPECS文档驱动，确保AI能够理解并准确实现复杂的业务逻辑。
 
-### 后端配置 (config/config.yaml)
+## 🚀 核心功能特色
 
-```yaml
-app:
-  name: "bastion"
-  port: 8080
-  mode: "release"  # debug, release
+### 1. 🎥 会话录制与回放
 
-database:
-  type: "mysql"
-  host: "localhost"
-  port: 3306
-  username: "bastion"
-  password: "your-password"
-  dbname: "bastion"
+- **完整录制**：记录用户在SSH终端的所有操作
+- **实时回放**：像看视频一样回放历史操作过程
+- **审计追溯**：支持按时间、用户、主机等维度检索
+- **关键时刻定位**：快速定位到关键操作时间点
 
-redis:
-  host: "localhost"
-  port: 6379
-  password: ""
-  db: 0
+![会话录制与回放](/img/open-projects/fortress/session-replay.png)
 
-jwt:
-  secret: "your-secret-key"
-  expire: 86400  # 24小时
+### 2. 🚫 智能命令限制
 
-ssh:
-  timeout: 3600  # SSH会话超时时间（秒）
-  recording: true  # 是否开启录像
+- **危险命令拦截**：自动识别并拦截如`rm -rf /`等危险命令
+- **黑白名单控制**：灵活配置允许和禁止的命令列表
+- **命令组管理**：批量管理同类型命令的权限
+- **实时告警**：危险操作立即通知管理员
+- **权限级别控制**：不同角色执行不同级别的命令
+
+![智能命令限制](/img/open-projects/fortress/command-filter.png)
+
+### 3. 🌐 WebSSH终端
+
+- **浏览器直接访问**：无需安装客户端软件
+- **多标签页管理**：同时管理多个SSH会话
+- **会话保持**：断线自动重连
+- **终端美化**：支持主题切换和字体调整
+
+![WebSSH终端](/img/open-projects/fortress/webssh.png)
+
+### 4. 🔐 多层安全防护
+
+- **双因素认证**：密码+动态验证码
+- **会话加密**：端到端加密传输
+- **权限细分**：基于RBAC的精细化权限控制
+- **操作审计**：全程记录用户行为
+
+![多层安全防护](/img/open-projects/fortress/security.png)
+
+### 5. 📊 智能运维仪表盘
+
+- **资产概览**：服务器状态一目了然
+- **实时监控**：在线会话实时追踪
+- **安全分析**：危险操作统计与趋势
+- **性能指标**：系统负载和响应时间监控
+
+![智能运维仪表盘](/img/open-projects/fortress/monitoring.png)
+
+## 🎨 技术架构亮点
+
+### 后端架构（Go）
+
+```
+├── 高性能Gin框架
+├── GORM优雅的ORM
+├── JWT安全认证
+├── WebSocket实时通信
+└── Redis缓存加速
 ```
 
-## 📊 API文档
+### 前端架构（React）
 
-系统提供完整的RESTful API，主要端点包括：
+```
+├── React 18最新特性
+├── TypeScript类型安全
+├── Ant Design企业级UI
+├── Redux状态管理
+└── Xterm.js终端模拟
+```
 
-- `/api/v1/auth/*` - 认证相关
-- `/api/v1/users/*` - 用户管理
-- `/api/v1/assets/*` - 资产管理
-- `/api/v1/credentials/*` - 凭证管理
-- `/api/v1/ssh/*` - SSH连接
-- `/api/v1/audit/*` - 审计日志
-- `/api/v1/dashboard/*` - 仪表盘数据
+## 📈 项目成果
 
-## 🚧 开发计划
+### 功能完整性
 
-- [ ] 支持更多协议（RDP、VNC、Telnet）
-- [ ] 批量命令执行
-- [ ] 自动化运维
-- [ ] 移动端支持
-- [ ] 集成第三方认证（LDAP、OAuth2）
-- [ ] 高可用部署方案
-- [ ] 国际化支持
+✅ 用户与权限管理
+✅ 资产统一管理
+✅ 凭证安全存储
+✅ SSH连接管理
+✅ 会话录制回放
+✅ 命令过滤拦截
+✅ 审计日志追溯
+✅ 实时监控大屏  
 
-## 🤝 贡献指南
+### 开发计划
 
-欢迎提交Issue和Pull Request！
+- 支持更多协议（RDP、VNC、Telnet）
+- 批量命令执行
+- 自动化运维
+- 移动端支持
+- 集成第三方认证（LDAP、OAuth2）
+- 高可用部署方案
+- 国际化支持
 
-## 📄 许可证
+### 企业级特性
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+- **高可用**：支持集群部署和负载均衡
+- **高性能**：支持千级并发连接
+- **易扩展**：模块化设计，便于功能扩展
+- **易部署**：Docker一键部署
 
-## 👥 联系我们
+## 🔬 实验意义
 
-- 项目主页：https://github.com/yourusername/bastion
-- Issue反馈：https://github.com/yourusername/bastion/issues
+### 对AI编程的验证
+
+1. **复杂度验证**：证明AI能处理5万行级别的项目复杂度
+2. **架构能力**：AI能够设计和实现合理的系统架构
+3. **业务理解**：AI能够理解并实现复杂的业务逻辑
+4. **代码质量**：AI生成的代码符合工程化标准
+
+### 对行业的启示
+
+- **开发效率提升**：相比传统开发效率提升10-20倍
+- **知识迁移**：AI能够快速学习和应用新技术栈
+- **持续优化**：通过对话即可实现功能迭代
+- **降低门槛**：让更多人参与到软件开发中
+
+## ⚠️ 重要声明
+
+本项目是一个**技术实验项目**，用于探索AI编程的可能性：
+
+- 🔬 **仅供学习交流**：请勿用于生产环境
+- 📖 **开源共享**：代码完全开源，欢迎研究
+- 🤝 **社区驱动**：欢迎提出建议和改进方案
+- 🎯 **持续迭代**：项目仍在不断优化中
+
+## 🌈 未来展望
+
+### 技术演进
+
+- 引入更多AI辅助功能（智能运维建议、异常检测等）
+- 探索AI自动化测试和部署
+- 实现AI驱动的性能优化
+
+### 社区建设
+
+- 建立AI编程最佳实践库
+- 分享SPECS工作流经验
+- 培养AI编程人才
+
+## 💬 结语
+
+**黑胡子堡垒机**不仅是一个功能完整的运维安全管理平台，更是AI编程能力的一次全面展示。它证明了：
+
+**在AI的协助下，我们正在进入一个全新的软件开发时代。**
+
+这个项目的每一行代码都是AI编写的，但背后是人类的创造力、想象力和对技术的热情。
+
+让我们一起见证并参与这场AI编程的革命！
 
 ---
 
-⚓ Built with ❤️ by Blackbeard Team
+### 🔗 相关链接
+
+- GitHub仓库：[即将开源]
+- 技术博客：https://www.heihuzicity.com
+- 视频演示：https://www.heihuzicity.com
+- 交流社区：https://www.heihuzicity.com
+
+### 📧 联系我们
+
+如果您对AI编程感兴趣，或想了解更多项目细节，欢迎联系我们：
+
+- 黑胡子博客网站交流群：
+
+<img src="/img/open-projects/fortress/wechat-group.png" alt="黑胡子博客网站交流群" width="300" />
+
+---
+
+*让AI成为您的编程伙伴，一起创造更多可能！* 🚀
