@@ -7,6 +7,7 @@
 
 # Go binaries
 backend/bastion
+backend/bastion-server
 bastion
 
 # Test binary, built with `go test -c`
@@ -163,3 +164,6 @@ coverage.txt
 docs/
 scripts/
 CLAUDE.md
+
+# Large generated assets
+.specs/backups/db/
